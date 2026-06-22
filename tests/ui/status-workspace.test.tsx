@@ -48,4 +48,36 @@ describe("StatusWorkspace", () => {
       ).length,
     ).toBeGreaterThan(0);
   });
+
+  it("renders price-basis fallback risk copy", () => {
+    render(
+      <StatusWorkspace
+        initialSnapshot={{
+          overallStatus: "warning",
+          lastRunAt: "2026-06-23T00:00:00.000Z",
+          summary: "价格口径使用未复权 fallback。",
+          sections: [
+            {
+              key: "price_basis",
+              title: "行情价格口径",
+              status: "warning",
+              summary:
+                "未能稳定获取前复权行情，当前验证结果退回未复权价格；后续筛选会显示该口径风险。",
+              details: [
+                { label: "basis", value: "unadjusted_daily" },
+                { label: "fallback_risk", value: "ma_and_swing_high_shift" },
+              ],
+            },
+          ],
+        }}
+        logoutAction={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getAllByText(
+        "未能稳定获取前复权行情，当前验证结果退回未复权价格；后续筛选会显示该口径风险。",
+      ).length,
+    ).toBeGreaterThan(0);
+  });
 });
