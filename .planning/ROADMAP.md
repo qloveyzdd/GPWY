@@ -33,11 +33,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. 系统可以用真实 token 获取股票基础信息样例。
   4. 系统可以明确记录行情价格口径选择。
   5. 系统可以报告筹码候选接口可用、不可用或权限不足。
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 01-01-PLAN.md: Walking skeleton with Next.js scaffold, server-only config, access gate, SQLite validation snapshot, and status workspace.
+- [x] 01-01-PLAN.md: Walking skeleton with Next.js scaffold, server-only config, access gate, SQLite validation snapshot, and status workspace.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02-PLAN.md: Server-only Tushare client, stock_basic validation, market data probe, and sanitized latest-status API.
@@ -143,7 +143,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Tushare Data Foundation | 0/3 | Not started | - |
+| 1. Tushare Data Foundation | 1/3 | In Progress |  |
 | 2. Manual Refresh Cache | 0/3 | Not started | - |
 | 3. Downtrend Screening Engine | 0/3 | Not started | - |
 | 4. Chip Peak Integration | 0/2 | Not started | - |
