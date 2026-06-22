@@ -130,13 +130,49 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TBD | Populated during roadmap creation | Pending |
+| CONF-01 | Phase 1 | Pending |
+| CONF-02 | Phase 1 | Pending |
+| CONF-03 | Phase 1 | Pending |
+| DATA-01 | Phase 1 | Pending |
+| DATA-02 | Phase 2 | Pending |
+| DATA-03 | Phase 1 | Pending |
+| DATA-04 | Phase 1 | Pending |
+| REFR-01 | Phase 2 | Pending |
+| REFR-02 | Phase 2 | Pending |
+| REFR-03 | Phase 2 | Pending |
+| REFR-04 | Phase 2 | Pending |
+| REFR-05 | Phase 2 | Pending |
+| SCRN-01 | Phase 3 | Pending |
+| SCRN-02 | Phase 3 | Pending |
+| SCRN-03 | Phase 3 | Pending |
+| SCRN-04 | Phase 3 | Pending |
+| SCRN-05 | Phase 3 | Pending |
+| SCRN-06 | Phase 3 | Pending |
+| SCRN-07 | Phase 3 | Pending |
+| SCRN-08 | Phase 3 | Pending |
+| CHIP-01 | Phase 1 | Pending |
+| CHIP-02 | Phase 4 | Pending |
+| CHIP-03 | Phase 4 | Pending |
+| CHIP-04 | Phase 4 | Pending |
+| UI-01 | Phase 5 | Pending |
+| UI-02 | Phase 5 | Pending |
+| UI-03 | Phase 5 | Pending |
+| UI-04 | Phase 5 | Pending |
+| CHRT-01 | Phase 6 | Pending |
+| CHRT-02 | Phase 6 | Pending |
+| CHRT-03 | Phase 6 | Pending |
+| CHRT-04 | Phase 6 | Pending |
+| CHRT-05 | Phase 6 | Pending |
+| CHRT-06 | Phase 6 | Pending |
+| DEPL-01 | Phase 6 | Pending |
+| DEPL-02 | Phase 1 | Pending |
+| DEPL-03 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 37 total
-- Mapped to phases: 0
-- Unmapped: 37
+- Mapped to phases: 37
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-23*
-*Last updated: 2026-06-23 after initial definition*
+*Last updated: 2026-06-23 after roadmap creation*
