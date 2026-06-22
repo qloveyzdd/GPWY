@@ -72,6 +72,10 @@ function normalizeMessage(error: unknown) {
 function detectCategory(error: unknown): TushareErrorCategory {
   const message = normalizeMessage(error);
 
+  if (message.includes("missing_config") || message.includes("缺少服务端配置")) {
+    return "missing_config";
+  }
+
   if (error instanceof TushareApiError && error.code === 0) {
     return "empty_data";
   }

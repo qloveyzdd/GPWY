@@ -139,8 +139,12 @@ function refreshDetail(status: RefreshStatusSnapshot) {
 
   if (status.latestSuccessfulJob) {
     const job = status.latestSuccessfulJob;
+    const stockCount = status.latestCacheStats?.stockCount ?? job.successCount;
+    const dailyBarText = status.latestCacheStats
+      ? `，日线 ${status.latestCacheStats.dailyBarCount} 条`
+      : "";
 
-    return `最近成功：${job.finishedAt ?? "未知"}，覆盖 ${job.successCount}/${job.totalStocks} 只股票，失败 ${job.failedCount} 只。`;
+    return `最近成功：${job.finishedAt ?? "未知"}，缓存股票 ${stockCount} 只${dailyBarText}，失败 ${job.failedCount} 只。`;
   }
 
   return "点击“手动刷新缓存”从数据源拉取股票基础信息和行情切片。";

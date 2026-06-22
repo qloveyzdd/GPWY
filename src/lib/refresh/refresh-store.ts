@@ -4,6 +4,7 @@ import path from "node:path";
 
 import type {
   DailyBarRecord,
+  RefreshCacheStats,
   RefreshJob,
   RefreshStartResult,
   StockBasicRecord,
@@ -49,6 +50,10 @@ type DailyBarRow = {
   low: number;
   close: number;
   vol: number;
+};
+
+type CountRow = {
+  count: number;
 };
 
 const require = createRequire(import.meta.url);
@@ -436,6 +441,32 @@ export function readLatestDailyBars(): DailyBarRecord[] {
         )
         .all(latestSuccess.id) as DailyBarRow[]
     ).map(mapDailyBar);
+  } finally {
+    db.close();
+  }
+}
+
+export function readLatestCacheStats(): RefreshCacheStats | null {
+  const latestSuccess = readLatestSuccessfulRefreshJob();
+
+  if (!latestSuccess) {
+    return null;
+  }
+
+  const db = openDatabase();
+
+  try {
+    const stockCount = db
+      .prepare("select count(*) as count from stock_basics where refresh_job_id = ?")
+      .get(latestSuccess.id) as CountRow;
+    const dailyBarCount = db
+      .prepare("select count(*) as count from daily_bars where refresh_job_id = ?")
+      .get(latestSuccess.id) as CountRow;
+
+    return {
+      stockCount: stockCount.count,
+      dailyBarCount: dailyBarCount.count,
+    };
   } finally {
     db.close();
   }

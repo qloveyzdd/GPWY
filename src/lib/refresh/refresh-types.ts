@@ -16,10 +16,16 @@ export type RefreshStartResult = {
   job: RefreshJob;
 };
 
+export type RefreshCacheStats = {
+  stockCount: number;
+  dailyBarCount: number;
+};
+
 export type RefreshStatusSnapshot = {
   activeJob: RefreshJob | null;
   latestJob: RefreshJob | null;
   latestSuccessfulJob: RefreshJob | null;
+  latestCacheStats: RefreshCacheStats | null;
   isRunning: boolean;
   lastSuccessfulFinishedAt: string | null;
 };
@@ -28,6 +34,7 @@ export const EMPTY_REFRESH_STATUS: RefreshStatusSnapshot = {
   activeJob: null,
   latestJob: null,
   latestSuccessfulJob: null,
+  latestCacheStats: null,
   isRunning: false,
   lastSuccessfulFinishedAt: null,
 };

@@ -148,4 +148,39 @@ describe("fetchRefreshData", () => {
     expect(result.tradeDates).toEqual(["20260622"]);
     expect(result.dailyBars).toHaveLength(1);
   });
+
+  it("keeps listed stock basics when the provider omits list_status", async () => {
+    const client = createMockClient(async (endpoint) => {
+      if (endpoint.apiName === "stock_basic") {
+        return table(["ts_code", "name", "market"], [
+          ["000001.SZ", "平安银行", "主板"],
+        ]);
+      }
+
+      if (endpoint.apiName === "daily") {
+        return table(
+          ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
+          [["000001.SZ", "20260622", 10, 11, 9, 10.5, 1200]],
+        );
+      }
+
+      throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+    });
+
+    const result = await fetchRefreshData({
+      client,
+      now: new Date("2026-06-22T12:00:00.000Z"),
+      targetTradingDates: 1,
+      maxLookbackDays: 1,
+    });
+
+    expect(result.stockBasics).toEqual([
+      {
+        tsCode: "000001.SZ",
+        name: "平安银行",
+        market: "主板",
+        listStatus: "L",
+      },
+    ]);
+  });
 });

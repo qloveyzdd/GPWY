@@ -32,8 +32,8 @@ describe("Tushare provider selection", () => {
 describe("TinysharePythonClient", () => {
   it("passes the generic Tushare request shape to the Python bridge", async () => {
     const runner = vi.fn(async () => ({
-      fields: ["ts_code", "trade_date", "close"],
-      items: [["000001.SZ", "20260211", 12.34]],
+      fields: TUSHARE_ENDPOINTS.daily.fields,
+      items: [["000001.SZ", "20260211", 12, 12.8, 11.9, 12.34, 12345]],
     }));
     const client = new TinysharePythonClient({
       token: "request-only-token",
@@ -54,7 +54,7 @@ describe("TinysharePythonClient", () => {
         start_date: "20260204",
         end_date: "20260211",
       },
-      fields: ["ts_code", "trade_date", "close"],
+      fields: TUSHARE_ENDPOINTS.daily.fields,
     });
     expect(JSON.stringify(result)).not.toContain("request-only-token");
   });
@@ -63,7 +63,7 @@ describe("TinysharePythonClient", () => {
     const client = new TinysharePythonClient({
       token: "request-only-token",
       runner: async () => ({
-        fields: ["ts_code", "trade_date", "close"],
+        fields: TUSHARE_ENDPOINTS.daily.fields,
         items: [],
       }),
     });

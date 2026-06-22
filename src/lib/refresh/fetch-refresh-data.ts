@@ -79,7 +79,7 @@ function mapStockBasics(table: TushareDataTable): StockBasicRecord[] {
         tsCode: requiredString(mapped.ts_code, "ts_code"),
         name: requiredString(mapped.name, "name"),
         market: optionalString(mapped.market),
-        listStatus: optionalString(mapped.list_status),
+        listStatus: optionalString(mapped.list_status) ?? "L",
       };
     })
     .filter((record) => record.listStatus === "L");
