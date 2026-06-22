@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 02-02 complete; next 02-03
-last_updated: "2026-06-23T07:36:20+08:00"
-last_activity: 2026-06-23 -- completed 02-02 manual refresh controller and UI controls
+stopped_at: Phase 2 complete; next plan Phase 3
+last_updated: "2026-06-23T07:47:45+08:00"
+last_activity: 2026-06-23 -- completed 02-03 real refresh data fetching
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 22
+  completed_plans: 6
+  percent: 33
 ---
 
 # Project State
@@ -22,31 +22,31 @@ See: .planning/PROJECT.md (updated 2026-06-23)
 
 **Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到对应筹码峰位置。
 
-**Current focus:** Phase 2 - Manual Refresh Cache
+**Current focus:** Phase 3 - Downtrend Screening Engine
 
 ## Current Position
 
-Phase: 2 of 6 (Manual Refresh Cache)
-Plan: 2 of 3 in current phase
-Status: Executing Phase 2 - completed 02-02, next 02-03
-Last activity: 2026-06-23 -- completed 02-02 manual refresh controller and UI controls
+Phase: 3 of 6 (Downtrend Screening Engine)
+Plan: 0 of 3 in current phase
+Status: Phase 2 complete - next plan Phase 3
+Last activity: 2026-06-23 -- completed 02-03 real refresh data fetching
 
-Progress: [███████░░░] 67% of Phase 2
+Progress: [░░░░░░░░░░] 0% of Phase 3
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 5
-- Average duration: 26 min
-- Total execution time: 1.7 hours
+- Total plans completed: 6
+- Average duration: 21 min
+- Total execution time: 2.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Tushare Data Foundation | 3/3 | 88 min | 29 min |
-| 2. Manual Refresh Cache | 2/3 | 26 min | 13 min |
+| 2. Manual Refresh Cache | 3/3 | 38 min | 13 min |
 | 3. Downtrend Screening Engine | 0/3 | 0 | N/A |
 | 4. Chip Peak Integration | 0/2 | 0 | N/A |
 | 5. Results Table Experience | 0/2 | 0 | N/A |
@@ -54,7 +54,7 @@ Progress: [███████░░░] 67% of Phase 2
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 walking skeleton, 01-02 Tushare validation API, 01-03 chip/price validation and tinyshare provider, 02-01 refresh cache store, 02-02 manual refresh controller
+- Last 5 plans: 01-02 Tushare validation API, 01-03 chip/price validation and tinyshare provider, 02-01 refresh cache store, 02-02 manual refresh controller, 02-03 real refresh data fetching
 - Trend: stable
 
 *Updated after each plan completion*
@@ -79,8 +79,8 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 2 must cache enough 60-trading-day daily data for Phase 3 screening.
-- 02-03 must replace the placeholder refresh worker with real tinyshare/Tushare fetching without exposing secrets.
+- Phase 3 must compute MA20/MA60, MA20 slope, 60-day swing high, and 85% threshold from cached daily bars.
+- Screening must surface insufficient cache data explicitly instead of silently producing partial results.
 
 ## Deferred Items
 
@@ -93,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-23T07:36:20+08:00
-Stopped at: Phase 2 02-02 complete; next 02-03
-Resume file: .planning/phases/02-manual-refresh-cache/02-03-PLAN.md
+Last session: 2026-06-23T07:47:45+08:00
+Stopped at: Phase 2 complete; next plan Phase 3
+Resume file: .planning/ROADMAP.md
