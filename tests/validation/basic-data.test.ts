@@ -52,6 +52,18 @@ describe("basic data validation", () => {
       .mockResolvedValueOnce({
         fields: ["ts_code", "trade_date", "close"],
         items: [["000001.SZ", "20260622", 12.34]],
+      })
+      .mockResolvedValueOnce({
+        fields: ["ts_code", "trade_date", "adj_factor"],
+        items: [["000001.SZ", "20260622", 123.45]],
+      })
+      .mockResolvedValueOnce({
+        fields: ["ts_code", "trade_date", "price", "percent"],
+        items: [["000001.SZ", "20260622", 12.3, 0.42]],
+      })
+      .mockResolvedValueOnce({
+        fields: ["ts_code", "trade_date", "cost_50pct"],
+        items: [["000001.SZ", "20260622", 11.8]],
       });
 
     const snapshot = await runBasicValidation({
@@ -61,12 +73,13 @@ describe("basic data validation", () => {
 
     const serialized = JSON.stringify(snapshot);
 
-    expect(snapshot.overallStatus).toBe("warning");
+    expect(snapshot.overallStatus).toBe("success");
     expect(serialized).toContain("000001.SZ");
     expect(serialized).toContain("平安银行");
-    expect(serialized).toContain("unadjusted_daily");
+    expect(serialized).toContain("front_adjusted");
+    expect(serialized).toContain("available");
     expect(serialized).not.toContain("secret-token-value");
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledTimes(5);
     expect(readLatestValidationSnapshot()).toEqual(snapshot);
   });
 });

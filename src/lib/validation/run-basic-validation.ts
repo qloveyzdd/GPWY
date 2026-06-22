@@ -8,8 +8,9 @@ import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
 import type {
   SafeTushareError,
   TushareClientLike,
-  TushareDataTable,
 } from "@/lib/tushare/types";
+import { runChipAndPriceValidation } from "@/lib/validation/chip-and-price-validation";
+import { sanitizeValidationSnapshot } from "@/lib/validation/result-sanitizer";
 import { writeValidationSnapshot } from "@/lib/validation-store";
 import type {
   ValidationSection,
@@ -93,26 +94,6 @@ function buildFailureSnapshot(
   };
 }
 
-function buildPriceBasisSection(
-  result: TushareDataTable,
-): ValidationSection {
-  const sample = mapRow(result.fields, result.items[0] ?? []);
-
-  return {
-    key: "price_basis",
-    title: "行情价格口径",
-    status: "warning",
-    summary:
-      "已验证未复权 daily 行情可用；前复权最终口径将在后续价格口径验证中记录。",
-    details: [
-      { label: "basis_candidate", value: "unadjusted_daily" },
-      { label: "adjustment_finalized", value: "false" },
-      { label: "样本交易日", value: String(sample.trade_date ?? "未知") },
-      { label: "样本收盘价", value: String(sample.close ?? "未知") },
-    ],
-  };
-}
-
 export async function runBasicValidation({
   client,
   now = new Date(),
@@ -120,7 +101,9 @@ export async function runBasicValidation({
   const config = loadServerConfig();
 
   if (!config.tushareToken.configured) {
-    const snapshot = createConfigValidationSnapshot(config, now);
+    const snapshot = sanitizeValidationSnapshot(
+      createConfigValidationSnapshot(config, now),
+    );
     writeValidationSnapshot(snapshot);
     return snapshot;
   }
@@ -139,10 +122,22 @@ export async function runBasicValidation({
       start_date: formatDate(dateDaysAgo(now, 10)),
       end_date: formatDate(now),
     });
+    const chipAndPrice = await runChipAndPriceValidation({
+      client: tushareClient,
+      tsCode,
+      dailyProbe: daily,
+      now,
+    });
     const snapshot: ValidationSnapshot = {
-      overallStatus: "warning",
+      overallStatus:
+        chipAndPrice.priceBasis.status === "success" &&
+        chipAndPrice.chipCandidate.status === "success"
+          ? "success"
+          : chipAndPrice.chipCandidate.status === "blocked"
+            ? "blocked"
+            : "warning",
       lastRunAt: now.toISOString(),
-      summary: "股票基础信息和未复权行情探针已通过；筹码候选接口仍待验证。",
+      summary: "股票基础信息、价格口径和筹码候选接口验证已完成。",
       sections: [
         {
           key: "token",
@@ -168,23 +163,17 @@ export async function runBasicValidation({
             { label: "返回字段", value: stockBasic.fields.join(",") },
           ],
         },
-        buildPriceBasisSection(daily),
-        {
-          key: "chip_candidate",
-          title: "筹码候选接口",
-          status: "not_validated",
-          summary:
-            "筹码候选接口将在后续计划用真实 token 验证；不会使用估算值替代。",
-        },
+        chipAndPrice.priceBasis,
+        chipAndPrice.chipCandidate,
       ],
     };
+    const sanitizedSnapshot = sanitizeValidationSnapshot(snapshot);
 
-    writeValidationSnapshot(snapshot);
-    return snapshot;
+    writeValidationSnapshot(sanitizedSnapshot);
+    return sanitizedSnapshot;
   } catch (error) {
-    const snapshot = buildFailureSnapshot(
-      classifyTushareError(error, "stock_basic"),
-      now,
+    const snapshot = sanitizeValidationSnapshot(
+      buildFailureSnapshot(classifyTushareError(error, "stock_basic"), now),
     );
     writeValidationSnapshot(snapshot);
     return snapshot;
