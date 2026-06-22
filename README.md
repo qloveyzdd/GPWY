@@ -10,6 +10,7 @@
 APP_PASSWORD=your-access-password
 TUSHARE_TOKEN=your-tushare-token
 TUSHARE_PROVIDER=rest
+REFRESH_DB_PATH=.data/refresh.sqlite
 ```
 
 2. 安装依赖并启动：
@@ -46,3 +47,5 @@ npm run verify
 - 当前验证按钮会在服务端调用 Tushare `stock_basic` 和 `daily` 探针，并写入脱敏后的股票样本与未复权行情可用性。
 - 可通过 `TUSHARE_PROVIDER=tinyshare` 使用 tinyshare Python bridge 调用 tinyshare 授权码。
 - 当前验证按钮会记录价格口径和筹码候选接口状态；不会生成未经验证的筹码峰估算。
+- 状态页已有“手动刷新缓存”按钮，并通过受保护的 `/api/refresh/run` 和 `/api/refresh/status` 管理刷新任务。
+- 刷新状态和后续缓存默认写入 `.data/refresh.sqlite`；当前刷新 worker 仍是占位实现，真实股票基础信息和 60 日行情抓取将在下一步接入。

@@ -67,7 +67,7 @@ Plans:
   4. 页面可以展示最新刷新状态和最近一次成功刷新时间。
   5. 系统可以缓存股票基础信息和最近 60 个交易日行情。
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -76,7 +76,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02: Build manual refresh controller with locking and status reporting
+- [x] 02-02: Build manual refresh controller with locking and status reporting
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -178,7 +178,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Tushare Data Foundation | 3/3 | Complete    | 2026-06-23 |
-| 2. Manual Refresh Cache | 1/3 | In Progress | - |
+| 2. Manual Refresh Cache | 2/3 | In Progress | - |
 | 3. Downtrend Screening Engine | 0/3 | Not started | - |
 | 4. Chip Peak Integration | 0/2 | Not started | - |
 | 5. Results Table Experience | 0/2 | Not started | - |
