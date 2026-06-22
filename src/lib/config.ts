@@ -14,6 +14,8 @@ const optionalSecret = z.preprocess(
 const envSchema = z.object({
   APP_PASSWORD: optionalSecret,
   TUSHARE_TOKEN: optionalSecret,
+  TUSHARE_PROVIDER: z.enum(["rest", "tinyshare"]).optional(),
+  PYTHON_BIN: optionalSecret,
 });
 
 export type ConfigIssueCategory = "missing_config";
@@ -31,6 +33,7 @@ export type SafeConfigStatus = {
   tushareToken: {
     configured: boolean;
   };
+  provider: "rest" | "tinyshare";
   issues: ConfigIssue[];
 };
 
@@ -40,6 +43,8 @@ export function loadServerConfig(
   const parsed = envSchema.parse({
     APP_PASSWORD: env.APP_PASSWORD,
     TUSHARE_TOKEN: env.TUSHARE_TOKEN,
+    TUSHARE_PROVIDER: env.TUSHARE_PROVIDER,
+    PYTHON_BIN: env.PYTHON_BIN,
   });
   const issues: ConfigIssue[] = [];
 
@@ -67,6 +72,7 @@ export function loadServerConfig(
     tushareToken: {
       configured: Boolean(parsed.TUSHARE_TOKEN),
     },
+    provider: parsed.TUSHARE_PROVIDER ?? "rest",
     issues,
   };
 }

@@ -3,8 +3,9 @@ import {
   loadServerConfig,
   readTushareTokenSecret,
 } from "@/lib/config";
-import { TushareClient, classifyTushareError } from "@/lib/tushare/client";
+import { classifyTushareError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
+import { createTushareClient } from "@/lib/tushare/provider";
 import type {
   SafeTushareError,
   TushareClientLike,
@@ -109,7 +110,7 @@ export async function runBasicValidation({
   }
 
   const token = readTushareTokenSecret();
-  const tushareClient = client ?? new TushareClient({ token: token ?? "" });
+  const tushareClient = client ?? createTushareClient(token ?? "");
 
   try {
     const stockBasic = await tushareClient.query(TUSHARE_ENDPOINTS.stockBasic, {

@@ -1,0 +1,2 @@
+--extra-index-url https://minidoc.pages.dev/simple/
+tinyshare==0.1033.0

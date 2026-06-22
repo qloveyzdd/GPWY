@@ -14,7 +14,23 @@ describe("server config boundary", () => {
 
     expect(status.appPassword.configured).toBe(true);
     expect(status.tushareToken.configured).toBe(true);
+    expect(status.provider).toBe("rest");
     expect(serialized).not.toContain("local-password");
+    expect(serialized).not.toContain("secret-token-value");
+  });
+
+  it("reports the selected provider without exposing local Python path", () => {
+    const status = loadServerConfig({
+      APP_PASSWORD: "local-password",
+      TUSHARE_TOKEN: "secret-token-value",
+      TUSHARE_PROVIDER: "tinyshare",
+      PYTHON_BIN: "C:\\private\\python.exe",
+    });
+
+    const serialized = JSON.stringify(status);
+
+    expect(status.provider).toBe("tinyshare");
+    expect(serialized).not.toContain("C:\\private\\python.exe");
     expect(serialized).not.toContain("secret-token-value");
   });
 

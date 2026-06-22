@@ -9,6 +9,7 @@
 ```bash
 APP_PASSWORD=your-access-password
 TUSHARE_TOKEN=your-tushare-token
+TUSHARE_PROVIDER=rest
 ```
 
 2. 安装依赖并启动：
@@ -16,6 +17,18 @@ TUSHARE_TOKEN=your-tushare-token
 ```bash
 npm install
 npm run dev
+```
+
+如果使用 tinyshare 授权码，把 `TUSHARE_TOKEN` 设置为 tinyshare 授权码，并启用 Python provider：
+
+```bash
+TUSHARE_PROVIDER=tinyshare
+```
+
+首次使用 tinyshare 前安装 Python 依赖：
+
+```bash
+python -m pip install -r requirements.txt
 ```
 
 3. 验证：
@@ -31,4 +44,5 @@ npm run verify
 - 页面和验证 API 已接入个人访问密码保护。
 - 数据源状态页会读取 SQLite 中的最近一次脱敏验证快照。
 - 当前验证按钮会在服务端调用 Tushare `stock_basic` 和 `daily` 探针，并写入脱敏后的股票样本与未复权行情可用性。
-- 价格最终复权口径和筹码候选接口验证由 Phase 1 后续计划补齐。
+- 可通过 `TUSHARE_PROVIDER=tinyshare` 使用 tinyshare Python bridge 调用 tinyshare 授权码。
+- 当前验证按钮会记录价格口径和筹码候选接口状态；不会生成未经验证的筹码峰估算。
