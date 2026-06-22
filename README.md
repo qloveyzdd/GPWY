@@ -28,4 +28,6 @@ npm run verify
 
 - Next.js App Router 骨架已建立。
 - shadcn 官方组件配置已初始化。
-- Phase 1 后续任务会补齐访问保护、SQLite 验证快照和 Tushare 数据源验证。
+- 页面和验证 API 已接入个人访问密码保护。
+- 数据源状态页会读取 SQLite 中的最近一次脱敏验证快照。
+- 当前验证按钮只写入服务端配置状态；Tushare `stock_basic`、价格口径和筹码候选接口验证由 Phase 1 后续计划补齐。
