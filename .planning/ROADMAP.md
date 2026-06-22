@@ -67,12 +67,12 @@ Plans:
   4. 页面可以展示最新刷新状态和最近一次成功刷新时间。
   5. 系统可以缓存股票基础信息和最近 60 个交易日行情。
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 02-01: Define SQLite schema and data access layer for refresh/cache records
+- [x] 02-01: Define SQLite schema and data access layer for refresh/cache records
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -178,7 +178,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Tushare Data Foundation | 3/3 | Complete    | 2026-06-23 |
-| 2. Manual Refresh Cache | 0/3 | Not started | - |
+| 2. Manual Refresh Cache | 1/3 | In Progress | - |
 | 3. Downtrend Screening Engine | 0/3 | Not started | - |
 | 4. Chip Peak Integration | 0/2 | Not started | - |
 | 5. Results Table Experience | 0/2 | Not started | - |
