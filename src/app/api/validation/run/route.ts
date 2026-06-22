@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth/session";
-import {
-  createConfigValidationSnapshot,
-  loadServerConfig,
-} from "@/lib/config";
-import { writeValidationSnapshot } from "@/lib/validation-store";
+import { runBasicValidation } from "@/lib/validation/run-basic-validation";
 
 export async function POST() {
   const session = await getSession();
@@ -14,8 +10,7 @@ export async function POST() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const snapshot = createConfigValidationSnapshot(loadServerConfig());
-  writeValidationSnapshot(snapshot);
+  const snapshot = await runBasicValidation();
 
   return NextResponse.json(snapshot);
 }

@@ -5,9 +5,15 @@ import type {
   ValidationSnapshot,
 } from "@/lib/validation-types";
 
+const optionalSecret = z.preprocess(
+  (value) =>
+    typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().trim().min(1).optional(),
+);
+
 const envSchema = z.object({
-  APP_PASSWORD: z.string().trim().min(1).optional(),
-  TUSHARE_TOKEN: z.string().trim().min(1).optional(),
+  APP_PASSWORD: optionalSecret,
+  TUSHARE_TOKEN: optionalSecret,
 });
 
 export type ConfigIssueCategory = "missing_config";
