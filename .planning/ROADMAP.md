@@ -36,9 +36,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01: Scaffold Next.js app with server-only config and minimal access gate
-- [ ] 01-02: Implement Tushare client and validate stock/basic market data samples
-- [ ] 01-03: Validate chip candidate endpoints and record price-adjustment decision
+**Wave 1**
+- [ ] 01-01-PLAN.md: Walking skeleton with Next.js scaffold, server-only config, access gate, SQLite validation snapshot, and status workspace.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 01-02-PLAN.md: Server-only Tushare client, stock_basic validation, market data probe, and sanitized latest-status API.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 01-03-PLAN.md: Chip candidate endpoint validation, price-basis decision recording, final status sections, and real-token verification.
 
 ### Phase 2: Manual Refresh Cache
 **Goal:** 用户可以手动触发一次刷新，系统防重复运行并缓存股票基础信息、60 日行情、刷新状态和错误摘要。
