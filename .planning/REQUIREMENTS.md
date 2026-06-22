@@ -17,16 +17,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Configuration
 
-- [ ] **CONF-01**: 系统可以通过服务端环境变量读取 `TUSHARE_TOKEN`，且 token 不会进入浏览器代码、页面响应或前端日志。
-- [ ] **CONF-02**: 用户可以在云端服务器以自托管方式运行网页服务。
-- [ ] **CONF-03**: 系统提供最小个人访问保护，避免公开访问者触发刷新或查看结果。
+- [x] **CONF-01**: 系统可以通过服务端环境变量读取 `TUSHARE_TOKEN`，且 token 不会进入浏览器代码、页面响应或前端日志。
+- [x] **CONF-02**: 用户可以在云端服务器以自托管方式运行网页服务。
+- [x] **CONF-03**: 系统提供最小个人访问保护，避免公开访问者触发刷新或查看结果。
 
 ### Tushare Data
 
-- [ ] **DATA-01**: 系统可以通过 Tushare 获取 A 股股票基础信息，至少包含股票代码和股票名称。
+- [x] **DATA-01**: 系统可以通过 Tushare 获取 A 股股票基础信息，至少包含股票代码和股票名称。
 - [ ] **DATA-02**: 系统可以获取每只候选股票最近 60 个交易日的行情数据，至少包含交易日期、开盘价、最高价、最低价、收盘价和成交量。
-- [ ] **DATA-03**: 系统可以明确记录行情价格口径，说明 MA20、MA60 和波段高点使用未复权、前复权或后复权中的哪一种。
-- [ ] **DATA-04**: 系统可以在 Tushare 接口失败、权限不足、空数据或限频时记录脱敏错误原因。
+- [x] **DATA-03**: 系统可以明确记录行情价格口径，说明 MA20、MA60 和波段高点使用未复权、前复权或后复权中的哪一种。
+- [x] **DATA-04**: 系统可以在 Tushare 接口失败、权限不足、空数据或限频时记录脱敏错误原因。
 
 ### Refresh
 
@@ -49,7 +49,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Chip Peak
 
-- [ ] **CHIP-01**: 系统可以用真实 Tushare token 验证筹码相关候选接口或字段是否可用，优先验证 `cyq_chips`、`cyq_perf` 或 Tushare 等价能力。
+- [x] **CHIP-01**: 系统可以用真实 Tushare token 验证筹码相关候选接口或字段是否可用，优先验证 `cyq_chips`、`cyq_perf` 或 Tushare 等价能力。
 - [ ] **CHIP-02**: 如果 Tushare 返回筹码分布数据而不是直接筹码峰字段，系统可以把占比最高的价格档识别为筹码峰价格，并记录该提取口径。
 - [ ] **CHIP-03**: 系统可以为每只入选股票获取并保存筹码峰价格。
 - [ ] **CHIP-04**: 如果 Tushare 账号无权访问筹码相关数据，系统必须把筹码峰需求标记为阻塞，并显示脱敏原因，而不是用未验证估算算法替代。
@@ -73,7 +73,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Deployment
 
 - [ ] **DEPL-01**: 项目提供云端自托管所需的启动方式和必要环境变量说明。
-- [ ] **DEPL-02**: 系统在缺少 `TUSHARE_TOKEN` 或 token 无效时显示明确的服务端配置错误。
+- [x] **DEPL-02**: 系统在缺少 `TUSHARE_TOKEN` 或 token 无效时显示明确的服务端配置错误。
 - [ ] **DEPL-03**: 项目提供基础验证命令，至少覆盖类型检查、算法单元测试和页面冒烟检查。
 
 ## v2 Requirements
@@ -130,13 +130,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONF-01 | Phase 1 | Pending |
-| CONF-02 | Phase 1 | Pending |
-| CONF-03 | Phase 1 | Pending |
-| DATA-01 | Phase 1 | Pending |
+| CONF-01 | Phase 1 | Complete |
+| CONF-02 | Phase 1 | Complete |
+| CONF-03 | Phase 1 | Complete |
+| DATA-01 | Phase 1 | Complete |
 | DATA-02 | Phase 2 | Pending |
-| DATA-03 | Phase 1 | Pending |
-| DATA-04 | Phase 1 | Pending |
+| DATA-03 | Phase 1 | Complete |
+| DATA-04 | Phase 1 | Complete |
 | REFR-01 | Phase 2 | Pending |
 | REFR-02 | Phase 2 | Pending |
 | REFR-03 | Phase 2 | Pending |
@@ -150,7 +150,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCRN-06 | Phase 3 | Pending |
 | SCRN-07 | Phase 3 | Pending |
 | SCRN-08 | Phase 3 | Pending |
-| CHIP-01 | Phase 1 | Pending |
+| CHIP-01 | Phase 1 | Complete |
 | CHIP-02 | Phase 4 | Pending |
 | CHIP-03 | Phase 4 | Pending |
 | CHIP-04 | Phase 4 | Pending |
@@ -165,7 +165,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHRT-05 | Phase 6 | Pending |
 | CHRT-06 | Phase 6 | Pending |
 | DEPL-01 | Phase 6 | Pending |
-| DEPL-02 | Phase 1 | Pending |
+| DEPL-02 | Phase 1 | Complete |
 | DEPL-03 | Phase 6 | Pending |
 
 **Coverage:**
