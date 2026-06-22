@@ -28,6 +28,13 @@ describe("access gate", () => {
     await expect(response?.json()).resolves.toEqual({ error: "unauthorized" });
   });
 
+  it("rejects unauthenticated refresh API requests", async () => {
+    const response = middleware(requestFor("/api/refresh/run"));
+
+    expect(response?.status).toBe(401);
+    await expect(response?.json()).resolves.toEqual({ error: "unauthorized" });
+  });
+
   it("signs sessions and rejects tampered cookie values", () => {
     const now = new Date("2026-06-23T00:00:00.000Z").getTime();
     const cookieValue = createSignedSessionValue("local-password", now);
