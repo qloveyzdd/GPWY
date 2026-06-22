@@ -16,6 +16,22 @@ export type RefreshStartResult = {
   job: RefreshJob;
 };
 
+export type RefreshStatusSnapshot = {
+  activeJob: RefreshJob | null;
+  latestJob: RefreshJob | null;
+  latestSuccessfulJob: RefreshJob | null;
+  isRunning: boolean;
+  lastSuccessfulFinishedAt: string | null;
+};
+
+export const EMPTY_REFRESH_STATUS: RefreshStatusSnapshot = {
+  activeJob: null,
+  latestJob: null,
+  latestSuccessfulJob: null,
+  isRunning: false,
+  lastSuccessfulFinishedAt: null,
+};
+
 export type StockBasicRecord = {
   tsCode: string;
   name: string;

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { StatusWorkspace } from "@/components/status/status-workspace";
 import { clearSessionCookie, getSession } from "@/lib/auth/session";
+import { readRefreshStatus } from "@/lib/refresh/refresh-runner";
 import { readLatestValidationSnapshot } from "@/lib/validation-store";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function Home() {
   return (
     <StatusWorkspace
       initialSnapshot={readLatestValidationSnapshot()}
+      initialRefreshStatus={readRefreshStatus()}
       logoutAction={logoutAction}
     />
   );

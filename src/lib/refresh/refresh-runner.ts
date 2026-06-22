@@ -1,4 +1,7 @@
-import type { RefreshJob } from "@/lib/refresh/refresh-types";
+import type {
+  RefreshJob,
+  RefreshStatusSnapshot,
+} from "@/lib/refresh/refresh-types";
 import {
   completeRefreshJob,
   failRefreshJob,
@@ -15,14 +18,6 @@ export type RefreshWorkerResult = {
 };
 
 export type RefreshWorker = (job: RefreshJob) => Promise<RefreshWorkerResult>;
-
-export type RefreshStatusSnapshot = {
-  activeJob: RefreshJob | null;
-  latestJob: RefreshJob | null;
-  latestSuccessfulJob: RefreshJob | null;
-  isRunning: boolean;
-  lastSuccessfulFinishedAt: string | null;
-};
 
 export type StartManualRefreshOptions = {
   worker?: RefreshWorker;

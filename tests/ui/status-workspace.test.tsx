@@ -1,20 +1,37 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { StatusWorkspace } from "@/components/status/status-workspace";
+import { EMPTY_REFRESH_STATUS } from "@/lib/refresh/refresh-types";
 import { EMPTY_VALIDATION_SNAPSHOT } from "@/lib/validation-types";
 
 describe("StatusWorkspace", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
   it("renders the empty state without raw secret details", () => {
     render(
       <StatusWorkspace
         initialSnapshot={EMPTY_VALIDATION_SNAPSHOT}
+        initialRefreshStatus={EMPTY_REFRESH_STATUS}
         logoutAction={vi.fn()}
       />,
     );
 
     expect(screen.getByText("数据源状态")).toBeTruthy();
+    expect(screen.getByText("尚未执行缓存刷新")).toBeTruthy();
     expect(screen.getByText("尚未执行数据源验证")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "手动刷新缓存" }),
+    ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "重新验证数据源" }),
     ).toBeTruthy();
@@ -38,6 +55,7 @@ describe("StatusWorkspace", () => {
             },
           ],
         }}
+        initialRefreshStatus={EMPTY_REFRESH_STATUS}
         logoutAction={vi.fn()}
       />,
     );
@@ -70,6 +88,7 @@ describe("StatusWorkspace", () => {
             },
           ],
         }}
+        initialRefreshStatus={EMPTY_REFRESH_STATUS}
         logoutAction={vi.fn()}
       />,
     );
@@ -79,5 +98,60 @@ describe("StatusWorkspace", () => {
         "未能稳定获取前复权行情，当前验证结果退回未复权价格；后续筛选会显示该口径风险。",
       ).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("starts manual refresh and renders returned running status", async () => {
+    const runningStatus = {
+      activeJob: {
+        id: 7,
+        status: "running" as const,
+        startedAt: "2026-06-23T00:00:00.000Z",
+        finishedAt: null,
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+        errorSummary: null,
+      },
+      latestJob: {
+        id: 7,
+        status: "running" as const,
+        startedAt: "2026-06-23T00:00:00.000Z",
+        finishedAt: null,
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+        errorSummary: null,
+      },
+      latestSuccessfulJob: null,
+      isRunning: true,
+      lastSuccessfulFinishedAt: null,
+    };
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          started: true,
+          status: runningStatus,
+        }),
+        { status: 202 },
+      ),
+    );
+
+    render(
+      <StatusWorkspace
+        initialSnapshot={EMPTY_VALIDATION_SNAPSHOT}
+        initialRefreshStatus={EMPTY_REFRESH_STATUS}
+        logoutAction={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "手动刷新缓存" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("刷新正在运行")).toBeTruthy();
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/refresh/run", {
+      method: "POST",
+    });
   });
 });
