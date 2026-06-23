@@ -97,12 +97,19 @@ Plans:
   4. 系统可以筛出当前收盘价 `<= 区间高点 * 0.85` 的股票。
   5. 算法单元测试覆盖 MA、斜率、波段高点、退化高点和阈值边界。
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans ready
 
 Plans:
+**Wave 1**
 
 - [ ] 03-01: Implement moving-average and slope calculations with tests
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-02: Implement swing-high and threshold logic with edge-case tests
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-03: Persist screening results with explainable computed values
 
 ### Phase 4: Chip Peak Integration

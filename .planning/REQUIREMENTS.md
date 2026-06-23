@@ -24,16 +24,16 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Tushare Data
 
 - [x] **DATA-01**: 系统可以通过 Tushare 获取 A 股股票基础信息，至少包含股票代码和股票名称。
-- [ ] **DATA-02**: 系统可以获取每只候选股票最近 60 个交易日的行情数据，至少包含交易日期、开盘价、最高价、最低价、收盘价和成交量。
+- [x] **DATA-02**: 系统可以获取每只候选股票最近 60 个交易日的行情数据，至少包含交易日期、开盘价、最高价、最低价、收盘价和成交量。
 - [x] **DATA-03**: 系统可以明确记录行情价格口径，说明 MA20、MA60 和波段高点使用未复权、前复权或后复权中的哪一种。
 - [x] **DATA-04**: 系统可以在 Tushare 接口失败、权限不足、空数据或限频时记录脱敏错误原因。
 
 ### Refresh
 
-- [ ] **REFR-01**: 用户可以在网页中手动触发一次数据刷新。
-- [ ] **REFR-02**: 系统可以防止同一时间重复运行多个刷新任务。
-- [ ] **REFR-03**: 系统可以记录每次刷新任务的开始时间、结束时间、状态、成功股票数、失败股票数和错误摘要。
-- [ ] **REFR-04**: 页面可以展示最新一次刷新状态和最新一次成功刷新时间。
+- [x] **REFR-01**: 用户可以在网页中手动触发一次数据刷新。
+- [x] **REFR-02**: 系统可以防止同一时间重复运行多个刷新任务。
+- [x] **REFR-03**: 系统可以记录每次刷新任务的开始时间、结束时间、状态、成功股票数、失败股票数和错误摘要。
+- [x] **REFR-04**: 页面可以展示最新一次刷新状态和最新一次成功刷新时间。
 - [ ] **REFR-05**: 系统可以缓存刷新依赖的股票基础信息、行情数据、筹码数据和筛选结果，页面默认读取缓存结果。
 
 ### Screening
@@ -134,14 +134,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-02 | Phase 1 | Complete |
 | CONF-03 | Phase 1 | Complete |
 | DATA-01 | Phase 1 | Complete |
-| DATA-02 | Phase 2 | Pending |
+| DATA-02 | Phase 2 | Complete |
 | DATA-03 | Phase 1 | Complete |
 | DATA-04 | Phase 1 | Complete |
-| REFR-01 | Phase 2 | Pending |
-| REFR-02 | Phase 2 | Pending |
-| REFR-03 | Phase 2 | Pending |
-| REFR-04 | Phase 2 | Pending |
-| REFR-05 | Phase 2 | Pending |
+| REFR-01 | Phase 2 | Complete |
+| REFR-02 | Phase 2 | Complete |
+| REFR-03 | Phase 2 | Complete |
+| REFR-04 | Phase 2 | Complete |
+| REFR-05 | Phase 2 | Partial |
 | SCRN-01 | Phase 3 | Pending |
 | SCRN-02 | Phase 3 | Pending |
 | SCRN-03 | Phase 3 | Pending |
