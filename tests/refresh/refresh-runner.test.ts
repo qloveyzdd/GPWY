@@ -13,7 +13,15 @@ import {
 import {
   readLatestDailyBars,
   readLatestStockBasics,
+  writeDailyBars,
+  writeStockBasics,
 } from "@/lib/refresh/refresh-store";
+import {
+  readLatestScreeningResults,
+  readLatestScreeningRun,
+} from "@/lib/screening/screening-store";
+import type { ChipPeakRunRecord } from "@/lib/chip/chip-types";
+import type { DailyBarRecord } from "@/lib/refresh/refresh-types";
 import type {
   TushareClientLike,
   TushareDataTable,
@@ -47,6 +55,36 @@ function createMockClient(
 ): TushareClientLike {
   return {
     query: vi.fn((endpoint, params = {}) => handler(endpoint, params)),
+  };
+}
+
+function makeBars(tsCode: string, count: number): DailyBarRecord[] {
+  return Array.from({ length: count }, (_, index) => {
+    const close = 100 - index;
+    const high = index === 50 ? 90 : close + 1;
+
+    return {
+      tsCode,
+      tradeDate: `2026${String(index + 1).padStart(4, "0")}`,
+      open: close + 0.5,
+      high,
+      low: close - 1,
+      close,
+      vol: 1000 + index,
+    };
+  });
+}
+
+function chipRunFixture(): ChipPeakRunRecord {
+  return {
+    id: 1,
+    screeningRunId: 1,
+    status: "succeeded",
+    createdAt: "2026-06-23T00:00:00.000Z",
+    totalCandidates: 0,
+    successCount: 0,
+    blockedCount: 0,
+    failedCount: 0,
   };
 }
 
@@ -128,6 +166,138 @@ describe("refresh runner", () => {
     expect(latestJob?.status).toBe("failed");
     expect(serialized).not.toContain("very-secret-token");
     expect(serialized).not.toContain("C:\\server\\private");
+  });
+
+  it("runs cache refresh, downtrend screening, and chip peak enrichment as one workflow", async () => {
+    useTempRefreshStore();
+    const chipPeakRunner = vi.fn(async () => chipRunFixture());
+
+    const result = await startManualRefresh({
+      waitForCompletion: true,
+      now: new Date("2026-06-23T00:00:00.000Z"),
+      chipPeakRunner,
+      worker: async (job) => {
+        writeStockBasics(job.id, [
+          {
+            tsCode: "000001.SZ",
+            name: "平安银行",
+            market: "主板",
+            listStatus: "L",
+          },
+        ]);
+        writeDailyBars(job.id, makeBars("000001.SZ", 60));
+
+        return {
+          totalStocks: 1,
+          successCount: 1,
+          failedCount: 0,
+        };
+      },
+    });
+    const screeningRun = readLatestScreeningRun();
+
+    expect(result.job.status).toBe("succeeded");
+    expect(screeningRun?.sourceRefreshJobId).toBe(result.job.id);
+    expect(readLatestScreeningResults()).toMatchObject([
+      {
+        tsCode: "000001.SZ",
+        name: "平安银行",
+        intervalHigh: 90,
+      },
+    ]);
+    expect(chipPeakRunner).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the refresh job running until chip peak enrichment finishes", async () => {
+    useTempRefreshStore();
+    let finishChipPeak:
+      | ((value: ChipPeakRunRecord) => void)
+      | undefined;
+    const chipPeakRunner = vi.fn(
+      () =>
+        new Promise<ChipPeakRunRecord>((resolve) => {
+          finishChipPeak = resolve;
+        }),
+    );
+
+    const refreshPromise = startManualRefresh({
+      waitForCompletion: true,
+      chipPeakRunner,
+      worker: async () => ({
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+      }),
+    });
+
+    await vi.waitFor(() => {
+      expect(readRefreshStatus().isRunning).toBe(true);
+    });
+
+    finishChipPeak?.(chipRunFixture());
+    const result = await refreshPromise;
+
+    expect(result.job.status).toBe("succeeded");
+    expect(readRefreshStatus().isRunning).toBe(false);
+  });
+
+  it("marks screening failures as refresh workflow failures", async () => {
+    useTempRefreshStore();
+    const chipPeakRunner = vi.fn(async () => chipRunFixture());
+
+    const result = await startManualRefresh({
+      waitForCompletion: true,
+      screeningRunner: () => {
+        throw new Error(
+          "token=very-secret-token screening failed at C:\\server\\private\\screen.ts",
+        );
+      },
+      chipPeakRunner,
+      worker: async () => ({
+        totalStocks: 1,
+        successCount: 1,
+        failedCount: 0,
+      }),
+    });
+    const latestJob = readRefreshStatus().latestJob;
+    const serialized = JSON.stringify(latestJob);
+
+    expect(result.job.status).toBe("failed");
+    expect(latestJob?.status).toBe("failed");
+    expect(serialized).not.toContain("very-secret-token");
+    expect(serialized).not.toContain("C:\\server\\private");
+    expect(chipPeakRunner).not.toHaveBeenCalled();
+  });
+
+  it("does not fail refresh when chip peak enrichment throws", async () => {
+    useTempRefreshStore();
+
+    const result = await startManualRefresh({
+      waitForCompletion: true,
+      chipPeakRunner: async () => {
+        throw new Error("cyq_chips temporarily unavailable");
+      },
+      worker: async (job) => {
+        writeStockBasics(job.id, [
+          {
+            tsCode: "000001.SZ",
+            name: "平安银行",
+            market: "主板",
+            listStatus: "L",
+          },
+        ]);
+        writeDailyBars(job.id, makeBars("000001.SZ", 60));
+
+        return {
+          totalStocks: 1,
+          successCount: 1,
+          failedCount: 0,
+        };
+      },
+    });
+
+    expect(result.job.status).toBe("succeeded");
+    expect(readLatestScreeningResults()).toHaveLength(1);
   });
 
   it("writes provider-fetched stock basics and daily bars", async () => {

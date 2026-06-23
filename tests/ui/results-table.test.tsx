@@ -13,6 +13,14 @@ import { EMPTY_REFRESH_STATUS } from "@/lib/refresh/refresh-types";
 import type { ResultsSnapshot } from "@/lib/results/results-types";
 import { EMPTY_VALIDATION_SNAPSHOT } from "@/lib/validation-types";
 
+const routerRefreshMock = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: routerRefreshMock,
+  }),
+}));
+
 const readySnapshot: ResultsSnapshot = {
   status: "ready",
   summary: "最新筛选命中 2 只股票。",
@@ -125,6 +133,7 @@ function renderedCodes() {
 describe("ResultsTable", () => {
   afterEach(() => {
     cleanup();
+    routerRefreshMock.mockReset();
   });
 
   it("renders required stock result columns with formatted values", () => {

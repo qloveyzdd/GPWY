@@ -1,7 +1,8 @@
 import {
-  readLatestDailyBars,
-  readLatestStockBasics,
+  readDailyBarsForRefreshJob,
   readLatestSuccessfulRefreshJob,
+  readRefreshJobById,
+  readStockBasicsForRefreshJob,
 } from "@/lib/refresh/refresh-store";
 import { evaluateDowntrendStock } from "@/lib/screening/downtrend-screen";
 import { writeScreeningRun } from "@/lib/screening/screening-store";
@@ -13,6 +14,7 @@ import type {
 
 export type RunDowntrendScreeningOptions = {
   now?: Date;
+  sourceRefreshJobId?: number;
 };
 
 function groupBarsByTsCode(bars: ScreeningDailyBar[]) {
@@ -33,15 +35,20 @@ function groupBarsByTsCode(bars: ScreeningDailyBar[]) {
 
 export function runDowntrendScreeningFromCache({
   now = new Date(),
+  sourceRefreshJobId,
 }: RunDowntrendScreeningOptions = {}): ScreeningRunRecord {
-  const latestRefreshJob = readLatestSuccessfulRefreshJob();
+  const sourceRefreshJob = sourceRefreshJobId
+    ? readRefreshJobById(sourceRefreshJobId)
+    : readLatestSuccessfulRefreshJob();
 
-  if (!latestRefreshJob) {
+  if (!sourceRefreshJob) {
     throw new Error("no_successful_refresh_cache");
   }
 
-  const stockBasics = readLatestStockBasics();
-  const barsByTsCode = groupBarsByTsCode(readLatestDailyBars());
+  const stockBasics = readStockBasicsForRefreshJob(sourceRefreshJob.id);
+  const barsByTsCode = groupBarsByTsCode(
+    readDailyBarsForRefreshJob(sourceRefreshJob.id),
+  );
   const results: Omit<ScreeningResultRecord, "screeningRunId">[] = [];
   let skippedCount = 0;
 
@@ -75,7 +82,7 @@ export function runDowntrendScreeningFromCache({
   }
 
   return writeScreeningRun({
-    sourceRefreshJobId: latestRefreshJob.id,
+    sourceRefreshJobId: sourceRefreshJob.id,
     totalStocks: stockBasics.length,
     matchedCount: results.length,
     skippedCount,

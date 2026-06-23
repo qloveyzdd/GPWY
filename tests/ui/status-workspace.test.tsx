@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -11,10 +12,20 @@ import { StatusWorkspace } from "@/components/status/status-workspace";
 import { EMPTY_REFRESH_STATUS } from "@/lib/refresh/refresh-types";
 import { EMPTY_VALIDATION_SNAPSHOT } from "@/lib/validation-types";
 
+const routerRefreshMock = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: routerRefreshMock,
+  }),
+}));
+
 describe("StatusWorkspace", () => {
   afterEach(() => {
     cleanup();
+    routerRefreshMock.mockReset();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("renders the empty state without raw secret details", () => {
@@ -123,6 +134,7 @@ describe("StatusWorkspace", () => {
         errorSummary: null,
       },
       latestSuccessfulJob: null,
+      latestCacheStats: null,
       isRunning: true,
       lastSuccessfulFinishedAt: null,
     };
@@ -153,5 +165,72 @@ describe("StatusWorkspace", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/refresh/run", {
       method: "POST",
     });
+  });
+
+  it("refreshes server-rendered snapshots when a running refresh finishes", async () => {
+    vi.useFakeTimers();
+    const runningStatus = {
+      activeJob: {
+        id: 7,
+        status: "running" as const,
+        startedAt: "2026-06-23T00:00:00.000Z",
+        finishedAt: null,
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+        errorSummary: null,
+      },
+      latestJob: {
+        id: 7,
+        status: "running" as const,
+        startedAt: "2026-06-23T00:00:00.000Z",
+        finishedAt: null,
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+        errorSummary: null,
+      },
+      latestSuccessfulJob: null,
+      latestCacheStats: null,
+      isRunning: true,
+      lastSuccessfulFinishedAt: null,
+    };
+    const completedStatus = {
+      activeJob: null,
+      latestJob: {
+        ...runningStatus.latestJob,
+        status: "succeeded" as const,
+        finishedAt: "2026-06-23T00:02:00.000Z",
+      },
+      latestSuccessfulJob: {
+        ...runningStatus.latestJob,
+        status: "succeeded" as const,
+        finishedAt: "2026-06-23T00:02:00.000Z",
+      },
+      latestCacheStats: {
+        stockCount: 1,
+        dailyBarCount: 60,
+      },
+      isRunning: false,
+      lastSuccessfulFinishedAt: "2026-06-23T00:02:00.000Z",
+    };
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify(completedStatus), { status: 200 }),
+    );
+
+    render(
+      <StatusWorkspace
+        initialSnapshot={EMPTY_VALIDATION_SNAPSHOT}
+        initialRefreshStatus={runningStatus}
+        logoutAction={vi.fn()}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(routerRefreshMock).toHaveBeenCalledOnce();
   });
 });

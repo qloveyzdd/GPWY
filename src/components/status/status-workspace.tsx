@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -11,6 +11,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ResultsTable } from "@/components/results/results-table";
@@ -219,10 +220,14 @@ export function StatusWorkspace({
   initialResultsSnapshot = EMPTY_RESULTS_SNAPSHOT,
   logoutAction,
 }: StatusWorkspaceProps) {
+  const router = useRouter();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [refreshStatus, setRefreshStatus] = useState(initialRefreshStatus);
   const [isStartingRefresh, setIsStartingRefresh] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const hasObservedRefreshRunRef = useRef(
+    initialRefreshStatus.isRunning,
+  );
   const [clientError, setClientError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const sections = useMemo(() => mergeSections(snapshot), [snapshot]);
@@ -253,6 +258,18 @@ export function StatusWorkspace({
 
     return () => window.clearInterval(intervalId);
   }, [refreshStatus.isRunning]);
+
+  useEffect(() => {
+    if (refreshStatus.isRunning) {
+      hasObservedRefreshRunRef.current = true;
+      return;
+    }
+
+    if (hasObservedRefreshRunRef.current) {
+      hasObservedRefreshRunRef.current = false;
+      router.refresh();
+    }
+  }, [refreshStatus.isRunning, router]);
 
   async function startRefresh() {
     setIsStartingRefresh(true);

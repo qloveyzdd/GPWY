@@ -17,7 +17,13 @@ import {
   writeDailyBars,
   writeStockBasics,
 } from "@/lib/refresh/refresh-store";
+import {
+  runChipPeakIntegrationFromLatestScreening,
+} from "@/lib/chip/chip-runner";
+import type { ChipPeakRunRecord } from "@/lib/chip/chip-types";
 import { readTushareTokenSecret } from "@/lib/config";
+import { runDowntrendScreeningFromCache } from "@/lib/screening/screening-runner";
+import type { ScreeningRunRecord } from "@/lib/screening/screening-types";
 import { classifyTushareError } from "@/lib/tushare/client";
 import { createTushareClient } from "@/lib/tushare/provider";
 import type { TushareClientLike } from "@/lib/tushare/types";
@@ -29,9 +35,18 @@ export type RefreshWorkerResult = {
 };
 
 export type RefreshWorker = (job: RefreshJob) => Promise<RefreshWorkerResult>;
+export type ScreeningWorkflowRunner = (options: {
+  sourceRefreshJobId: number;
+  now?: Date;
+}) => ScreeningRunRecord;
+export type ChipPeakWorkflowRunner = (options: {
+  now?: Date;
+}) => Promise<ChipPeakRunRecord>;
 
 export type StartManualRefreshOptions = {
   worker?: RefreshWorker;
+  screeningRunner?: ScreeningWorkflowRunner;
+  chipPeakRunner?: ChipPeakWorkflowRunner;
   now?: Date;
   waitForCompletion?: boolean;
 };
@@ -97,9 +112,29 @@ export function createProviderRefreshWorker({
   };
 }
 
-async function finishRefreshJob(job: RefreshJob, worker: RefreshWorker) {
+async function finishRefreshJob(
+  job: RefreshJob,
+  worker: RefreshWorker,
+  {
+    now,
+    screeningRunner = runDowntrendScreeningFromCache,
+    chipPeakRunner = runChipPeakIntegrationFromLatestScreening,
+  }: {
+    now?: Date;
+    screeningRunner?: ScreeningWorkflowRunner;
+    chipPeakRunner?: ChipPeakWorkflowRunner;
+  } = {},
+) {
   try {
     const result = await worker(job);
+    screeningRunner({ sourceRefreshJobId: job.id, now });
+
+    try {
+      await chipPeakRunner({ now });
+    } catch {
+      // Chip peak enrichment is row-level best effort; screening results stay usable.
+    }
+
     completeRefreshJob(job.id, result);
   } catch (error) {
     failRefreshJob(job.id, {
@@ -125,6 +160,8 @@ export function readRefreshStatus(): RefreshStatusSnapshot {
 
 export async function startManualRefresh({
   worker,
+  screeningRunner,
+  chipPeakRunner,
   now = new Date(),
   waitForCompletion = false,
 }: StartManualRefreshOptions = {}): Promise<StartManualRefreshResult> {
@@ -140,6 +177,11 @@ export async function startManualRefresh({
   const refreshPromise = finishRefreshJob(
     startResult.job,
     worker ?? createProviderRefreshWorker(),
+    {
+      now,
+      screeningRunner,
+      chipPeakRunner,
+    },
   );
 
   if (waitForCompletion) {

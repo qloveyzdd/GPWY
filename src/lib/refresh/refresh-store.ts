@@ -175,6 +175,20 @@ function readJobByStatus(status: RefreshJob["status"]) {
   }
 }
 
+export function readRefreshJobById(refreshJobId: number): RefreshJob | null {
+  const db = openDatabase();
+
+  try {
+    const row = db
+      .prepare("select * from refresh_jobs where id = ?")
+      .get(refreshJobId) as RefreshJobRow | undefined;
+
+    return row ? mapJob(row) : null;
+  } finally {
+    db.close();
+  }
+}
+
 export function startRefreshJob(now = new Date()): RefreshStartResult {
   const db = openDatabase();
 
@@ -404,6 +418,12 @@ export function readLatestStockBasics(): StockBasicRecord[] {
     return [];
   }
 
+  return readStockBasicsForRefreshJob(latestSuccess.id);
+}
+
+export function readStockBasicsForRefreshJob(
+  refreshJobId: number,
+): StockBasicRecord[] {
   const db = openDatabase();
 
   try {
@@ -412,7 +432,7 @@ export function readLatestStockBasics(): StockBasicRecord[] {
         .prepare(
           "select ts_code, name, market, list_status from stock_basics where refresh_job_id = ? order by ts_code",
         )
-        .all(latestSuccess.id) as StockBasicRow[]
+        .all(refreshJobId) as StockBasicRow[]
     ).map(mapStockBasic);
   } finally {
     db.close();
@@ -426,6 +446,10 @@ export function readLatestDailyBars(): DailyBarRecord[] {
     return [];
   }
 
+  return readDailyBarsForRefreshJob(latestSuccess.id);
+}
+
+export function readDailyBarsForRefreshJob(refreshJobId: number): DailyBarRecord[] {
   const db = openDatabase();
 
   try {
@@ -439,7 +463,7 @@ export function readLatestDailyBars(): DailyBarRecord[] {
           order by ts_code, trade_date
           `,
         )
-        .all(latestSuccess.id) as DailyBarRow[]
+        .all(refreshJobId) as DailyBarRow[]
     ).map(mapDailyBar);
   } finally {
     db.close();
