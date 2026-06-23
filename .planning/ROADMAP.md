@@ -151,13 +151,13 @@ Plans:
   3. 用户可以按当前价/高点比例、下跌幅度或筹码峰价格排序。
   4. 页面可以区分无符合股票、刷新失败和数据不可用。
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 05-01: Build latest results snapshot and required-column table
+- [x] 05-01: Build latest results snapshot and required-column table
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -197,5 +197,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 2. Manual Refresh Cache | 3/3 | Complete    | 2026-06-23 |
 | 3. Downtrend Screening Engine | 3/3 | Complete    | 2026-06-23 |
 | 4. Chip Peak Integration | 2/2 | Complete    | 2026-06-23 |
-| 5. Results Table Experience | 0/2 | Not started | - |
+| 5. Results Table Experience | 1/2 | In Progress|  |
 | 6. Charts and Deployment | 0/3 | Not started | - |
