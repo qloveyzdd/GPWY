@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
+status: milestone_complete
 stopped_at: Completed 06-03-PLAN.md
 last_updated: "2026-06-23T15:04:48.962Z"
 last_activity: 2026-06-23
@@ -22,13 +22,13 @@ See: .planning/PROJECT.md (updated 2026-06-23)
 
 **Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到对应筹码峰位置。
 
-**Current focus:** Phase 06 — charts-and-deployment
+**Current focus:** Milestone v1.0 complete
 
 ## Current Position
 
-Phase: 06 (charts-and-deployment) — VERIFYING
+Phase: 06 (charts-and-deployment) — COMPLETE
 Plan: 3 of 3
-Status: Phase complete — ready for verification
+Status: Milestone complete
 Last activity: 2026-06-23
 
 Progress: [██████████] 100%
@@ -37,7 +37,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 13
+- Total plans completed: 16
 - Average duration: 13 min
 - Total execution time: 2.5 hours
 
@@ -50,11 +50,11 @@ Progress: [██████████] 100%
 | 3. Downtrend Screening Engine | 3/3 | 11 min | 4 min |
 | 4. Chip Peak Integration | 2/2 | 11 min | 6 min |
 | 5. Results Table Experience | 2/2 | 6 min | 3 min |
-| 6. Charts and Deployment | 0/3 | 0 | N/A |
+| 6. Charts and Deployment | 3/3 | 53 min | 18 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-03 screening persistence, 04-01 chip peak parser, 04-02 chip peak integration, 05-01 results table, 05-02 sorting and states
+- Last 5 plans: 05-01 results table, 05-02 sorting and states, 06-01 refresh workflow chart data, 06-02 inline chart, 06-03 deployment smoke verification
 - Trend: stable
 
 *Updated after each plan completion*
@@ -82,8 +82,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 5 must render the latest persisted screening results and chip peak enrichment state.
-- Phase 5 should clearly distinguish no matches, failed refresh, and unavailable chip data.
+None for the completed v1 milestone. Deferred items remain below.
 
 ## Deferred Items
 
