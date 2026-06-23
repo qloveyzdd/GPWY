@@ -126,11 +126,15 @@ Plans:
   3. 如果账号无权访问筹码数据，系统会把筹码峰需求标记为阻塞。
   4. 系统不会使用未验证的筹码估算算法伪造筹码峰。
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans ready
 
 Plans:
+**Wave 1**
 
 - [ ] 04-01: Implement chip distribution parser and peak extraction tests
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 04-02: Integrate candidate chip fetch with blocked-state handling
 
 ### Phase 5: Results Table Experience
