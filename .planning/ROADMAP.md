@@ -97,7 +97,7 @@ Plans:
   4. 系统可以筛出当前收盘价 `<= 区间高点 * 0.85` 的股票。
   5. 算法单元测试覆盖 MA、斜率、波段高点、退化高点和阈值边界。
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -106,7 +106,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02: Implement swing-high and threshold logic with edge-case tests
+- [x] 03-02: Implement swing-high and threshold logic with edge-case tests
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -186,7 +186,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 |-------|----------------|--------|-----------|
 | 1. Tushare Data Foundation | 3/3 | Complete    | 2026-06-23 |
 | 2. Manual Refresh Cache | 3/3 | Complete    | 2026-06-23 |
-| 3. Downtrend Screening Engine | 1/3 | In Progress | - |
+| 3. Downtrend Screening Engine | 2/3 | In Progress | - |
 | 4. Chip Peak Integration | 0/2 | Not started | - |
 | 5. Results Table Experience | 0/2 | Not started | - |
 | 6. Charts and Deployment | 0/3 | Not started | - |
