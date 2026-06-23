@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 
-import { middleware } from "@/middleware";
+import { proxy } from "@/proxy";
 import {
   createSignedSessionValue,
   SESSION_COOKIE_NAME,
@@ -15,21 +15,21 @@ function requestFor(path: string) {
 
 describe("access gate", () => {
   it("redirects unauthenticated workspace requests to login", () => {
-    const response = middleware(requestFor("/"));
+    const response = proxy(requestFor("/"));
 
     expect(response?.status).toBe(307);
     expect(response?.headers.get("location")).toBe("http://localhost/login");
   });
 
   it("rejects unauthenticated validation API requests", async () => {
-    const response = middleware(requestFor("/api/validation/run"));
+    const response = proxy(requestFor("/api/validation/run"));
 
     expect(response?.status).toBe(401);
     await expect(response?.json()).resolves.toEqual({ error: "unauthorized" });
   });
 
   it("rejects unauthenticated refresh API requests", async () => {
-    const response = middleware(requestFor("/api/refresh/run"));
+    const response = proxy(requestFor("/api/refresh/run"));
 
     expect(response?.status).toBe(401);
     await expect(response?.json()).resolves.toEqual({ error: "unauthorized" });
@@ -51,7 +51,7 @@ describe("access gate", () => {
     const request = requestFor("/");
     request.cookies.set(SESSION_COOKIE_NAME, "present");
 
-    const response = middleware(request);
+    const response = proxy(request);
 
     expect(response?.headers.get("x-middleware-next")).toBe("1");
   });
