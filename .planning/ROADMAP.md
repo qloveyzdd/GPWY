@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Tushare Data Foundation** - 建立可运行网页骨架并验证 Tushare token、行情和筹码候选接口。 (completed 2026-06-23)
 - [x] **Phase 2: Manual Refresh Cache** - 交付手动刷新、刷新锁、状态记录和 SQLite 数据缓存。 (completed 2026-06-23)
 - [x] **Phase 3: Downtrend Screening Engine** - 实现 MA20/MA60、波段高点、85% 阈值和筛选结果持久化。 (completed 2026-06-23)
-- [ ] **Phase 4: Chip Peak Integration** - 从 Tushare 筹码数据提取筹码峰，并处理接口不可用阻塞状态。
+- [x] **Phase 4: Chip Peak Integration** - 从 Tushare 筹码数据提取筹码峰，并处理接口不可用阻塞状态。 (completed 2026-06-23)
 - [ ] **Phase 5: Results Table Experience** - 展示最新筛选结果表格、排序和失败/空结果状态。
 - [ ] **Phase 6: Charts and Deployment** - 展示单只股票图表，并补齐云端自托管、安全和验证命令。
 
@@ -126,7 +126,7 @@ Plans:
   3. 如果账号无权访问筹码数据，系统会把筹码峰需求标记为阻塞。
   4. 系统不会使用未验证的筹码估算算法伪造筹码峰。
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 
 Plans:
 **Wave 1**
@@ -135,7 +135,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-02: Integrate candidate chip fetch with blocked-state handling
+- [x] 04-02: Integrate candidate chip fetch with blocked-state handling
 
 ### Phase 5: Results Table Experience
 
@@ -191,6 +191,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 1. Tushare Data Foundation | 3/3 | Complete    | 2026-06-23 |
 | 2. Manual Refresh Cache | 3/3 | Complete    | 2026-06-23 |
 | 3. Downtrend Screening Engine | 3/3 | Complete    | 2026-06-23 |
-| 4. Chip Peak Integration | 1/2 | In Progress | - |
+| 4. Chip Peak Integration | 2/2 | Complete    | 2026-06-23 |
 | 5. Results Table Experience | 0/2 | Not started | - |
 | 6. Charts and Deployment | 0/3 | Not started | - |

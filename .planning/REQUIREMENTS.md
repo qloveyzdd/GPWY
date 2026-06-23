@@ -50,9 +50,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Chip Peak
 
 - [x] **CHIP-01**: 系统可以用真实 Tushare token 验证筹码相关候选接口或字段是否可用，优先验证 `cyq_chips`、`cyq_perf` 或 Tushare 等价能力。
-- [ ] **CHIP-02**: 如果 Tushare 返回筹码分布数据而不是直接筹码峰字段，系统可以把占比最高的价格档识别为筹码峰价格，并记录该提取口径。
-- [ ] **CHIP-03**: 系统可以为每只入选股票获取并保存筹码峰价格。
-- [ ] **CHIP-04**: 如果 Tushare 账号无权访问筹码相关数据，系统必须把筹码峰需求标记为阻塞，并显示脱敏原因，而不是用未验证估算算法替代。
+- [x] **CHIP-02**: 如果 Tushare 返回筹码分布数据而不是直接筹码峰字段，系统可以把占比最高的价格档识别为筹码峰价格，并记录该提取口径。
+- [x] **CHIP-03**: 系统可以为每只入选股票获取并保存筹码峰价格。
+- [x] **CHIP-04**: 如果 Tushare 账号无权访问筹码相关数据，系统必须把筹码峰需求标记为阻塞，并显示脱敏原因，而不是用未验证估算算法替代。
 
 ### Results Table
 
@@ -151,9 +151,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCRN-07 | Phase 3 | Complete |
 | SCRN-08 | Phase 3 | Complete |
 | CHIP-01 | Phase 1 | Complete |
-| CHIP-02 | Phase 4 | Pending |
-| CHIP-03 | Phase 4 | Pending |
-| CHIP-04 | Phase 4 | Pending |
+| CHIP-02 | Phase 4 | Complete |
+| CHIP-03 | Phase 4 | Complete |
+| CHIP-04 | Phase 4 | Complete |
 | UI-01 | Phase 5 | Pending |
 | UI-02 | Phase 5 | Pending |
 | UI-03 | Phase 5 | Pending |
@@ -175,4 +175,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-06-23*
-*Last updated: 2026-06-23 after roadmap creation*
+*Last updated: 2026-06-23 after Phase 4 verification*

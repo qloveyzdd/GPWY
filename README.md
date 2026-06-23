@@ -50,3 +50,4 @@ npm run verify
 - 状态页已有“手动刷新缓存”按钮，并通过受保护的 `/api/refresh/run` 和 `/api/refresh/status` 管理刷新任务。
 - 手动刷新会拉取上市 A 股 `stock_basic` 和最近 60 个有数据交易日的 `daily` OHLCV 行情，并默认写入 `.data/refresh.sqlite`。
 - 已实现缓存驱动的下降趋势筛选引擎，可计算 MA20/MA60、MA20 斜率、60 日区间高点和 85% 阈值，并持久化入选结果。
+- 已实现基于官方 `cyq_chips` 的筹码峰提取与持久化；接口不可用或权限不足时会记录脱敏 blocked 状态，不使用估算替代。

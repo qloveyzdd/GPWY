@@ -74,7 +74,7 @@
 | 使用表格加图表 | 表格适合批量扫描，图表适合逐只股票研判 | Pending |
 | 使用 MA20/MA60 定义趋势 | 简单、可解释，符合用户确认的下降区间口径 | Pending |
 | 最近 60 个交易日识别波段高点 | 保持计算窗口明确，避免无边界地寻找历史顶部 | Pending |
-| 筹码峰优先使用 Tushare 现有能力 | 数据口径优先，避免首版引入未验证估算模型 | Pending |
+| 筹码峰优先使用 Tushare 现有能力 | 数据口径优先，避免首版引入未验证估算模型 | Validated in Phase 4: use `cyq_chips` highest-percent price bucket |
 
 ## Evolution
 
@@ -94,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-23 after initialization*
+*Last updated: 2026-06-23 after Phase 4 verification*
