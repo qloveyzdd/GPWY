@@ -21,6 +21,12 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+vi.mock("@/components/charts/stock-kline-chart", () => ({
+  StockKlineChart: ({ tsCode }: { tsCode: string | null }) => (
+    <div data-testid="stock-chart">chart {tsCode ?? "none"}</div>
+  ),
+}));
+
 const readySnapshot: ResultsSnapshot = {
   status: "ready",
   summary: "最新筛选命中 2 只股票。",
@@ -187,6 +193,9 @@ describe("ResultsTable", () => {
     render(<ResultsTable snapshot={sortableSnapshot} />);
 
     expect(renderedCodes()).toEqual(["000002.SZ", "000004.SZ", "000001.SZ"]);
+    expect(screen.getByTestId("stock-chart").textContent).toBe(
+      "chart 000002.SZ",
+    );
     expect(
       screen
         .getByRole("columnheader", { name: /当前\/高点/ })
@@ -270,5 +279,19 @@ describe("ResultsTable", () => {
     expect(screen.getByText("失败")).toBeTruthy();
     expect(screen.getByText("无数据")).toBeTruthy();
     expect(screen.queryByText("结果数据不可用")).toBeNull();
+  });
+
+  it("changes the inline chart selection when a result row is clicked", () => {
+    render(<ResultsTable snapshot={sortableSnapshot} />);
+
+    const targetRow = screen.getByText("000001.SZ").closest("tr");
+
+    expect(targetRow).toBeTruthy();
+    fireEvent.click(targetRow as HTMLTableRowElement);
+
+    expect(screen.getByTestId("stock-chart").textContent).toBe(
+      "chart 000001.SZ",
+    );
+    expect(targetRow?.getAttribute("aria-selected")).toBe("true");
   });
 });

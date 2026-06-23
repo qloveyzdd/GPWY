@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CircleSlash } from "lucide-react";
 
+import { StockKlineChart } from "@/components/charts/stock-kline-chart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -197,6 +198,12 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
     () => sortRows(snapshot.rows, sort),
     [snapshot.rows, sort],
   );
+  const [selectedTsCode, setSelectedTsCode] = useState<string | null>(null);
+  const effectiveSelectedTsCode = rows.some(
+    (row) => row.tsCode === selectedTsCode,
+  )
+    ? selectedTsCode
+    : rows[0]?.tsCode ?? null;
 
   function handleSort(key: SortKey) {
     setSort((current) => {
@@ -232,57 +239,80 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
       {snapshot.status !== "ready" ? (
         <ResultsState snapshot={snapshot} />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>股票代码</TableHead>
-              <TableHead>名称</TableHead>
-              <TableHead className="text-right">当前价</TableHead>
-              <TableHead className="text-right">区间高点</TableHead>
-              <SortHeader
-                label="当前/高点"
-                sortKey="currentHighRatio"
-                sort={sort}
-                onSort={handleSort}
-              />
-              <SortHeader
-                label="下跌幅度"
-                sortKey="drawdownPct"
-                sort={sort}
-                onSort={handleSort}
-              />
-              <SortHeader
-                label="筹码峰价格"
-                sortKey="chipPeakPrice"
-                sort={sort}
-                onSort={handleSort}
-              />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.tsCode}>
-                <TableCell className="font-medium">{row.tsCode}</TableCell>
-                <TableCell>{row.name}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatPrice(row.currentPrice)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatPrice(row.intervalHigh)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatPercent(row.currentHighRatio)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatPercent(row.drawdownPct)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <ChipPeakCell row={row} />
-                </TableCell>
+        <div className="space-y-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>股票代码</TableHead>
+                <TableHead>名称</TableHead>
+                <TableHead className="text-right">当前价</TableHead>
+                <TableHead className="text-right">区间高点</TableHead>
+                <SortHeader
+                  label="当前/高点"
+                  sortKey="currentHighRatio"
+                  sort={sort}
+                  onSort={handleSort}
+                />
+                <SortHeader
+                  label="下跌幅度"
+                  sortKey="drawdownPct"
+                  sort={sort}
+                  onSort={handleSort}
+                />
+                <SortHeader
+                  label="筹码峰价格"
+                  sortKey="chipPeakPrice"
+                  sort={sort}
+                  onSort={handleSort}
+                />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => {
+                const isSelected = row.tsCode === effectiveSelectedTsCode;
+
+                return (
+                  <TableRow
+                    key={row.tsCode}
+                    tabIndex={0}
+                    aria-selected={isSelected}
+                    className={cn(
+                      "cursor-pointer outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60",
+                      isSelected ? "bg-muted/50" : "",
+                    )}
+                    onClick={() => setSelectedTsCode(row.tsCode)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedTsCode(row.tsCode);
+                      }
+                    }}
+                  >
+                    <TableCell className="font-medium">{row.tsCode}</TableCell>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatPrice(row.currentPrice)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatPrice(row.intervalHigh)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatPercent(row.currentHighRatio)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatPercent(row.drawdownPct)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <ChipPeakCell row={row} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+
+          <StockKlineChart tsCode={effectiveSelectedTsCode} />
+        </div>
       )}
     </section>
   );
