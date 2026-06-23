@@ -1,0 +1,95 @@
+// @vitest-environment node
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  readLatestChipPeakResults,
+  readLatestChipPeakRun,
+  writeChipPeakRun,
+} from "@/lib/chip/chip-store";
+import type { ChipPeakResultRecord } from "@/lib/chip/chip-types";
+
+const tempRoots: string[] = [];
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  for (const root of tempRoots.splice(0)) {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function useTempStore() {
+  const root = mkdtempSync(path.join(tmpdir(), "gpwy-chip-store-"));
+  tempRoots.push(root);
+  vi.stubEnv("REFRESH_DB_PATH", path.join(root, "refresh.sqlite"));
+}
+
+function result(
+  overrides: Partial<ChipPeakResultRecord> = {},
+): Omit<ChipPeakResultRecord, "chipPeakRunId"> {
+  return {
+    screeningRunId: 5,
+    tsCode: "000001.SZ",
+    status: "succeeded",
+    tradeDate: "20260211",
+    chipPeakPrice: 10.2,
+    peakPercent: 6,
+    source: "cyq_chips_highest_percent",
+    errorCategory: null,
+    errorSummary: null,
+    ...overrides,
+  };
+}
+
+describe("chip store", () => {
+  it("writes and reads latest chip peak run and results", () => {
+    useTempStore();
+
+    const run = writeChipPeakRun({
+      screeningRunId: 5,
+      status: "partial",
+      totalCandidates: 2,
+      successCount: 1,
+      blockedCount: 1,
+      failedCount: 0,
+      results: [
+        result(),
+        result({
+          tsCode: "000002.SZ",
+          status: "blocked",
+          tradeDate: null,
+          chipPeakPrice: null,
+          peakPercent: null,
+          source: null,
+          errorCategory: "permission_denied",
+          errorSummary: "Tushare 接口权限不足。请检查账户权限或积分是否满足当前接口。",
+        }),
+      ],
+      now: new Date("2026-06-23T00:00:00.000Z"),
+    });
+
+    expect(readLatestChipPeakRun()).toEqual(run);
+    expect(readLatestChipPeakResults()).toEqual([
+      {
+        ...result(),
+        chipPeakRunId: run.id,
+      },
+      {
+        ...result({
+          tsCode: "000002.SZ",
+          status: "blocked",
+          tradeDate: null,
+          chipPeakPrice: null,
+          peakPercent: null,
+          source: null,
+          errorCategory: "permission_denied",
+          errorSummary: "Tushare 接口权限不足。请检查账户权限或积分是否满足当前接口。",
+        }),
+        chipPeakRunId: run.id,
+      },
+    ]);
+  });
+});
