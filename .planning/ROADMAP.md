@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Downtrend Screening Engine** - 实现 MA20/MA60、波段高点、85% 阈值和筛选结果持久化。 (completed 2026-06-23)
 - [x] **Phase 4: Chip Peak Integration** - 从 Tushare 筹码数据提取筹码峰，并处理接口不可用阻塞状态。 (completed 2026-06-23)
 - [x] **Phase 5: Results Table Experience** - 展示最新筛选结果表格、排序和失败/空结果状态。 (completed 2026-06-23)
-- [ ] **Phase 6: Charts and Deployment** - 展示单只股票图表，并补齐云端自托管、安全和验证命令。
+- [x] **Phase 6: Charts and Deployment** - 展示单只股票图表，并补齐云端自托管、安全和验证命令。 (completed 2026-06-23)
 
 ## Phase Details
 
@@ -178,7 +178,7 @@ Plans:
   4. 项目提供云端自托管启动方式和必要环境变量说明。
   5. 项目提供类型检查、算法单元测试和页面冒烟检查命令。
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -192,7 +192,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06-03: Add self-host deployment docs and smoke verification
+- [x] 06-03: Add self-host deployment docs and smoke verification
 
 **Cross-cutting constraints:**
 
@@ -210,4 +210,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Downtrend Screening Engine | 3/3 | Complete    | 2026-06-23 |
 | 4. Chip Peak Integration | 2/2 | Complete    | 2026-06-23 |
 | 5. Results Table Experience | 2/2 | Complete   | 2026-06-23 |
-| 6. Charts and Deployment | 2/3 | In Progress|  |
+| 6. Charts and Deployment | 3/3 | Complete   | 2026-06-23 |

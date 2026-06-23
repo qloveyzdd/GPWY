@@ -72,9 +72,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Deployment
 
-- [ ] **DEPL-01**: 项目提供云端自托管所需的启动方式和必要环境变量说明。
+- [x] **DEPL-01**: 项目提供云端自托管所需的启动方式和必要环境变量说明。
 - [x] **DEPL-02**: 系统在缺少 `TUSHARE_TOKEN` 或 token 无效时显示明确的服务端配置错误。
-- [ ] **DEPL-03**: 项目提供基础验证命令，至少覆盖类型检查、算法单元测试和页面冒烟检查。
+- [x] **DEPL-03**: 项目提供基础验证命令，至少覆盖类型检查、算法单元测试和页面冒烟检查。
 
 ## v2 Requirements
 
@@ -164,9 +164,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHRT-04 | Phase 6 | Complete |
 | CHRT-05 | Phase 6 | Complete |
 | CHRT-06 | Phase 6 | Complete |
-| DEPL-01 | Phase 6 | Pending |
+| DEPL-01 | Phase 6 | Complete |
 | DEPL-02 | Phase 1 | Complete |
-| DEPL-03 | Phase 6 | Pending |
+| DEPL-03 | Phase 6 | Complete |
 
 **Coverage:**
 - v1 requirements: 37 total
