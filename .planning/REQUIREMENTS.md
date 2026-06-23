@@ -58,8 +58,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **UI-01**: 页面可以展示最新一次成功筛选出的股票列表。
 - [x] **UI-02**: 表格至少展示股票代码、名称、当前价、区间高点、当前价/高点比例、下跌幅度和筹码峰价格。
-- [ ] **UI-03**: 用户可以按当前价/高点比例、下跌幅度或筹码峰价格对结果排序。
-- [ ] **UI-04**: 页面可以清楚区分“无符合股票”和“刷新失败/数据不可用”两种状态。
+- [x] **UI-03**: 用户可以按当前价/高点比例、下跌幅度或筹码峰价格对结果排序。
+- [x] **UI-04**: 页面可以清楚区分“无符合股票”和“刷新失败/数据不可用”两种状态。
 
 ### Charts
 
@@ -156,8 +156,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHIP-04 | Phase 4 | Complete |
 | UI-01 | Phase 5 | Complete |
 | UI-02 | Phase 5 | Complete |
-| UI-03 | Phase 5 | Pending |
-| UI-04 | Phase 5 | Pending |
+| UI-03 | Phase 5 | Complete |
+| UI-04 | Phase 5 | Complete |
 | CHRT-01 | Phase 6 | Pending |
 | CHRT-02 | Phase 6 | Pending |
 | CHRT-03 | Phase 6 | Pending |
