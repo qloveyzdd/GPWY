@@ -178,13 +178,25 @@ Plans:
   4. 项目提供云端自托管启动方式和必要环境变量说明。
   5. 项目提供类型检查、算法单元测试和页面冒烟检查命令。
 
-**Plans:** 3 plans
+**Plans:** 0/3 plans executed
 
 Plans:
 
-- [ ] 06-01: Build chart data API and ECharts stock detail view
-- [ ] 06-02: Add deployment instructions and runtime access hardening
-- [ ] 06-03: Add verification commands and browser smoke coverage
+**Wave 1**
+
+- [ ] 06-01: Close refresh-to-results workflow and chart data foundation
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-02: Build inline K-line chart experience
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 06-03: Add self-host deployment docs and smoke verification
+
+**Cross-cutting constraints:**
+
+- CHRT-06: 图表数据必须复用持久化筛选/筹码结果中的关键数值。
 
 ## Progress
 
@@ -198,4 +210,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Downtrend Screening Engine | 3/3 | Complete    | 2026-06-23 |
 | 4. Chip Peak Integration | 2/2 | Complete    | 2026-06-23 |
 | 5. Results Table Experience | 2/2 | Complete   | 2026-06-23 |
-| 6. Charts and Deployment | 0/3 | Not started | - |
+| 6. Charts and Deployment | 0/3 | Planned    |  |
