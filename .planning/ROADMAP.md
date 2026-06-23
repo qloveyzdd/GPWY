@@ -155,7 +155,12 @@ Plans:
 
 Plans:
 
-- [ ] 05-01: Build latest results table with required columns
+**Wave 1**
+
+- [ ] 05-01: Build latest results snapshot and required-column table
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 05-02: Add sorting plus empty/failure/data-unavailable states
 
 ### Phase 6: Charts and Deployment
