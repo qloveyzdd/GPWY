@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ResultsTable } from "@/components/results/results-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -29,12 +30,15 @@ import type {
   ValidationStatus,
 } from "@/lib/validation-types";
 import type { RefreshStatusSnapshot } from "@/lib/refresh/refresh-types";
+import type { ResultsSnapshot } from "@/lib/results/results-types";
+import { EMPTY_RESULTS_SNAPSHOT } from "@/lib/results/results-types";
 import { EMPTY_VALIDATION_SECTIONS } from "@/lib/validation-types";
 import { cn } from "@/lib/utils";
 
 type StatusWorkspaceProps = {
   initialSnapshot: ValidationSnapshot;
   initialRefreshStatus: RefreshStatusSnapshot;
+  initialResultsSnapshot?: ResultsSnapshot;
   logoutAction: (formData: FormData) => void | Promise<void>;
 };
 
@@ -212,6 +216,7 @@ function SectionBand({ section }: { section: ValidationSection }) {
 export function StatusWorkspace({
   initialSnapshot,
   initialRefreshStatus,
+  initialResultsSnapshot = EMPTY_RESULTS_SNAPSHOT,
   logoutAction,
 }: StatusWorkspaceProps) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
@@ -414,6 +419,8 @@ export function StatusWorkspace({
             <StatusBadge status={snapshot.overallStatus} />
           </div>
         </section>
+
+        <ResultsTable snapshot={initialResultsSnapshot} />
 
         <div className="grid gap-4">
           {sections.map((section) => (
