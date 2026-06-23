@@ -178,13 +178,13 @@ Plans:
   4. 项目提供云端自托管启动方式和必要环境变量说明。
   5. 项目提供类型检查、算法单元测试和页面冒烟检查命令。
 
-**Plans:** 0/3 plans executed
+**Plans:** 1/3 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 06-01: Close refresh-to-results workflow and chart data foundation
+- [x] 06-01: Close refresh-to-results workflow and chart data foundation
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -210,4 +210,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Downtrend Screening Engine | 3/3 | Complete    | 2026-06-23 |
 | 4. Chip Peak Integration | 2/2 | Complete    | 2026-06-23 |
 | 5. Results Table Experience | 2/2 | Complete   | 2026-06-23 |
-| 6. Charts and Deployment | 0/3 | Planned    |  |
+| 6. Charts and Deployment | 1/3 | In Progress|  |

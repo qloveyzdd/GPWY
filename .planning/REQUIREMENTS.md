@@ -68,7 +68,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **CHRT-03**: 图表可以标记用于筛选的区间高点。
 - [ ] **CHRT-04**: 图表可以标记 `区间高点 * 0.85` 的阈值线。
 - [ ] **CHRT-05**: 图表可以标记筹码峰价格。
-- [ ] **CHRT-06**: 图表上的数值与表格中的当前价、区间高点、比例、下跌幅度和筹码峰价格一致。
+- [x] **CHRT-06**: 图表上的数值与表格中的当前价、区间高点、比例、下跌幅度和筹码峰价格一致。
 
 ### Deployment
 
@@ -163,7 +163,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHRT-03 | Phase 6 | Pending |
 | CHRT-04 | Phase 6 | Pending |
 | CHRT-05 | Phase 6 | Pending |
-| CHRT-06 | Phase 6 | Pending |
+| CHRT-06 | Phase 6 | Complete |
 | DEPL-01 | Phase 6 | Pending |
 | DEPL-02 | Phase 1 | Complete |
 | DEPL-03 | Phase 6 | Pending |
