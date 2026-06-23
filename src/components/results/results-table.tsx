@@ -1,8 +1,10 @@
 "use client";
 
-import { AlertTriangle, CircleSlash } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CircleSlash } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -22,6 +24,15 @@ type ResultsTableProps = {
   snapshot: ResultsSnapshot;
 };
 
+type SortKey = "currentHighRatio" | "drawdownPct" | "chipPeakPrice";
+
+type SortDirection = "asc" | "desc";
+
+type SortState = {
+  key: SortKey;
+  direction: SortDirection;
+};
+
 const chipStateLabels: Record<ResultChipPeakState, string> = {
   available: "可用",
   blocked: "阻塞",
@@ -35,6 +46,50 @@ function formatPrice(value: number) {
 
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function defaultDirection(key: SortKey): SortDirection {
+  return key === "drawdownPct" ? "desc" : "asc";
+}
+
+function ariaSort(direction: SortDirection) {
+  return direction === "asc" ? "ascending" : "descending";
+}
+
+function sortValue(row: ResultRow, key: SortKey) {
+  if (key === "chipPeakPrice") {
+    return row.chipPeakState === "available" ? row.chipPeakPrice : null;
+  }
+
+  return row[key];
+}
+
+function sortRows(rows: ResultRow[], sort: SortState) {
+  return [...rows].sort((left, right) => {
+    const leftValue = sortValue(left, sort.key);
+    const rightValue = sortValue(right, sort.key);
+
+    if (leftValue === null && rightValue === null) {
+      return left.tsCode.localeCompare(right.tsCode);
+    }
+
+    if (leftValue === null) {
+      return 1;
+    }
+
+    if (rightValue === null) {
+      return -1;
+    }
+
+    const direction = sort.direction === "asc" ? 1 : -1;
+    const diff = (leftValue - rightValue) * direction;
+
+    if (diff !== 0) {
+      return diff;
+    }
+
+    return left.tsCode.localeCompare(right.tsCode);
+  });
 }
 
 function chipStateTone(state: ResultChipPeakState) {
@@ -75,19 +130,87 @@ function ChipPeakCell({ row }: { row: ResultRow }) {
 }
 
 function ResultsState({ snapshot }: ResultsTableProps) {
+  const title =
+    snapshot.status === "empty" ? "没有符合条件的股票" : "结果数据不可用";
   const copy =
     snapshot.status === "empty"
       ? "最新一次下降趋势筛选已完成，但没有符合条件的股票。"
       : "还没有可展示的下降趋势筛选结果，请先完成缓存刷新和筛选。";
 
   return (
-    <div className="rounded-lg border border-dashed border-border bg-background p-4 text-[14px] leading-[1.5] text-muted-foreground">
-      {copy}
+    <div className="rounded-lg border border-dashed border-border bg-background p-4">
+      <p className="text-[15px] font-medium leading-[1.4] text-foreground">
+        {title}
+      </p>
+      <p className="mt-1 text-[14px] leading-[1.5] text-muted-foreground">
+        {copy}
+      </p>
     </div>
   );
 }
 
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+}) {
+  const isActive = sort.key === sortKey;
+  const Icon = isActive
+    ? sort.direction === "asc"
+      ? ArrowUp
+      : ArrowDown
+    : ArrowUpDown;
+
+  return (
+    <TableHead
+      className="text-right"
+      aria-sort={isActive ? ariaSort(sort.direction) : undefined}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="ml-auto h-8 px-2"
+        aria-label={`按${label}排序`}
+        aria-pressed={isActive}
+        onClick={() => onSort(sortKey)}
+      >
+        <span>{label}</span>
+        <Icon className="size-3.5" />
+      </Button>
+    </TableHead>
+  );
+}
+
 export function ResultsTable({ snapshot }: ResultsTableProps) {
+  const [sort, setSort] = useState<SortState>({
+    key: "currentHighRatio",
+    direction: "asc",
+  });
+  const rows = useMemo(
+    () => sortRows(snapshot.rows, sort),
+    [snapshot.rows, sort],
+  );
+
+  function handleSort(key: SortKey) {
+    setSort((current) => {
+      if (current.key !== key) {
+        return { key, direction: defaultDirection(key) };
+      }
+
+      return {
+        key,
+        direction: current.direction === "asc" ? "desc" : "asc",
+      };
+    });
+  }
+
   return (
     <section className="rounded-lg border border-border bg-card p-4 sm:p-6">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -116,13 +239,28 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
               <TableHead>名称</TableHead>
               <TableHead className="text-right">当前价</TableHead>
               <TableHead className="text-right">区间高点</TableHead>
-              <TableHead className="text-right">当前/高点</TableHead>
-              <TableHead className="text-right">下跌幅度</TableHead>
-              <TableHead className="text-right">筹码峰价格</TableHead>
+              <SortHeader
+                label="当前/高点"
+                sortKey="currentHighRatio"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="下跌幅度"
+                sortKey="drawdownPct"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="筹码峰价格"
+                sortKey="chipPeakPrice"
+                sort={sort}
+                onSort={handleSort}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {snapshot.rows.map((row) => (
+            {rows.map((row) => (
               <TableRow key={row.tsCode}>
                 <TableCell className="font-medium">{row.tsCode}</TableCell>
                 <TableCell>{row.name}</TableCell>

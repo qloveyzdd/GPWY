@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 
 import { ResultsTable } from "@/components/results/results-table";
 import { StatusWorkspace } from "@/components/status/status-workspace";
@@ -56,6 +62,66 @@ const readySnapshot: ResultsSnapshot = {
   ],
 };
 
+const sortableSnapshot: ResultsSnapshot = {
+  ...readySnapshot,
+  rows: [
+    {
+      ...readySnapshot.rows[0],
+      tsCode: "000002.SZ",
+      name: "万科A",
+      currentHighRatio: 0.4,
+      drawdownPct: 0.1,
+      chipPeakState: "available",
+      chipPeakPrice: 38.5,
+    },
+    {
+      ...readySnapshot.rows[1],
+      tsCode: "000001.SZ",
+      name: "平安银行",
+      currentHighRatio: 0.8,
+      drawdownPct: 0.6,
+      chipPeakState: "blocked",
+      chipPeakPrice: null,
+    },
+    {
+      ...readySnapshot.rows[0],
+      tsCode: "000004.SZ",
+      name: "国华网安",
+      currentHighRatio: 0.6,
+      drawdownPct: 0.3,
+      chipPeakState: "available",
+      chipPeakPrice: 20,
+    },
+  ],
+};
+
+const emptySnapshot: ResultsSnapshot = {
+  status: "empty",
+  summary: "最新筛选没有符合条件的股票。",
+  sourceScreeningRunId: 8,
+  screeningCreatedAt: "2026-06-23T00:00:00.000Z",
+  chipPeakRunId: null,
+  unavailableReason: null,
+  rows: [],
+};
+
+const unavailableSnapshot: ResultsSnapshot = {
+  status: "unavailable",
+  summary: "尚未生成下降趋势筛选结果。",
+  sourceScreeningRunId: null,
+  screeningCreatedAt: null,
+  chipPeakRunId: null,
+  unavailableReason: "no_screening_run",
+  rows: [],
+};
+
+function renderedCodes() {
+  return screen
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => within(row).getAllByRole("cell")[0].textContent);
+}
+
 describe("ResultsTable", () => {
   afterEach(() => {
     cleanup();
@@ -106,5 +172,94 @@ describe("ResultsTable", () => {
 
     expect(screen.getByText("最新筛选结果")).toBeTruthy();
     expect(screen.getByText("000002.SZ")).toBeTruthy();
+  });
+
+  it("defaults to current/high ratio ascending with visible active sort state", () => {
+    render(<ResultsTable snapshot={sortableSnapshot} />);
+
+    expect(renderedCodes()).toEqual(["000002.SZ", "000004.SZ", "000001.SZ"]);
+    expect(
+      screen
+        .getByRole("columnheader", { name: /当前\/高点/ })
+        .getAttribute("aria-sort"),
+    ).toBe("ascending");
+  });
+
+  it("sorts by drawdown descending", () => {
+    render(<ResultsTable snapshot={sortableSnapshot} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "按下跌幅度排序" }));
+
+    expect(renderedCodes()).toEqual(["000001.SZ", "000004.SZ", "000002.SZ"]);
+    expect(
+      screen
+        .getByRole("columnheader", { name: /下跌幅度/ })
+        .getAttribute("aria-sort"),
+    ).toBe("descending");
+  });
+
+  it("sorts by chip peak price and places unavailable chip rows last", () => {
+    render(<ResultsTable snapshot={sortableSnapshot} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "按筹码峰价格排序" }));
+
+    expect(renderedCodes()).toEqual(["000004.SZ", "000002.SZ", "000001.SZ"]);
+    expect(
+      screen
+        .getByRole("columnheader", { name: /筹码峰价格/ })
+        .getAttribute("aria-sort"),
+    ).toBe("ascending");
+  });
+
+  it("distinguishes empty results from unavailable result data", () => {
+    const { rerender } = render(<ResultsTable snapshot={emptySnapshot} />);
+
+    expect(screen.getByText("最新筛选没有符合条件的股票。")).toBeTruthy();
+    expect(
+      screen.getByText("最新一次下降趋势筛选已完成，但没有符合条件的股票。"),
+    ).toBeTruthy();
+
+    rerender(<ResultsTable snapshot={unavailableSnapshot} />);
+
+    expect(screen.getByText("结果数据不可用")).toBeTruthy();
+    expect(
+      screen.getByText("还没有可展示的下降趋势筛选结果，请先完成缓存刷新和筛选。"),
+    ).toBeTruthy();
+    expect(screen.queryByText("TUSHARE_TOKEN=")).toBeNull();
+  });
+
+  it("keeps row-level chip states distinct from page-level unavailable state", () => {
+    render(
+      <ResultsTable
+        snapshot={{
+          ...readySnapshot,
+          rows: [
+            {
+              ...readySnapshot.rows[0],
+              tsCode: "000001.SZ",
+              chipPeakState: "blocked",
+              chipPeakPrice: null,
+            },
+            {
+              ...readySnapshot.rows[0],
+              tsCode: "000002.SZ",
+              chipPeakState: "failed",
+              chipPeakPrice: null,
+            },
+            {
+              ...readySnapshot.rows[0],
+              tsCode: "000003.SZ",
+              chipPeakState: "missing",
+              chipPeakPrice: null,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("阻塞")).toBeTruthy();
+    expect(screen.getByText("失败")).toBeTruthy();
+    expect(screen.getByText("无数据")).toBeTruthy();
+    expect(screen.queryByText("结果数据不可用")).toBeNull();
   });
 });
