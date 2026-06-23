@@ -38,14 +38,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Screening
 
-- [ ] **SCRN-01**: 系统可以基于最近 60 个交易日收盘价计算 MA20 和 MA60。
-- [ ] **SCRN-02**: 系统可以判断最新交易日是否满足 `MA20 < MA60`。
-- [ ] **SCRN-03**: 系统可以判断 `MA20` 最近 5 个交易日斜率是否为负。
-- [ ] **SCRN-04**: 系统可以在最近 60 个交易日内识别最近一个波段高点：该日最高价高于前后各 3 个交易日最高价。
-- [ ] **SCRN-05**: 如果最近 60 个交易日内不存在符合条件的波段高点，系统可以退化使用最近 60 日最高价作为区间高点。
-- [ ] **SCRN-06**: 系统可以筛选当前收盘价 `<= 区间高点 * 0.85` 的股票。
-- [ ] **SCRN-07**: 系统可以为每只入选股票保存当前价、区间高点、当前价/高点比例和下跌幅度。
-- [ ] **SCRN-08**: 筛选算法具备单元测试，覆盖 MA 计算、MA20 斜率、波段高点、退化高点和 85% 阈值边界。
+- [x] **SCRN-01**: 系统可以基于最近 60 个交易日收盘价计算 MA20 和 MA60。
+- [x] **SCRN-02**: 系统可以判断最新交易日是否满足 `MA20 < MA60`。
+- [x] **SCRN-03**: 系统可以判断 `MA20` 最近 5 个交易日斜率是否为负。
+- [x] **SCRN-04**: 系统可以在最近 60 个交易日内识别最近一个波段高点：该日最高价高于前后各 3 个交易日最高价。
+- [x] **SCRN-05**: 如果最近 60 个交易日内不存在符合条件的波段高点，系统可以退化使用最近 60 日最高价作为区间高点。
+- [x] **SCRN-06**: 系统可以筛选当前收盘价 `<= 区间高点 * 0.85` 的股票。
+- [x] **SCRN-07**: 系统可以为每只入选股票保存当前价、区间高点、当前价/高点比例和下跌幅度。
+- [x] **SCRN-08**: 筛选算法具备单元测试，覆盖 MA 计算、MA20 斜率、波段高点、退化高点和 85% 阈值边界。
 
 ### Chip Peak
 
@@ -142,14 +142,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REFR-03 | Phase 2 | Complete |
 | REFR-04 | Phase 2 | Complete |
 | REFR-05 | Phase 2 | Partial |
-| SCRN-01 | Phase 3 | Pending |
-| SCRN-02 | Phase 3 | Pending |
-| SCRN-03 | Phase 3 | Pending |
-| SCRN-04 | Phase 3 | Pending |
-| SCRN-05 | Phase 3 | Pending |
-| SCRN-06 | Phase 3 | Pending |
-| SCRN-07 | Phase 3 | Pending |
-| SCRN-08 | Phase 3 | Pending |
+| SCRN-01 | Phase 3 | Complete |
+| SCRN-02 | Phase 3 | Complete |
+| SCRN-03 | Phase 3 | Complete |
+| SCRN-04 | Phase 3 | Complete |
+| SCRN-05 | Phase 3 | Complete |
+| SCRN-06 | Phase 3 | Complete |
+| SCRN-07 | Phase 3 | Complete |
+| SCRN-08 | Phase 3 | Complete |
 | CHIP-01 | Phase 1 | Complete |
 | CHIP-02 | Phase 4 | Pending |
 | CHIP-03 | Phase 4 | Pending |
