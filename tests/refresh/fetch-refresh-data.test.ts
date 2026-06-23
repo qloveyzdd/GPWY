@@ -149,6 +149,73 @@ describe("fetchRefreshData", () => {
     expect(result.dailyBars).toHaveLength(1);
   });
 
+  it("retries transient daily provider failures once by default", async () => {
+    let dailyAttempts = 0;
+    const client = createMockClient(async (endpoint) => {
+      if (endpoint.apiName === "stock_basic") {
+        return table(["ts_code", "name", "market", "list_status"], [
+          ["000001.SZ", "平安银行", "主板", "L"],
+        ]);
+      }
+
+      if (endpoint.apiName === "daily") {
+        dailyAttempts += 1;
+
+        if (dailyAttempts === 1) {
+          throw new TypeError("fetch failed");
+        }
+
+        return table(
+          ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
+          [["000001.SZ", "20260623", 10, 11, 9, 10.5, 1200]],
+        );
+      }
+
+      throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+    });
+
+    const result = await fetchRefreshData({
+      client,
+      now: new Date("2026-06-23T12:00:00.000Z"),
+      targetTradingDates: 1,
+      maxLookbackDays: 1,
+      providerRetryDelayMs: 0,
+    });
+
+    expect(dailyAttempts).toBe(2);
+    expect(result.tradeDates).toEqual(["20260623"]);
+  });
+
+  it("does not retry non-transient provider failures", async () => {
+    let dailyAttempts = 0;
+    const client = createMockClient(async (endpoint) => {
+      if (endpoint.apiName === "stock_basic") {
+        return table(["ts_code", "name", "market", "list_status"], [
+          ["000001.SZ", "平安银行", "主板", "L"],
+        ]);
+      }
+
+      if (endpoint.apiName === "daily") {
+        dailyAttempts += 1;
+        throw new TushareApiError("daily", null, "permission_denied");
+      }
+
+      throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+    });
+
+    await expect(
+      fetchRefreshData({
+        client,
+        now: new Date("2026-06-23T12:00:00.000Z"),
+        targetTradingDates: 1,
+        maxLookbackDays: 1,
+        providerRetryCount: 2,
+        providerRetryDelayMs: 0,
+      }),
+    ).rejects.toThrow("permission_denied");
+    expect(dailyAttempts).toBe(1);
+  });
+
   it("keeps listed stock basics when the provider omits list_status", async () => {
     const client = createMockClient(async (endpoint) => {
       if (endpoint.apiName === "stock_basic") {

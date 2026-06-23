@@ -2,21 +2,26 @@ import type {
   DailyBarRecord,
   StockBasicRecord,
 } from "@/lib/refresh/refresh-types";
-import { TushareApiError } from "@/lib/tushare/client";
+import { classifyTushareError, TushareApiError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
 import type {
   TushareClientLike,
   TushareDataTable,
+  TushareEndpoint,
 } from "@/lib/tushare/types";
 
 export const DEFAULT_TRADING_DATE_COUNT = 60;
 export const DEFAULT_MAX_LOOKBACK_DAYS = 180;
+export const DEFAULT_PROVIDER_RETRY_COUNT = 1;
+export const DEFAULT_PROVIDER_RETRY_DELAY_MS = 1_000;
 
 export type FetchRefreshDataOptions = {
   client: TushareClientLike;
   now?: Date;
   targetTradingDates?: number;
   maxLookbackDays?: number;
+  providerRetryCount?: number;
+  providerRetryDelayMs?: number;
 };
 
 export type FetchRefreshDataResult = {
@@ -70,6 +75,43 @@ function isEmptyDataError(error: unknown) {
   return error instanceof TushareApiError && error.code === 0;
 }
 
+function isTransientProviderError(error: unknown, apiName: string) {
+  return classifyTushareError(error, apiName).category === "network_or_service";
+}
+
+function delay(ms: number) {
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function queryWithRetry(
+  client: TushareClientLike,
+  endpoint: TushareEndpoint,
+  params: Record<string, unknown>,
+  retryCount: number,
+  retryDelayMs: number,
+) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await client.query(endpoint, params);
+    } catch (error) {
+      if (
+        attempt >= retryCount ||
+        !isTransientProviderError(error, endpoint.apiName)
+      ) {
+        throw error;
+      }
+
+      await delay(retryDelayMs * (attempt + 1));
+    }
+  }
+}
+
 function mapStockBasics(table: TushareDataTable): StockBasicRecord[] {
   const records = table.items
     .map((row) => {
@@ -112,10 +154,16 @@ export async function fetchRefreshData({
   now = new Date(),
   targetTradingDates = DEFAULT_TRADING_DATE_COUNT,
   maxLookbackDays = DEFAULT_MAX_LOOKBACK_DAYS,
+  providerRetryCount = DEFAULT_PROVIDER_RETRY_COUNT,
+  providerRetryDelayMs = DEFAULT_PROVIDER_RETRY_DELAY_MS,
 }: FetchRefreshDataOptions): Promise<FetchRefreshDataResult> {
-  const stockBasicTable = await client.query(TUSHARE_ENDPOINTS.stockBasic, {
-    list_status: "L",
-  });
+  const stockBasicTable = await queryWithRetry(
+    client,
+    TUSHARE_ENDPOINTS.stockBasic,
+    { list_status: "L" },
+    providerRetryCount,
+    providerRetryDelayMs,
+  );
   const stockBasics = mapStockBasics(stockBasicTable);
   const dailyBars: DailyBarRecord[] = [];
   const tradeDates: string[] = [];
@@ -129,9 +177,13 @@ export async function fetchRefreshData({
     let dailyTable: TushareDataTable;
 
     try {
-      dailyTable = await client.query(TUSHARE_ENDPOINTS.daily, {
-        trade_date: tradeDate,
-      });
+      dailyTable = await queryWithRetry(
+        client,
+        TUSHARE_ENDPOINTS.daily,
+        { trade_date: tradeDate },
+        providerRetryCount,
+        providerRetryDelayMs,
+      );
     } catch (error) {
       if (isEmptyDataError(error)) {
         continue;
