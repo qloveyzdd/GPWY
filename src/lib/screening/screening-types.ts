@@ -68,3 +68,20 @@ export type DowntrendEvaluationResult =
   | DowntrendMatchedResult
   | DowntrendRejectedResult
   | DowntrendSkippedResult;
+
+export type ScreeningRunRecord = {
+  id: number;
+  sourceRefreshJobId: number;
+  createdAt: string;
+  totalStocks: number;
+  matchedCount: number;
+  skippedCount: number;
+};
+
+export type ScreeningResultRecord = Omit<
+  DowntrendMatchedResult,
+  "status"
+> & {
+  screeningRunId: number;
+  name: string;
+};
