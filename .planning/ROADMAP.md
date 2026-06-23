@@ -126,12 +126,12 @@ Plans:
   3. 如果账号无权访问筹码数据，系统会把筹码峰需求标记为阻塞。
   4. 系统不会使用未验证的筹码估算算法伪造筹码峰。
 
-**Plans:** 2/2 plans ready
+**Plans:** 1/2 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01: Implement chip distribution parser and peak extraction tests
+- [x] 04-01: Implement chip distribution parser and peak extraction tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -191,6 +191,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 1. Tushare Data Foundation | 3/3 | Complete    | 2026-06-23 |
 | 2. Manual Refresh Cache | 3/3 | Complete    | 2026-06-23 |
 | 3. Downtrend Screening Engine | 3/3 | Complete    | 2026-06-23 |
-| 4. Chip Peak Integration | 0/2 | Not started | - |
+| 4. Chip Peak Integration | 1/2 | In Progress | - |
 | 5. Results Table Experience | 0/2 | Not started | - |
 | 6. Charts and Deployment | 0/3 | Not started | - |
