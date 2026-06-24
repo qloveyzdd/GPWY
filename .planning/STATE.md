@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: milestone_complete
 stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-06-23T15:04:48.962Z"
-last_activity: 2026-06-23
+last_updated: "2026-06-24T19:17:53+08:00"
+last_activity: 2026-06-24
 progress:
   total_phases: 6
   completed_phases: 6
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-23)
 Phase: 06 (charts-and-deployment) — COMPLETE
 Plan: 3 of 3
 Status: Milestone complete
-Last activity: 2026-06-23
+Last activity: 2026-06-24
 
 Progress: [██████████] 100%
 
@@ -75,6 +75,7 @@ Recent decisions affecting current work:
 - Treat chip peak as blocked if official Tushare/tinyshare chip data is unavailable.
 - Use `TUSHARE_PROVIDER=tinyshare` only when explicitly configured; REST remains the default provider.
 - Use front-adjusted prices when `daily` plus `adj_factor` are available; otherwise record unadjusted fallback risk.
+- Determine the interval high by walking backward from the latest day only while the previous day's high is strictly greater; stop otherwise.
 
 ### Pending Todos
 
@@ -83,6 +84,12 @@ None yet.
 ### Blockers/Concerns
 
 None for the completed v1 milestone. Deferred items remain below.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 260624-qoq | 对齐区间高点需求文档，补齐 Phase 2 验证并重新审计 v1.0 | 2026-06-24 | e44f2cd | Verified | [260624-qoq-phase-2-v1-0](./quick/260624-qoq-phase-2-v1-0/) |
 
 ## Deferred Items
 
