@@ -30,6 +30,10 @@ export type FetchRefreshDataResult = {
   tradeDates: string[];
 };
 
+type DailyBarWithAdjFactor = DailyBarRecord & {
+  adjFactor: number;
+};
+
 function formatDate(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -149,6 +153,61 @@ function mapDailyBars(table: TushareDataTable): DailyBarRecord[] {
   });
 }
 
+function mapAdjFactors(table: TushareDataTable) {
+  return new Map(
+    table.items.map((row) => {
+      const mapped = mapRow(table.fields, row);
+      const tsCode = requiredString(mapped.ts_code, "ts_code");
+      const tradeDate = requiredString(mapped.trade_date, "trade_date");
+      const adjFactor = requiredNumber(mapped.adj_factor, "adj_factor");
+
+      return [`${tsCode}:${tradeDate}`, adjFactor] as const;
+    }),
+  );
+}
+
+function adjustBarsToLatestBasis(
+  records: DailyBarWithAdjFactor[],
+): DailyBarRecord[] {
+  const latestFactorByTsCode = new Map<
+    string,
+    { tradeDate: string; adjFactor: number }
+  >();
+
+  for (const record of records) {
+    const latest = latestFactorByTsCode.get(record.tsCode);
+
+    if (!latest || record.tradeDate > latest.tradeDate) {
+      latestFactorByTsCode.set(record.tsCode, {
+        tradeDate: record.tradeDate,
+        adjFactor: record.adjFactor,
+      });
+    }
+  }
+
+  return records.map(({ adjFactor, ...record }) => {
+    const latestFactor = latestFactorByTsCode.get(record.tsCode)?.adjFactor;
+
+    if (!latestFactor || latestFactor <= 0 || adjFactor <= 0) {
+      throw new TushareApiError(
+        "adj_factor",
+        0,
+        `invalid adj factor for ${record.tsCode}`,
+      );
+    }
+
+    const ratio = adjFactor / latestFactor;
+
+    return {
+      ...record,
+      open: record.open * ratio,
+      high: record.high * ratio,
+      low: record.low * ratio,
+      close: record.close * ratio,
+    };
+  });
+}
+
 export async function fetchRefreshData({
   client,
   now = new Date(),
@@ -165,7 +224,7 @@ export async function fetchRefreshData({
     providerRetryDelayMs,
   );
   const stockBasics = mapStockBasics(stockBasicTable);
-  const dailyBars: DailyBarRecord[] = [];
+  const dailyBars: DailyBarWithAdjFactor[] = [];
   const tradeDates: string[] = [];
 
   for (
@@ -196,7 +255,29 @@ export async function fetchRefreshData({
       continue;
     }
 
-    dailyBars.push(...mapDailyBars(dailyTable));
+    const mappedDailyBars = mapDailyBars(dailyTable);
+    const adjFactorTable = await queryWithRetry(
+      client,
+      TUSHARE_ENDPOINTS.adjFactor,
+      { trade_date: tradeDate },
+      providerRetryCount,
+      providerRetryDelayMs,
+    );
+    const adjFactors = mapAdjFactors(adjFactorTable);
+
+    for (const bar of mappedDailyBars) {
+      const adjFactor = adjFactors.get(`${bar.tsCode}:${bar.tradeDate}`);
+
+      if (adjFactor === undefined) {
+        throw new TushareApiError(
+          "adj_factor",
+          0,
+          `missing adj factor for ${bar.tsCode}:${bar.tradeDate}`,
+        );
+      }
+
+      dailyBars.push({ ...bar, adjFactor });
+    }
     tradeDates.push(tradeDate);
   }
 
@@ -210,7 +291,7 @@ export async function fetchRefreshData({
 
   return {
     stockBasics,
-    dailyBars,
+    dailyBars: adjustBarsToLatestBasis(dailyBars),
     tradeDates,
   };
 }

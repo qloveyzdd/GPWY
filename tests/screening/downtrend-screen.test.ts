@@ -38,6 +38,60 @@ describe("downtrend screen", () => {
     });
   });
 
+  it("uses a recent swing high when only one later trading day is available", () => {
+    const bars = makeDescendingBars();
+    bars[58] = { ...bars[58], high: 55 };
+    bars[59] = { ...bars[59], high: 54.6 };
+
+    const high = findIntervalHigh(bars);
+
+    expect(high).toEqual({
+      tradeDate: bars[58].tradeDate,
+      price: 55,
+      source: "swing_high",
+    });
+  });
+
+  it("does not treat the latest unconfirmed trading day as a swing high", () => {
+    const bars = makeDescendingBars();
+    bars[58] = { ...bars[58], high: 55 };
+    bars[59] = { ...bars[59], high: 56 };
+
+    const high = findIntervalHigh(bars);
+
+    expect(high.tradeDate).not.toBe(bars[59].tradeDate);
+  });
+
+  it("rejects 301608 when its recent swing high is 55", () => {
+    const bars = makeDescendingBars();
+    bars[58] = {
+      ...bars[58],
+      tradeDate: "20260622",
+      high: 55,
+      close: 53.43,
+    };
+    bars[59] = {
+      ...bars[59],
+      tradeDate: "20260623",
+      high: 54.6,
+      close: 52.58,
+    };
+
+    const result = evaluateDowntrendStock({
+      tsCode: "301608.SZ",
+      bars,
+    });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") {
+      throw new Error("expected rejected result");
+    }
+    expect(result.intervalHigh).toBe(55);
+    expect(result.intervalHighTradeDate).toBe("20260622");
+    expect(result.currentHighRatio).toBeCloseTo(52.58 / 55, 8);
+    expect(result.reasons).toContain("price_above_threshold");
+  });
+
   it("falls back to the latest 60-day highest high when no local swing high exists", () => {
     const bars = makeDescendingBars();
     bars[10] = { ...bars[10], high: 120 };

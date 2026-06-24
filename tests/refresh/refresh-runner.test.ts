@@ -27,6 +27,7 @@ import type {
   TushareDataTable,
   TushareEndpoint,
 } from "@/lib/tushare/types";
+import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
 
 const tempRoots: string[] = [];
 
@@ -302,7 +303,7 @@ describe("refresh runner", () => {
 
   it("writes provider-fetched stock basics and daily bars", async () => {
     useTempRefreshStore();
-    const client = createMockClient(async (endpoint) => {
+    const client = createMockClient(async (endpoint, params) => {
       if (endpoint.apiName === "stock_basic") {
         return table(["ts_code", "name", "market", "list_status"], [
           ["000001.SZ", "平安银行", "主板", "L"],
@@ -314,6 +315,12 @@ describe("refresh runner", () => {
           ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
           [["000001.SZ", "20260623", 10, 11, 9, 10.5, 1200]],
         );
+      }
+
+      if (endpoint.apiName === "adj_factor") {
+        return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
+          ["000001.SZ", params.trade_date, 1],
+        ]);
       }
 
       throw new Error(`Unexpected endpoint ${endpoint.apiName}`);

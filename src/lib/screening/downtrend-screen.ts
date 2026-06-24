@@ -35,10 +35,14 @@ function isStrictSwingHigh(
   neighborCount: number,
 ) {
   const currentHigh = bars[index].high;
+  const lastNeighborIndex = Math.min(
+    bars.length - 1,
+    index + neighborCount,
+  );
 
   for (
     let neighborIndex = index - neighborCount;
-    neighborIndex <= index + neighborCount;
+    neighborIndex <= lastNeighborIndex;
     neighborIndex += 1
   ) {
     if (neighborIndex === index) {
@@ -58,7 +62,7 @@ function findRecentSwingHigh(
   neighborCount: number,
 ): IntervalHigh | null {
   for (
-    let index = bars.length - neighborCount - 1;
+    let index = bars.length - 2;
     index >= neighborCount;
     index -= 1
   ) {

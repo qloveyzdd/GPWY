@@ -66,6 +66,13 @@ describe("fetchRefreshData", () => {
         );
       }
 
+      if (endpoint.apiName === "adj_factor") {
+        return table(["ts_code", "trade_date", "adj_factor"], [
+          ["000001.SZ", params.trade_date, 1],
+          ["000002.SZ", params.trade_date, 1],
+        ]);
+      }
+
       throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
     });
 
@@ -116,6 +123,63 @@ describe("fetchRefreshData", () => {
     });
   });
 
+  it("adjusts historical prices to the latest trading date basis", async () => {
+    const client = createMockClient(async (endpoint, params) => {
+      if (endpoint.apiName === "stock_basic") {
+        return table(["ts_code", "name", "market", "list_status"], [
+          ["301608.SZ", "博实结", "创业板", "L"],
+        ]);
+      }
+
+      if (endpoint.apiName === "daily") {
+        const tradeDate = String(params.trade_date);
+
+        if (tradeDate === "20260622") {
+          return table(
+            ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
+            [["301608.SZ", tradeDate, 54.95, 55, 51.82, 53.43, 1200]],
+          );
+        }
+
+        if (tradeDate === "20260514") {
+          return table(
+            ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
+            [["301608.SZ", tradeDate, 101, 106.4, 99, 101, 1000]],
+          );
+        }
+
+        return table(TUSHARE_ENDPOINTS.daily.fields, []);
+      }
+
+      if (endpoint.apiName === "adj_factor") {
+        const tradeDate = String(params.trade_date);
+        const factor = tradeDate === "20260622" ? 1.5307 : 1.0228;
+
+        return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
+          ["301608.SZ", tradeDate, factor],
+        ]);
+      }
+
+      throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+    });
+
+    const result = await fetchRefreshData({
+      client,
+      now: new Date("2026-06-22T12:00:00.000Z"),
+      targetTradingDates: 2,
+      maxLookbackDays: 40,
+    });
+    const oldBar = result.dailyBars.find(
+      (bar) => bar.tradeDate === "20260514",
+    );
+    const latestBar = result.dailyBars.find(
+      (bar) => bar.tradeDate === "20260622",
+    );
+
+    expect(oldBar?.high).toBeCloseTo((106.4 * 1.0228) / 1.5307, 8);
+    expect(latestBar?.high).toBe(55);
+  });
+
   it("treats empty daily provider errors as skipped dates", async () => {
     const client = createMockClient(async (endpoint, params) => {
       if (endpoint.apiName === "stock_basic") {
@@ -135,6 +199,12 @@ describe("fetchRefreshData", () => {
         );
       }
 
+      if (endpoint.apiName === "adj_factor") {
+        return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
+          ["000001.SZ", params.trade_date, 1],
+        ]);
+      }
+
       throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
     });
 
@@ -151,7 +221,7 @@ describe("fetchRefreshData", () => {
 
   it("retries transient daily provider failures once by default", async () => {
     let dailyAttempts = 0;
-    const client = createMockClient(async (endpoint) => {
+    const client = createMockClient(async (endpoint, params) => {
       if (endpoint.apiName === "stock_basic") {
         return table(["ts_code", "name", "market", "list_status"], [
           ["000001.SZ", "平安银行", "主板", "L"],
@@ -169,6 +239,12 @@ describe("fetchRefreshData", () => {
           ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
           [["000001.SZ", "20260623", 10, 11, 9, 10.5, 1200]],
         );
+      }
+
+      if (endpoint.apiName === "adj_factor") {
+        return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
+          ["000001.SZ", params.trade_date, 1],
+        ]);
       }
 
       throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
@@ -217,7 +293,7 @@ describe("fetchRefreshData", () => {
   });
 
   it("keeps listed stock basics when the provider omits list_status", async () => {
-    const client = createMockClient(async (endpoint) => {
+    const client = createMockClient(async (endpoint, params) => {
       if (endpoint.apiName === "stock_basic") {
         return table(["ts_code", "name", "market"], [
           ["000001.SZ", "平安银行", "主板"],
@@ -229,6 +305,12 @@ describe("fetchRefreshData", () => {
           ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
           [["000001.SZ", "20260622", 10, 11, 9, 10.5, 1200]],
         );
+      }
+
+      if (endpoint.apiName === "adj_factor") {
+        return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
+          ["000001.SZ", params.trade_date, 1],
+        ]);
       }
 
       throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
