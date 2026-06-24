@@ -1,4 +1,12 @@
 // @vitest-environment node
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { TushareApiError, TushareClient } from "@/lib/tushare/client";
@@ -30,6 +38,47 @@ describe("Tushare provider selection", () => {
 });
 
 describe("TinysharePythonClient", () => {
+  it("forces UTF-8 for bridge output so Chinese stock names stay intact", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "gpwy-tinyshare-encoding-"));
+    const scriptPath = path.join(root, "encoding-bridge.js");
+    writeFileSync(
+      scriptPath,
+      [
+        "process.stdin.resume();",
+        "process.stdin.on('end', () => {",
+        "  process.stdout.write(JSON.stringify({",
+        "    ok: true,",
+        "    data: {",
+        "      fields: ['name', 'encoding'],",
+        "      items: [['平安银行', process.env.PYTHONIOENCODING]],",
+        "    },",
+        "  }));",
+        "});",
+      ].join("\n"),
+      "utf8",
+    );
+
+    try {
+      const client = new TinysharePythonClient({
+        token: "request-only-token",
+        pythonPath: process.execPath,
+        scriptPath,
+      });
+
+      await expect(
+        client.query({
+          apiName: "stock_basic",
+          fields: ["name", "encoding"],
+        }),
+      ).resolves.toEqual({
+        fields: ["name", "encoding"],
+        items: [["平安银行", "utf-8"]],
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("passes the generic Tushare request shape to the Python bridge", async () => {
     const runner = vi.fn(async () => ({
       fields: TUSHARE_ENDPOINTS.daily.fields,

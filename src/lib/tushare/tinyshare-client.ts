@@ -85,6 +85,7 @@ export class TinysharePythonClient implements TushareClientLike {
     return new Promise<TushareDataTable>((resolve, reject) => {
       const child = spawn(this.pythonPath, [this.scriptPath], {
         stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, PYTHONIOENCODING: "utf-8" },
       });
       const timeout = setTimeout(() => {
         child.kill();
