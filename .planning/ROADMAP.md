@@ -93,9 +93,9 @@ Plans:
 
   1. 系统可以计算 MA20 和 MA60。
   2. 系统可以判断 `MA20 < MA60` 且 MA20 最近 5 个交易日斜率为负。
-  3. 系统可以识别最近 60 个交易日内最近局部波段高点，找不到时退化为 60 日最高价。
+  3. 系统可以从最新交易日开始向前比较最高价，只要前一交易日最高价严格更高就继续回溯，并在条件不成立时将当前候选日确定为区间高点。
   4. 系统可以筛出当前收盘价 `<= 区间高点 * 0.85` 的股票。
-  5. 算法单元测试覆盖 MA、斜率、波段高点、退化高点和阈值边界。
+  5. 算法单元测试覆盖 MA、斜率、区间高点回溯与停止条件、最新交易日创新高和阈值边界。
 
 **Plans:** 3/3 plans executed
 
@@ -106,7 +106,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [x] 03-02: Implement swing-high and threshold logic with edge-case tests
+- [x] 03-02: Implement interval-high backward comparison and threshold logic with edge-case tests
 
 **Wave 3** *(blocked on Wave 2 completion)*
 

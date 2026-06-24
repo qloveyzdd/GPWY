@@ -40,7 +40,7 @@ This phase does not:
 - A swing high is a bar whose high is strictly greater than each of the previous 3 and next 3 trading-day highs. The latest qualifying bar in the 60-day window wins.
 
 ### D-03-05: Fallback High
-- If no strict local swing high exists, use the latest occurrence of the 60-day highest high as the interval high and record the source as `fallback_60d_high`.
+- Superseded on 2026-06-24: start from the latest trading day and move backward only while the previous day's high is strictly greater than the current candidate; stop otherwise and use the current candidate as the interval high. There is no separate 60-day-high fallback.
 
 ### D-03-06: Explainability
 - Persist all user-visible numeric values needed later by table/chart phases instead of recomputing them only in the UI.

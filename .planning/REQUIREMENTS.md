@@ -34,18 +34,18 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **REFR-02**: 系统可以防止同一时间重复运行多个刷新任务。
 - [x] **REFR-03**: 系统可以记录每次刷新任务的开始时间、结束时间、状态、成功股票数、失败股票数和错误摘要。
 - [x] **REFR-04**: 页面可以展示最新一次刷新状态和最新一次成功刷新时间。
-- [ ] **REFR-05**: 系统可以缓存刷新依赖的股票基础信息、行情数据、筹码数据和筛选结果，页面默认读取缓存结果。
+- [x] **REFR-05**: 系统可以缓存刷新依赖的股票基础信息、行情数据、筹码数据和筛选结果，页面默认读取缓存结果。
 
 ### Screening
 
 - [x] **SCRN-01**: 系统可以基于最近 60 个交易日收盘价计算 MA20 和 MA60。
 - [x] **SCRN-02**: 系统可以判断最新交易日是否满足 `MA20 < MA60`。
 - [x] **SCRN-03**: 系统可以判断 `MA20` 最近 5 个交易日斜率是否为负。
-- [x] **SCRN-04**: 系统可以在最近 60 个交易日内识别最近一个波段高点：该日最高价高于前后各 3 个交易日最高价。
-- [x] **SCRN-05**: 如果最近 60 个交易日内不存在符合条件的波段高点，系统可以退化使用最近 60 日最高价作为区间高点。
+- [x] **SCRN-04**: 系统可以在最近 60 个交易日内从最新交易日开始向前比较最高价；只要前一交易日最高价严格高于当前候选高点，就继续向前移动候选高点。
+- [x] **SCRN-05**: 当前一交易日最高价小于或等于当前候选高点时，系统停止回溯并将当前候选日作为区间高点；最新交易日创新高时，最新交易日即为新的区间高点。
 - [x] **SCRN-06**: 系统可以筛选当前收盘价 `<= 区间高点 * 0.85` 的股票。
 - [x] **SCRN-07**: 系统可以为每只入选股票保存当前价、区间高点、当前价/高点比例和下跌幅度。
-- [x] **SCRN-08**: 筛选算法具备单元测试，覆盖 MA 计算、MA20 斜率、波段高点、退化高点和 85% 阈值边界。
+- [x] **SCRN-08**: 筛选算法具备单元测试，覆盖 MA 计算、MA20 斜率、区间高点向前回溯与停止条件、最新交易日创新高和 85% 阈值边界。
 
 ### Chip Peak
 
@@ -118,7 +118,7 @@ Explicitly excluded. Documented to prevent scope creep.
 ## Acceptance Criteria
 
 - Tushare token 只在服务端读取，前端 bundle 和页面响应不包含 token。
-- 使用样例数据时，筛选算法测试覆盖 MA20、MA60、MA20 斜率、波段高点和 85% 阈值。
+- 使用样例数据时，筛选算法测试覆盖 MA20、MA60、MA20 斜率、区间高点向前回溯与停止条件、最新交易日创新高和 85% 阈值。
 - 使用真实 Tushare token 时，系统能明确报告筹码相关接口可用、不可用或权限不足。
 - 刷新完成后，页面可以展示最新成功结果；刷新失败时可以展示脱敏错误摘要。
 - 表格和图表展示的关键数值一致。
@@ -141,7 +141,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REFR-02 | Phase 2 | Complete |
 | REFR-03 | Phase 2 | Complete |
 | REFR-04 | Phase 2 | Complete |
-| REFR-05 | Phase 2 | Partial |
+| REFR-05 | Phase 2 | Complete |
 | SCRN-01 | Phase 3 | Complete |
 | SCRN-02 | Phase 3 | Complete |
 | SCRN-03 | Phase 3 | Complete |
@@ -175,4 +175,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-06-23*
-*Last updated: 2026-06-23 after Phase 4 verification*
+*Last updated: 2026-06-24 after v1.0 milestone audit alignment*
