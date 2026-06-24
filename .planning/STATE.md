@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: milestone_complete
 stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-06-24T19:17:53+08:00"
+last_updated: "2026-06-24T21:18:30+08:00"
 last_activity: 2026-06-24
 progress:
   total_phases: 6
@@ -76,6 +76,7 @@ Recent decisions affecting current work:
 - Use `TUSHARE_PROVIDER=tinyshare` only when explicitly configured; REST remains the default provider.
 - Use front-adjusted prices when `daily` plus `adj_factor` are available; otherwise record unadjusted fallback risk.
 - Determine the interval high by walking backward from the latest day only while the previous day's high is strictly greater; stop otherwise.
+- Keep per-phase Nyquist validation maps current; all six v1 phases are compliant as of 2026-06-24.
 
 ### Pending Todos
 
@@ -83,7 +84,7 @@ None yet.
 
 ### Blockers/Concerns
 
-None for the completed v1 milestone. Deferred items remain below.
+No milestone blockers. Official chip enrichment remains serial and may extend full-market refresh time.
 
 ### Quick Tasks Completed
 
