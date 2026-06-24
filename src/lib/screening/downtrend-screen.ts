@@ -15,13 +15,11 @@ export type EvaluateDowntrendStockOptions = {
   tsCode: string;
   bars: ScreeningDailyBar[];
   windowSize?: number;
-  swingNeighborCount?: number;
   thresholdRatio?: number;
   maSlopePointCount?: number;
 };
 
 const defaultWindowSize = 60;
-const defaultSwingNeighborCount = 3;
 const defaultThresholdRatio = 0.85;
 const defaultMaSlopePointCount = 5;
 
@@ -29,91 +27,35 @@ function latestWindow(bars: ScreeningDailyBar[], windowSize: number) {
   return sortBarsByTradeDate(bars).slice(-windowSize);
 }
 
-function isStrictSwingHigh(
-  bars: ScreeningDailyBar[],
-  index: number,
-  neighborCount: number,
-) {
-  const currentHigh = bars[index].high;
-  const lastNeighborIndex = Math.min(
-    bars.length - 1,
-    index + neighborCount,
-  );
-
-  for (
-    let neighborIndex = index - neighborCount;
-    neighborIndex <= lastNeighborIndex;
-    neighborIndex += 1
-  ) {
-    if (neighborIndex === index) {
-      continue;
-    }
-
-    if (currentHigh <= bars[neighborIndex].high) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function findRecentSwingHigh(
-  bars: ScreeningDailyBar[],
-  neighborCount: number,
-): IntervalHigh | null {
-  for (
-    let index = bars.length - 2;
-    index >= neighborCount;
-    index -= 1
-  ) {
-    if (isStrictSwingHigh(bars, index, neighborCount)) {
-      return {
-        tradeDate: bars[index].tradeDate,
-        price: bars[index].high,
-        source: "swing_high",
-      };
-    }
-  }
-
-  return null;
-}
-
-function findFallbackHigh(bars: ScreeningDailyBar[]): IntervalHigh {
-  return bars.reduce<IntervalHigh>(
-    (highest, bar) => {
-      if (bar.high >= highest.price) {
-        return {
-          tradeDate: bar.tradeDate,
-          price: bar.high,
-          source: "fallback_60d_high",
-        };
-      }
-
-      return highest;
-    },
-    {
-      tradeDate: bars[0].tradeDate,
-      price: bars[0].high,
-      source: "fallback_60d_high",
-    },
-  );
-}
-
-export function findIntervalHigh(
-  bars: ScreeningDailyBar[],
-  neighborCount = defaultSwingNeighborCount,
-): IntervalHigh {
+export function findIntervalHigh(bars: ScreeningDailyBar[]): IntervalHigh {
   const sorted = sortBarsByTradeDate(bars);
-  const swingHigh = findRecentSwingHigh(sorted, neighborCount);
+  let candidate = sorted.at(-1);
 
-  return swingHigh ?? findFallbackHigh(sorted);
+  if (!candidate) {
+    throw new Error("interval high requires at least one bar");
+  }
+
+  for (let index = sorted.length - 2; index >= 0; index -= 1) {
+    const previous = sorted[index];
+
+    if (previous.high <= candidate.high) {
+      break;
+    }
+
+    candidate = previous;
+  }
+
+  return {
+    tradeDate: candidate.tradeDate,
+    price: candidate.high,
+    source: "swing_high",
+  };
 }
 
 export function evaluateDowntrendStock({
   tsCode,
   bars,
   windowSize = defaultWindowSize,
-  swingNeighborCount = defaultSwingNeighborCount,
   thresholdRatio = defaultThresholdRatio,
   maSlopePointCount = defaultMaSlopePointCount,
 }: EvaluateDowntrendStockOptions): DowntrendEvaluationResult {
@@ -142,7 +84,7 @@ export function evaluateDowntrendStock({
     };
   }
 
-  const intervalHigh = findIntervalHigh(windowBars, swingNeighborCount);
+  const intervalHigh = findIntervalHigh(windowBars);
   const currentPrice = latestBar.close;
   const currentHighRatio = currentPrice / intervalHigh.price;
   const drawdownPct = 1 - currentHighRatio;

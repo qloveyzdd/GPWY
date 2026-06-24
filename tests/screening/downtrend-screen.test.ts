@@ -38,7 +38,7 @@ describe("downtrend screen", () => {
     });
   });
 
-  it("uses a recent swing high when only one later trading day is available", () => {
+  it("walks backward while the previous trading day has a higher high", () => {
     const bars = makeDescendingBars();
     bars[58] = { ...bars[58], high: 55 };
     bars[59] = { ...bars[59], high: 54.6 };
@@ -52,14 +52,56 @@ describe("downtrend screen", () => {
     });
   });
 
-  it("does not treat the latest unconfirmed trading day as a swing high", () => {
+  it("uses the latest trading day when it sets a new high", () => {
     const bars = makeDescendingBars();
-    bars[58] = { ...bars[58], high: 55 };
-    bars[59] = { ...bars[59], high: 56 };
+    bars[58] = {
+      ...bars[58],
+      tradeDate: "20260622",
+      high: 9.21,
+    };
+    bars[59] = {
+      ...bars[59],
+      tradeDate: "20260623",
+      high: 9.34,
+    };
 
     const high = findIntervalHigh(bars);
 
-    expect(high.tradeDate).not.toBe(bars[59].tradeDate);
+    expect(high).toEqual({
+      tradeDate: "20260623",
+      price: 9.34,
+      source: "swing_high",
+    });
+  });
+
+  it("rejects 002930 when the latest high is 9.34", () => {
+    const bars = makeDescendingBars();
+    bars[58] = {
+      ...bars[58],
+      tradeDate: "20260622",
+      high: 9.21,
+      close: 9.15,
+    };
+    bars[59] = {
+      ...bars[59],
+      tradeDate: "20260623",
+      high: 9.34,
+      close: 9.13,
+    };
+
+    const result = evaluateDowntrendStock({
+      tsCode: "002930.SZ",
+      bars,
+    });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") {
+      throw new Error("expected rejected result");
+    }
+    expect(result.intervalHigh).toBe(9.34);
+    expect(result.intervalHighTradeDate).toBe("20260623");
+    expect(result.currentHighRatio).toBeCloseTo(9.13 / 9.34, 8);
+    expect(result.reasons).toContain("price_above_threshold");
   });
 
   it("rejects 301608 when its recent swing high is 55", () => {
@@ -92,7 +134,7 @@ describe("downtrend screen", () => {
     expect(result.reasons).toContain("price_above_threshold");
   });
 
-  it("falls back to the latest 60-day highest high when no local swing high exists", () => {
+  it("stops when the previous trading day has an equal high", () => {
     const bars = makeDescendingBars();
     bars[10] = { ...bars[10], high: 120 };
     bars[11] = { ...bars[11], high: 120 };
@@ -102,7 +144,7 @@ describe("downtrend screen", () => {
     expect(high).toEqual({
       tradeDate: bars[11].tradeDate,
       price: 120,
-      source: "fallback_60d_high",
+      source: "swing_high",
     });
   });
 
@@ -130,8 +172,13 @@ describe("downtrend screen", () => {
 
   it("includes the 85 percent boundary", () => {
     const bars = makeDescendingBars();
-    bars[50] = { ...bars[50], high: 90 };
-    bars[59] = { ...bars[59], close: 76.5, high: 77 };
+    for (let index = 50; index < 60; index += 1) {
+      bars[index] = {
+        ...bars[index],
+        high: 90 - (index - 50) * 1.5,
+      };
+    }
+    bars[59] = { ...bars[59], close: 76.5 };
 
     const result = evaluateDowntrendStock({
       tsCode: "000001.SZ",
