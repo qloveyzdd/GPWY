@@ -193,9 +193,7 @@ describe("ResultsTable", () => {
     render(<ResultsTable snapshot={sortableSnapshot} />);
 
     expect(renderedCodes()).toEqual(["000002.SZ", "000004.SZ", "000001.SZ"]);
-    expect(screen.getByTestId("stock-chart").textContent).toBe(
-      "chart 000002.SZ",
-    );
+    expect(screen.queryByTestId("stock-chart")).toBeNull();
     expect(
       screen
         .getByRole("columnheader", { name: /当前\/高点/ })
@@ -281,7 +279,7 @@ describe("ResultsTable", () => {
     expect(screen.queryByText("结果数据不可用")).toBeNull();
   });
 
-  it("changes the inline chart selection when a result row is clicked", () => {
+  it("opens the chart directly below the clicked result row", () => {
     render(<ResultsTable snapshot={sortableSnapshot} />);
 
     const targetRow = screen.getByText("000001.SZ").closest("tr");
@@ -293,5 +291,23 @@ describe("ResultsTable", () => {
       "chart 000001.SZ",
     );
     expect(targetRow?.getAttribute("aria-selected")).toBe("true");
+    expect(targetRow?.getAttribute("aria-expanded")).toBe("true");
+    expect(targetRow?.nextElementSibling).toBe(
+      screen.getByTestId("stock-chart-row-000001.SZ"),
+    );
+  });
+
+  it("closes the inline chart when the selected row is clicked again", () => {
+    render(<ResultsTable snapshot={sortableSnapshot} />);
+
+    const targetRow = screen.getByText("000001.SZ").closest("tr");
+
+    expect(targetRow).toBeTruthy();
+    fireEvent.click(targetRow as HTMLTableRowElement);
+    fireEvent.click(targetRow as HTMLTableRowElement);
+
+    expect(screen.queryByTestId("stock-chart")).toBeNull();
+    expect(targetRow?.getAttribute("aria-selected")).toBe("false");
+    expect(targetRow?.getAttribute("aria-expanded")).toBe("false");
   });
 });

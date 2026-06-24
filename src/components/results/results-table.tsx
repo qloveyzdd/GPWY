@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CircleSlash } from "lucide-react";
 
 import { StockKlineChart } from "@/components/charts/stock-kline-chart";
@@ -203,7 +203,11 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
     (row) => row.tsCode === selectedTsCode,
   )
     ? selectedTsCode
-    : rows[0]?.tsCode ?? null;
+    : null;
+
+  function toggleSelectedRow(tsCode: string) {
+    setSelectedTsCode((current) => (current === tsCode ? null : tsCode));
+  }
 
   function handleSort(key: SortKey) {
     setSort((current) => {
@@ -272,46 +276,59 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
                 const isSelected = row.tsCode === effectiveSelectedTsCode;
 
                 return (
-                  <TableRow
-                    key={row.tsCode}
-                    tabIndex={0}
-                    aria-selected={isSelected}
-                    className={cn(
-                      "cursor-pointer outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60",
-                      isSelected ? "bg-muted/50" : "",
-                    )}
-                    onClick={() => setSelectedTsCode(row.tsCode)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedTsCode(row.tsCode);
-                      }
-                    }}
-                  >
-                    <TableCell className="font-medium">{row.tsCode}</TableCell>
-                    <TableCell>{row.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatPrice(row.currentPrice)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatPrice(row.intervalHigh)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatPercent(row.currentHighRatio)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatPercent(row.drawdownPct)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <ChipPeakCell row={row} />
-                    </TableCell>
-                  </TableRow>
+                  <Fragment key={row.tsCode}>
+                    <TableRow
+                      tabIndex={0}
+                      aria-selected={isSelected}
+                      aria-expanded={isSelected}
+                      className={cn(
+                        "cursor-pointer outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60",
+                        isSelected ? "bg-muted/50" : "",
+                      )}
+                      onClick={() => toggleSelectedRow(row.tsCode)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          toggleSelectedRow(row.tsCode);
+                        }
+                      }}
+                    >
+                      <TableCell className="font-medium">{row.tsCode}</TableCell>
+                      <TableCell>{row.name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatPrice(row.currentPrice)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatPrice(row.intervalHigh)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatPercent(row.currentHighRatio)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatPercent(row.drawdownPct)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <ChipPeakCell row={row} />
+                      </TableCell>
+                    </TableRow>
+                    {isSelected ? (
+                      <TableRow
+                        data-testid={`stock-chart-row-${row.tsCode}`}
+                        className="hover:bg-transparent"
+                      >
+                        <TableCell
+                          colSpan={7}
+                          className="whitespace-normal bg-muted/20 p-3 sm:p-4"
+                        >
+                          <StockKlineChart tsCode={row.tsCode} />
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
                 );
               })}
             </TableBody>
           </Table>
-
-          <StockKlineChart tsCode={effectiveSelectedTsCode} />
         </div>
       )}
     </section>
