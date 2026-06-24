@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractChipPeak,
+  extractChipPeaks,
   mapCyqChipsTable,
 } from "@/lib/chip/chip-peak";
 import type { TushareDataTable } from "@/lib/tushare/types";
@@ -62,6 +63,26 @@ describe("chip peak extraction", () => {
     );
 
     expect(peak.chipPeakPrice).toBe(10.2);
+  });
+
+  it("extracts the top three peaks with rank and percent", () => {
+    const peaks = extractChipPeaks(
+      mapCyqChipsTable(
+        table([
+          ["000001.SZ", "20260210", 8.8, 20],
+          ["000001.SZ", "20260211", 10.4, 6],
+          ["000001.SZ", "20260211", 10.2, 6],
+          ["000001.SZ", "20260211", 9.8, 4],
+          ["000001.SZ", "20260211", 11.2, 2],
+        ]),
+      ),
+    );
+
+    expect(peaks).toEqual([
+      { rank: 1, tradeDate: "20260211", price: 10.2, percent: 6 },
+      { rank: 2, tradeDate: "20260211", price: 10.4, percent: 6 },
+      { rank: 3, tradeDate: "20260211", price: 9.8, percent: 4 },
+    ]);
   });
 
   it("fails on empty official rows instead of estimating", () => {

@@ -1,6 +1,7 @@
 import type {
   ChipDistributionRow,
   ChipPeakExtraction,
+  ChipPeakLevel,
 } from "@/lib/chip/chip-types";
 import type { TushareDataTable } from "@/lib/tushare/types";
 
@@ -45,9 +46,10 @@ export function mapCyqChipsTable(
   });
 }
 
-export function extractChipPeak(
+export function extractChipPeaks(
   rows: ChipDistributionRow[],
-): ChipPeakExtraction {
+  limit = 3,
+): ChipPeakLevel[] {
   if (!rows.length) {
     throw new Error("empty_chip_distribution");
   }
@@ -57,20 +59,28 @@ export function extractChipPeak(
     rows[0].tradeDate,
   );
   const latestRows = rows.filter((row) => row.tradeDate === latestTradeDate);
-  const peak = latestRows.reduce((currentPeak, row) => {
-    if (row.percent > currentPeak.percent) {
-      return row;
-    }
+  return [...latestRows]
+    .sort((left, right) => {
+      const percentDiff = right.percent - left.percent;
 
-    if (row.percent === currentPeak.percent && row.price < currentPeak.price) {
-      return row;
-    }
+      return percentDiff !== 0 ? percentDiff : left.price - right.price;
+    })
+    .slice(0, limit)
+    .map((row, index) => ({
+      rank: index + 1,
+      tradeDate: row.tradeDate,
+      price: row.price,
+      percent: row.percent,
+    }));
+}
 
-    return currentPeak;
-  }, latestRows[0]);
+export function extractChipPeak(
+  rows: ChipDistributionRow[],
+): ChipPeakExtraction {
+  const peak = extractChipPeaks(rows, 1)[0];
 
   return {
-    tsCode: peak.tsCode,
+    tsCode: rows[0].tsCode,
     tradeDate: peak.tradeDate,
     chipPeakPrice: peak.price,
     peakPercent: peak.percent,

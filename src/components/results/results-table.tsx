@@ -107,11 +107,21 @@ function chipStateTone(state: ResultChipPeakState) {
 }
 
 function ChipPeakCell({ row }: { row: ResultRow }) {
-  if (row.chipPeakState === "available" && row.chipPeakPrice !== null) {
+  if (row.chipPeakState === "available" && row.chipPeaks.length > 0) {
     return (
-      <span className="font-medium tabular-nums">
-        {formatPrice(row.chipPeakPrice)}
-      </span>
+      <div className="ml-auto grid w-fit gap-1 text-right tabular-nums">
+        {row.chipPeaks.map((peak) => (
+          <div key={peak.rank} className="flex items-baseline justify-end gap-2">
+            <span className="text-[12px] text-muted-foreground">
+              #{peak.rank}
+            </span>
+            <span className="font-medium">{formatPrice(peak.price)}</span>
+            <span className="min-w-12 text-[12px] text-muted-foreground">
+              {peak.percent.toFixed(2)}%
+            </span>
+          </div>
+        ))}
+      </div>
     );
   }
 

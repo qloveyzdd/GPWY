@@ -135,6 +135,11 @@ describe("chart data snapshot", () => {
           chipPeakPrice: 36.2,
           peakPercent: 6.5,
           source: "cyq_chips_highest_percent",
+          peaks: [
+            { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
+            { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
+            { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
+          ],
           errorCategory: null,
           errorSummary: null,
         },
@@ -157,8 +162,11 @@ describe("chart data snapshot", () => {
       intervalHighPrice: 90,
       intervalHighTradeDate: "20260214",
       threshold85Price: 76.5,
-      chipPeakPrice: 36.2,
-      chipPeakTradeDate: "20260623",
+      chipPeaks: [
+        { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
+        { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
+        { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
+      ],
       chipPeakState: "available",
     });
     expect(staleRefreshJob.id).not.toBe(sourceRefreshJob.id);
@@ -200,6 +208,6 @@ describe("chart data snapshot", () => {
       throw new Error("expected ready chart snapshot");
     }
     expect(snapshot.overlays.chipPeakState).toBe("missing");
-    expect(snapshot.overlays.chipPeakPrice).toBeNull();
+    expect(snapshot.overlays.chipPeaks).toEqual([]);
   });
 });

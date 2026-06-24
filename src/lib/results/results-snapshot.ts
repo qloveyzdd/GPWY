@@ -49,6 +49,7 @@ function toRow(
     chipPeakPrice: state === "available" ? chipResult?.chipPeakPrice ?? null : null,
     chipPeakTradeDate: chipResult?.tradeDate ?? null,
     chipPeakSource: chipResult?.source ?? null,
+    chipPeaks: state === "available" ? chipResult?.peaks ?? [] : [],
     chipPeakErrorCategory: chipResult?.errorCategory ?? null,
     chipPeakErrorSummary: chipResult?.errorSummary ?? null,
   };

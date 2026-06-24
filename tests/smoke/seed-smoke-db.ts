@@ -124,6 +124,16 @@ function migrate(db: DatabaseConnection) {
       error_summary text,
       primary key (chip_peak_run_id, ts_code)
     );
+
+    create table chip_peak_levels (
+      chip_peak_run_id integer not null,
+      ts_code text not null,
+      peak_rank integer not null,
+      trade_date text not null,
+      price real not null,
+      percent real not null,
+      primary key (chip_peak_run_id, ts_code, peak_rank)
+    );
   `);
 }
 
@@ -293,6 +303,17 @@ export default async function seedSmokeDb() {
       null,
       null,
     );
+    const insertChipLevel = db.prepare(
+      `
+      insert into chip_peak_levels
+        (chip_peak_run_id, ts_code, peak_rank, trade_date, price, percent)
+      values (?, ?, ?, ?, ?, ?)
+      `,
+    );
+
+    insertChipLevel.run(chipPeakRunId, "000001.SZ", 1, "20260060", 36.2, 6.5);
+    insertChipLevel.run(chipPeakRunId, "000001.SZ", 2, "20260060", 35.8, 4.2);
+    insertChipLevel.run(chipPeakRunId, "000001.SZ", 3, "20260060", 37.1, 3.1);
     insertChip.run(
       chipPeakRunId,
       screeningRunId,

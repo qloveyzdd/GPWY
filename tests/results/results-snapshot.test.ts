@@ -57,6 +57,11 @@ function chipResult(
     chipPeakPrice: 36.2,
     peakPercent: 6.5,
     source: "cyq_chips_highest_percent",
+    peaks: [
+      { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
+      { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
+      { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
+    ],
     errorCategory: null,
     errorSummary: null,
     ...overrides,
@@ -189,6 +194,7 @@ describe("results snapshot", () => {
           chipPeakPrice: null,
           peakPercent: null,
           source: null,
+          peaks: [],
           errorCategory: "permission_denied",
           errorSummary: "筹码接口权限不足。",
         }),
@@ -200,6 +206,7 @@ describe("results snapshot", () => {
           chipPeakPrice: null,
           peakPercent: null,
           source: null,
+          peaks: [],
           errorCategory: "network_or_service",
           errorSummary: "筹码接口暂时不可用。",
         }),
@@ -260,6 +267,7 @@ describe("results snapshot", () => {
       tsCode: "000001.SZ",
       chipPeakState: "missing",
       chipPeakPrice: null,
+      chipPeaks: [],
     });
   });
 });

@@ -9,6 +9,13 @@ export type ChipDistributionRow = {
 
 export type ChipPeakExtractionSource = "cyq_chips_highest_percent";
 
+export type ChipPeakLevel = {
+  rank: number;
+  tradeDate: string;
+  price: number;
+  percent: number;
+};
+
 export type ChipPeakExtraction = {
   tsCode: string;
   tradeDate: string;
@@ -41,6 +48,7 @@ export type ChipPeakResultRecord = {
   chipPeakPrice: number | null;
   peakPercent: number | null;
   source: ChipPeakExtractionSource | null;
+  peaks: ChipPeakLevel[];
   errorCategory: TushareErrorCategory | null;
   errorSummary: string | null;
 };

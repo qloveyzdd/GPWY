@@ -44,6 +44,11 @@ function readySnapshot(
       chipPeakPrice: 36.2,
       chipPeakTradeDate: "20260623",
       chipPeakSource: "cyq_chips_highest_percent",
+      chipPeaks: [
+        { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
+        { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
+        { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
+      ],
       chipPeakErrorCategory: null,
       chipPeakErrorSummary: null,
     },
@@ -69,8 +74,11 @@ function readySnapshot(
       intervalHighPrice: 90,
       intervalHighTradeDate: "20260214",
       threshold85Price: 76.5,
-      chipPeakPrice: 36.2,
-      chipPeakTradeDate: "20260623",
+      chipPeaks: [
+        { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
+        { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
+        { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
+      ],
       chipPeakState: "available",
     },
   };
@@ -129,7 +137,9 @@ describe("StockKlineChart", () => {
     expect(screen.getByText("最近 60 个交易日")).toBeTruthy();
     expect(screen.getByText("区间高点 90.00")).toBeTruthy();
     expect(screen.getByText("85%阈值 76.50")).toBeTruthy();
-    expect(screen.getByText("筹码峰：36.20")).toBeTruthy();
+    expect(screen.getByText("筹码峰1：36.20 / 6.50%")).toBeTruthy();
+    expect(screen.getByText("筹码峰2：35.80 / 4.20%")).toBeTruthy();
+    expect(screen.getByText("筹码峰3：37.10 / 3.10%")).toBeTruthy();
 
     await waitFor(() => {
       expect(setOptionMock).toHaveBeenCalled();
@@ -148,7 +158,7 @@ describe("StockKlineChart", () => {
     });
     expect(
       options.series[0].markLine.data.map((line: { name: string }) => line.name),
-    ).toEqual(["区间高点", "85%阈值", "筹码峰"]);
+    ).toEqual(["区间高点", "85%阈值", "筹码峰1", "筹码峰2", "筹码峰3"]);
   });
 
   it("does not draw a chip peak line when chip peak is unavailable", async () => {
@@ -158,12 +168,12 @@ describe("StockKlineChart", () => {
         chipPeakState: "missing",
         chipPeakPrice: null,
         chipPeakTradeDate: null,
+        chipPeaks: [],
       },
       overlays: {
         ...readySnapshot().overlays,
         chipPeakState: "missing",
-        chipPeakPrice: null,
-        chipPeakTradeDate: null,
+        chipPeaks: [],
       },
     });
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(

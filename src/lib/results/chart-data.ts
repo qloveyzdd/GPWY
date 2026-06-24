@@ -93,10 +93,7 @@ export function readLatestChartSnapshot(tsCode: string): ChartSnapshot {
       intervalHighPrice: row.intervalHigh,
       intervalHighTradeDate: row.intervalHighTradeDate,
       threshold85Price: row.intervalHigh * 0.85,
-      chipPeakPrice:
-        row.chipPeakState === "available" ? row.chipPeakPrice : null,
-      chipPeakTradeDate:
-        row.chipPeakState === "available" ? row.chipPeakTradeDate : null,
+      chipPeaks: row.chipPeakState === "available" ? row.chipPeaks : [],
       chipPeakState: row.chipPeakState,
     },
   };

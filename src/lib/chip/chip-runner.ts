@@ -1,5 +1,5 @@
 import {
-  extractChipPeak,
+  extractChipPeaks,
   mapCyqChipsTable,
 } from "@/lib/chip/chip-peak";
 import {
@@ -79,6 +79,7 @@ function createBlockedResult(
     chipPeakPrice: null,
     peakPercent: null,
     source: null,
+    peaks: [],
     errorCategory: safeError.category,
     errorSummary: safeError.message,
   };
@@ -116,16 +117,19 @@ export async function runChipPeakIntegrationFromLatestScreening({
         ts_code: screeningResult.tsCode,
         trade_date: screeningResult.latestTradeDate,
       });
-      const peak = extractChipPeak(mapCyqChipsTable(table));
+      const rows = mapCyqChipsTable(table);
+      const peaks = extractChipPeaks(rows);
+      const peak = peaks[0];
 
       results.push({
         screeningRunId: screeningRun.id,
         tsCode: screeningResult.tsCode,
         status: "succeeded",
         tradeDate: peak.tradeDate,
-        chipPeakPrice: peak.chipPeakPrice,
-        peakPercent: peak.peakPercent,
-        source: peak.source,
+        chipPeakPrice: peak.price,
+        peakPercent: peak.percent,
+        source: "cyq_chips_highest_percent",
+        peaks,
         errorCategory: null,
         errorSummary: null,
       });

@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 import type {
+  ChipPeakLevel,
   ChipPeakResultRecord,
   ChipPeakRunRecord,
 } from "@/lib/chip/chip-types";
@@ -43,6 +44,15 @@ type ChipPeakResultRow = {
   source: ChipPeakResultRecord["source"];
   error_category: ChipPeakResultRecord["errorCategory"];
   error_summary: string | null;
+};
+
+type ChipPeakLevelRow = {
+  chip_peak_run_id: number;
+  ts_code: string;
+  peak_rank: number;
+  trade_date: string;
+  price: number;
+  percent: number;
 };
 
 export type WriteChipPeakRunInput = {
@@ -117,6 +127,17 @@ function openDatabase() {
       primary key (chip_peak_run_id, ts_code),
       foreign key (chip_peak_run_id) references chip_peak_runs(id)
     );
+
+    create table if not exists chip_peak_levels (
+      chip_peak_run_id integer not null,
+      ts_code text not null,
+      peak_rank integer not null check (peak_rank between 1 and 3),
+      trade_date text not null,
+      price real not null,
+      percent real not null,
+      primary key (chip_peak_run_id, ts_code, peak_rank),
+      foreign key (chip_peak_run_id) references chip_peak_runs(id)
+    );
   `);
 
   return db;
@@ -135,7 +156,10 @@ function mapRun(row: ChipPeakRunRow): ChipPeakRunRecord {
   };
 }
 
-function mapResult(row: ChipPeakResultRow): ChipPeakResultRecord {
+function mapResult(
+  row: ChipPeakResultRow,
+  peaks: ChipPeakLevel[],
+): ChipPeakResultRecord {
   return {
     chipPeakRunId: row.chip_peak_run_id,
     screeningRunId: row.screening_run_id,
@@ -145,6 +169,7 @@ function mapResult(row: ChipPeakResultRow): ChipPeakResultRecord {
     chipPeakPrice: row.chip_peak_price,
     peakPercent: row.peak_percent,
     source: row.source,
+    peaks,
     errorCategory: row.error_category,
     errorSummary: row.error_summary,
   };
@@ -209,6 +234,13 @@ export function writeChipPeakRun({
       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
     );
+    const insertLevel = db.prepare(
+      `
+      insert into chip_peak_levels
+        (chip_peak_run_id, ts_code, peak_rank, trade_date, price, percent)
+      values (?, ?, ?, ?, ?, ?)
+      `,
+    );
 
     for (const result of results) {
       insertResult.run(
@@ -223,6 +255,17 @@ export function writeChipPeakRun({
         result.errorCategory,
         result.errorSummary,
       );
+
+      for (const peak of result.peaks) {
+        insertLevel.run(
+          chipPeakRunId,
+          result.tsCode,
+          peak.rank,
+          peak.tradeDate,
+          peak.price,
+          peak.percent,
+        );
+      }
     }
 
     db.exec("commit");
@@ -269,18 +312,59 @@ export function readLatestChipPeakResults(): ChipPeakResultRecord[] {
   const db = openDatabase();
 
   try {
-    return (
-      db
-        .prepare(
-          `
-          select *
-          from chip_peak_results
-          where chip_peak_run_id = ?
-          order by ts_code asc
-          `,
-        )
-        .all(latestRun.id) as ChipPeakResultRow[]
-    ).map(mapResult);
+    const resultRows = db
+      .prepare(
+        `
+        select *
+        from chip_peak_results
+        where chip_peak_run_id = ?
+        order by ts_code asc
+        `,
+      )
+      .all(latestRun.id) as ChipPeakResultRow[];
+    const levelRows = db
+      .prepare(
+        `
+        select *
+        from chip_peak_levels
+        where chip_peak_run_id = ?
+        order by ts_code asc, peak_rank asc
+        `,
+      )
+      .all(latestRun.id) as ChipPeakLevelRow[];
+    const levelsByCode = new Map<string, ChipPeakLevel[]>();
+
+    for (const level of levelRows) {
+      const peaks = levelsByCode.get(level.ts_code) ?? [];
+      peaks.push({
+        rank: level.peak_rank,
+        tradeDate: level.trade_date,
+        price: level.price,
+        percent: level.percent,
+      });
+      levelsByCode.set(level.ts_code, peaks);
+    }
+
+    return resultRows.map((row) => {
+      const storedPeaks = levelsByCode.get(row.ts_code) ?? [];
+      const fallbackPeaks =
+        storedPeaks.length === 0 &&
+        row.status === "succeeded" &&
+        row.trade_date !== null &&
+        row.chip_peak_price !== null &&
+        row.peak_percent !== null
+          ? [
+              {
+                rank: 1,
+                tradeDate: row.trade_date,
+                price: row.chip_peak_price,
+                percent: row.peak_percent,
+              },
+            ]
+          : storedPeaks;
+
+      return mapResult(row, fallbackPeaks);
+    });
   } finally {
     db.close();
   }

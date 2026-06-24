@@ -24,8 +24,7 @@ export type ChartOverlays = {
   intervalHighPrice: number;
   intervalHighTradeDate: string;
   threshold85Price: number;
-  chipPeakPrice: number | null;
-  chipPeakTradeDate: string | null;
+  chipPeaks: ResultRow["chipPeaks"];
   chipPeakState: ResultRow["chipPeakState"];
 };
 

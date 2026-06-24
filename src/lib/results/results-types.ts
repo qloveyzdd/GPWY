@@ -1,3 +1,4 @@
+import type { ChipPeakLevel } from "@/lib/chip/chip-types";
 import type { TushareErrorCategory } from "@/lib/tushare/types";
 
 export type ResultsSnapshotStatus = "ready" | "empty" | "unavailable";
@@ -26,6 +27,7 @@ export type ResultRow = {
   chipPeakPrice: number | null;
   chipPeakTradeDate: string | null;
   chipPeakSource: string | null;
+  chipPeaks: ChipPeakLevel[];
   chipPeakErrorCategory: TushareErrorCategory | null;
   chipPeakErrorSummary: string | null;
 };

@@ -33,6 +33,8 @@ type MarkLineDataItem = {
   };
 };
 
+const chipPeakColors = ["#15803D", "#0F766E", "#2563EB"];
+
 const initialLoadState: ChartLoadState = {
   tsCode: null,
   snapshot: null,
@@ -75,16 +77,20 @@ function buildChartOptions(snapshot: ChartSnapshot): EChartsOption {
     },
   ];
 
-  if (
-    snapshot.overlays.chipPeakState === "available" &&
-    snapshot.overlays.chipPeakPrice !== null
-  ) {
-    markLineData.push({
-      name: "筹码峰",
-      yAxis: snapshot.overlays.chipPeakPrice,
-      lineStyle: { color: "#15803D", type: "solid" as const },
-      label: { formatter: "筹码峰" },
-    });
+  if (snapshot.overlays.chipPeakState === "available") {
+    for (const peak of snapshot.overlays.chipPeaks) {
+      markLineData.push({
+        name: `筹码峰${peak.rank}`,
+        yAxis: peak.price,
+        lineStyle: {
+          color: chipPeakColors[peak.rank - 1] ?? "#15803D",
+          type: peak.rank === 1 ? "solid" : "dashed",
+        },
+        label: {
+          formatter: `筹码峰${peak.rank} ${peak.percent.toFixed(2)}%`,
+        },
+      });
+    }
   }
 
   return {
@@ -302,12 +308,16 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
           <Badge variant="outline">
             85%阈值 {formatPrice(snapshot.overlays.threshold85Price)}
           </Badge>
-          <Badge variant="outline">
-            筹码峰：
-            {snapshot.overlays.chipPeakPrice === null
-              ? "无数据"
-              : formatPrice(snapshot.overlays.chipPeakPrice)}
-          </Badge>
+          {snapshot.overlays.chipPeaks.length === 0 ? (
+            <Badge variant="outline">筹码峰：无数据</Badge>
+          ) : (
+            snapshot.overlays.chipPeaks.map((peak) => (
+              <Badge key={peak.rank} variant="outline">
+                筹码峰{peak.rank}：{formatPrice(peak.price)} /{" "}
+                {peak.percent.toFixed(2)}%
+              </Badge>
+            ))
+          )}
         </div>
       </div>
       <div

@@ -107,6 +107,10 @@ describe("chip runner", () => {
         chipPeakPrice: 10.2,
         peakPercent: 6,
         source: "cyq_chips_highest_percent",
+        peaks: [
+          { rank: 1, tradeDate: "20260211", price: 10.2, percent: 6 },
+          { rank: 2, tradeDate: "20260211", price: 9.8, percent: 2 },
+        ],
       },
     ]);
   });
@@ -128,6 +132,7 @@ describe("chip runner", () => {
         status: "blocked",
         chipPeakPrice: null,
         source: null,
+        peaks: [],
         errorCategory: "permission_denied",
       },
     ]);
