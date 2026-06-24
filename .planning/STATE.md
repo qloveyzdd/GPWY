@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: milestone_complete
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-06-24T21:18:30+08:00"
-last_activity: 2026-06-24
+status: Awaiting next milestone
+stopped_at: Milestone v1.0 archived
+last_updated: "2026-06-24T14:01:56.222Z"
+last_activity: 2026-06-24 — Milestone v1.0 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
@@ -18,20 +18,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-23)
+See: .planning/PROJECT.md (updated 2026-06-24)
 
 **Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到对应筹码峰位置。
 
-**Current focus:** Milestone v1.0 complete
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 06 (charts-and-deployment) — COMPLETE
-Plan: 3 of 3
-Status: Milestone complete
-Last activity: 2026-06-24
-
-Progress: [██████████] 100%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-24 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -104,5 +102,9 @@ No milestone blockers. Official chip enrichment remains serial and may extend fu
 ## Session Continuity
 
 Last session: 2026-06-23T15:04:20.054Z
-Stopped at: Completed 06-03-PLAN.md
+Stopped at: Milestone v1.0 archived
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with `$gsd-new-milestone`
