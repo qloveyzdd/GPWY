@@ -44,41 +44,89 @@ def dataframe_to_table(df, requested_fields):
     return {"fields": columns, "items": items}
 
 
-def main():
+def emit(message):
+    print(json.dumps(message, ensure_ascii=False), flush=True)
+
+
+def read_message(line):
+    return json.loads(line)
+
+
+def initialize():
+    line = sys.stdin.readline()
+    if not line:
+        return None
+
+    request = read_message(line)
+    if request.get("type") != "init":
+        raise ValueError("first message must be init")
+
+    import tinyshare as ts
+
+    ts.set_token(request["token"])
+    return ts.pro_api()
+
+
+def handle_query(pro, request):
+    request_id = request.get("request_id")
+    api_name = request["api_name"]
+    params = request.get("params") or {}
+    fields = request.get("fields") or []
+
     try:
-        request = json.loads(sys.stdin.read())
-        token = request["token"]
-        api_name = request["api_name"]
-        params = request.get("params") or {}
-        fields = request.get("fields") or []
-
-        import tinyshare as ts
-
-        ts.set_token(token)
-        pro = ts.pro_api()
-
         if not hasattr(pro, api_name):
             raise AttributeError(f"unsupported api_name: {api_name}")
 
         df = getattr(pro, api_name)(**params)
-
-        print(
-            json.dumps(
-                {"ok": True, "data": dataframe_to_table(df, fields)},
-                ensure_ascii=False,
-            ),
+        emit(
+            {
+                "type": "result",
+                "request_id": request_id,
+                "ok": True,
+                "data": dataframe_to_table(df, fields),
+            },
         )
     except Exception as exc:
-        print(
-            json.dumps(
-                {
-                    "ok": False,
-                    "category": classify_error(exc),
-                    "error_type": type(exc).__name__,
-                    "message": safe_text(exc),
-                },
-                ensure_ascii=False,
-            ),
+        emit(
+            {
+                "type": "result",
+                "request_id": request_id,
+                "ok": False,
+                "category": classify_error(exc),
+                "error_type": type(exc).__name__,
+                "message": safe_text(exc),
+            },
+        )
+
+
+def main():
+    try:
+        pro = initialize()
+        if pro is None:
+            return
+
+        emit({"type": "ready"})
+
+        for line in sys.stdin:
+            if not line.strip():
+                continue
+
+            request = read_message(line)
+            message_type = request.get("type")
+            if message_type == "shutdown":
+                return
+            if message_type != "query":
+                raise ValueError(f"unsupported message type: {message_type}")
+
+            handle_query(pro, request)
+    except Exception as exc:
+        emit(
+            {
+                "type": "error",
+                "category": classify_error(exc),
+                "error_type": type(exc).__name__,
+                "message": safe_text(exc),
+            },
         )
 
 

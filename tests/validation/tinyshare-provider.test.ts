@@ -1,11 +1,14 @@
 // @vitest-environment node
 import {
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createInterface } from "node:readline";
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -38,6 +41,78 @@ describe("Tushare provider selection", () => {
 });
 
 describe("TinysharePythonClient", () => {
+  it("uses a persistent JSON Lines bridge that initializes pro_api once", async () => {
+    const bridgeSource = readFileSync(
+      path.join(process.cwd(), "scripts", "tinyshare_bridge.py"),
+      "utf8",
+    );
+    expect(bridgeSource.match(/ts\.pro_api\(\)/g)).toHaveLength(1);
+
+    const child = spawn(
+      process.execPath,
+      [
+        path.join(
+          process.cwd(),
+          "tests",
+          "fixtures",
+          "tinyshare-persistent-worker.mjs",
+        ),
+      ],
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
+    const output = createInterface({ input: child.stdout, crlfDelay: Infinity });
+    const messages: unknown[] = [];
+    output.on("line", (line) => messages.push(JSON.parse(line)));
+
+    child.stdin.write(
+      `${JSON.stringify({ type: "init", token: "request-only-token" })}\n`,
+    );
+    child.stdin.write(
+      `${JSON.stringify({
+        type: "query",
+        request_id: "first",
+        api_name: "daily",
+        params: { mode: "pid" },
+        fields: [],
+      })}\n`,
+    );
+    child.stdin.write(
+      `${JSON.stringify({
+        type: "query",
+        request_id: "second",
+        api_name: "daily",
+        params: { mode: "pid" },
+        fields: [],
+      })}\n`,
+    );
+    child.stdin.end(`${JSON.stringify({ type: "shutdown" })}\n`);
+
+    await new Promise<void>((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", () => resolve());
+    });
+
+    expect(messages).toHaveLength(3);
+    expect(messages[0]).toEqual({ type: "ready" });
+    expect(messages[1]).toMatchObject({
+      type: "result",
+      request_id: "first",
+      ok: true,
+    });
+    expect(messages[2]).toMatchObject({
+      type: "result",
+      request_id: "second",
+      ok: true,
+    });
+    const firstPid = (
+      messages[1] as { data: { items: [[number, number]] } }
+    ).data.items[0][0];
+    const secondPid = (
+      messages[2] as { data: { items: [[number, number]] } }
+    ).data.items[0][0];
+    expect(firstPid).toBe(secondPid);
+  });
+
   it("forces UTF-8 for bridge output so Chinese stock names stay intact", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "gpwy-tinyshare-encoding-"));
     const scriptPath = path.join(root, "encoding-bridge.js");
