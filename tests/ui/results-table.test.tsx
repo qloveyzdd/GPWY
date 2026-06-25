@@ -30,6 +30,7 @@ vi.mock("@/components/charts/stock-kline-chart", () => ({
 const readySnapshot: ResultsSnapshot = {
   status: "ready",
   summary: "最新筛选命中 2 只股票。",
+  cacheSource: "normalized",
   sourceScreeningRunId: 7,
   screeningCreatedAt: "2026-06-23T00:00:00.000Z",
   chipPeakRunId: 3,
@@ -118,6 +119,7 @@ const sortableSnapshot: ResultsSnapshot = {
 const emptySnapshot: ResultsSnapshot = {
   status: "empty",
   summary: "最新筛选没有符合条件的股票。",
+  cacheSource: null,
   sourceScreeningRunId: 8,
   screeningCreatedAt: "2026-06-23T00:00:00.000Z",
   chipPeakRunId: null,
@@ -128,6 +130,7 @@ const emptySnapshot: ResultsSnapshot = {
 const unavailableSnapshot: ResultsSnapshot = {
   status: "unavailable",
   summary: "尚未生成下降趋势筛选结果。",
+  cacheSource: null,
   sourceScreeningRunId: null,
   screeningCreatedAt: null,
   chipPeakRunId: null,

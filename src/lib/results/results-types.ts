@@ -2,6 +2,7 @@ import type { ChipPeakLevel } from "@/lib/chip/chip-types";
 import type { TushareErrorCategory } from "@/lib/tushare/types";
 
 export type ResultsSnapshotStatus = "ready" | "empty" | "unavailable";
+export type ResultsCacheSource = "legacy" | "normalized" | null;
 
 export type ResultsUnavailableReason = "no_screening_run";
 
@@ -35,6 +36,7 @@ export type ResultRow = {
 export type ResultsSnapshot = {
   status: ResultsSnapshotStatus;
   summary: string;
+  cacheSource: ResultsCacheSource;
   sourceScreeningRunId: number | null;
   screeningCreatedAt: string | null;
   chipPeakRunId: number | null;
@@ -45,6 +47,7 @@ export type ResultsSnapshot = {
 export const EMPTY_RESULTS_SNAPSHOT: ResultsSnapshot = {
   status: "unavailable",
   summary: "尚未生成下降趋势筛选结果。",
+  cacheSource: null,
   sourceScreeningRunId: null,
   screeningCreatedAt: null,
   chipPeakRunId: null,

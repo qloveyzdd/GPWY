@@ -74,6 +74,7 @@ export function readLatestResultsSnapshot(): ResultsSnapshot {
     return {
       status: "unavailable",
       summary: "尚未生成下降趋势筛选结果。",
+      cacheSource: null,
       sourceScreeningRunId: null,
       screeningCreatedAt: null,
       chipPeakRunId: null,
@@ -88,6 +89,7 @@ export function readLatestResultsSnapshot(): ResultsSnapshot {
     return {
       status: "empty",
       summary: "最新筛选没有符合条件的股票。",
+      cacheSource: null,
       sourceScreeningRunId: screeningRun.id,
       screeningCreatedAt: screeningRun.createdAt,
       chipPeakRunId: null,
@@ -109,6 +111,10 @@ export function readLatestResultsSnapshot(): ResultsSnapshot {
   return {
     status: "ready",
     summary: `最新筛选命中 ${rows.length} 只股票。`,
+    cacheSource:
+      screeningRun.sourceMarketGenerationId === null
+        ? "legacy"
+        : "normalized",
     sourceScreeningRunId: screeningRun.id,
     screeningCreatedAt: screeningRun.createdAt,
     chipPeakRunId: canUseChipRun ? chipPeakRun.id : null,

@@ -75,6 +75,7 @@ describe("results snapshot", () => {
     const snapshot = readLatestResultsSnapshot();
 
     expect(snapshot.status).toBe("unavailable");
+    expect(snapshot.cacheSource).toBeNull();
     expect(snapshot.unavailableReason).toBe("no_screening_run");
     expect(snapshot.rows).toEqual([]);
   });
@@ -93,6 +94,7 @@ describe("results snapshot", () => {
     const snapshot = readLatestResultsSnapshot();
 
     expect(snapshot.status).toBe("empty");
+    expect(snapshot.cacheSource).toBeNull();
     expect(snapshot.sourceScreeningRunId).toBe(run.id);
     expect(snapshot.rows).toEqual([]);
   });
@@ -147,6 +149,7 @@ describe("results snapshot", () => {
     const snapshot = readLatestResultsSnapshot();
 
     expect(snapshot.status).toBe("ready");
+    expect(snapshot.cacheSource).toBe("legacy");
     expect(snapshot.sourceScreeningRunId).toBe(run.id);
     expect(snapshot.chipPeakRunId).toBe(chipRun.id);
     expect(snapshot.rows.map((row) => row.tsCode)).toEqual([
@@ -224,6 +227,27 @@ describe("results snapshot", () => {
         ["000003.SZ", "missing"],
       ],
     );
+  });
+
+  it("marks ready results normalized only when screening persisted a generation", () => {
+    useTempStore();
+    writeScreeningRun({
+      sourceRefreshJobId: 16,
+      sourceMarketGenerationId: 8,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [screeningResult()],
+    });
+
+    const snapshot = readLatestResultsSnapshot();
+    const serialized = JSON.stringify(snapshot);
+
+    expect(snapshot.status).toBe("ready");
+    expect(snapshot.cacheSource).toBe("normalized");
+    expect(serialized).not.toContain("sourceMarketGenerationId");
+    expect(serialized).not.toContain("refresh.sqlite");
+    expect(serialized).not.toContain("TUSHARE_TOKEN");
   });
 
   it("does not join chip peak rows from a stale screening run", () => {
