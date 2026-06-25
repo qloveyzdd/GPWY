@@ -3,7 +3,7 @@ phase: 7
 slug: standardized-market-data-cache
 status: approved
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-06-25
 ---
 
@@ -48,15 +48,15 @@ created: 2026-06-25
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 07-01-01 | 01 | 1 | DATA-05 | T-07-02 | Natural keys prevent duplicate canonical rows | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-store.test.ts` | ❌ W0 | ⬜ pending |
-| 07-01-02 | 01 | 1 | DATA-05 | T-07-02, T-07-03 | Generation lifecycle and cleanup are transactional | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-store.test.ts` | ❌ W0 | ⬜ pending |
-| 07-02-01 | 02 | 2 | DATA-06 | T-07-02 | Missing factors skip a stock instead of using raw prices | unit | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-reader.test.ts` | ❌ W0 | ⬜ pending |
-| 07-02-02 | 02 | 2 | DATA-06 | T-07-02 | Active generation is the only normalized screening source | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-reader.test.ts tests/screening/screening-runner.test.ts tests/results/chart-data.test.ts` | partial | ⬜ pending |
-| 07-03-01 | 03 | 3 | DATA-08 | T-07-01, T-07-03 | Provider responses are mapped without persisting secrets | unit | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/bootstrap-market-data.test.ts tests/refresh/fetch-refresh-data.test.ts` | ❌ W0 | ⬜ pending |
-| 07-03-02 | 03 | 3 | DATA-08 | T-07-02 | Exactly 60 paired market dates are required before activation | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/bootstrap-market-data.test.ts tests/refresh/market-data-store.test.ts` | ❌ W0 | ⬜ pending |
-| 07-03-03 | 03 | 3 | DATA-08 | T-07-02, T-07-03 | Failure deletes partial generation and success immediately screens | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/bootstrap-market-data.test.ts tests/refresh/refresh-runner.test.ts tests/screening/screening-runner.test.ts` | partial | ⬜ pending |
-| 07-04-01 | 04 | 4 | DATA-09 | T-07-01 | Cache source/status contains no secret or database path | component | `D:\NodeJS\npm.cmd run test -- --run tests/ui/status-workspace.test.tsx tests/ui/results-table.test.tsx` | partial | ⬜ pending |
-| 07-04-02 | 04 | 4 | DATA-09 | T-07-02 | Legacy fallback exists only before normalized activation | integration | `D:\NodeJS\npm.cmd run test -- --run tests/results/results-snapshot.test.ts tests/ui/status-workspace.test.tsx tests/ui/results-table.test.tsx` | partial | ⬜ pending |
+| 07-01-01 | 01 | 1 | DATA-05 | T-07-02 | Natural keys prevent duplicate canonical rows | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-store.test.ts` | ✅ | ✅ green |
+| 07-01-02 | 01 | 1 | DATA-05 | T-07-02, T-07-03 | Generation lifecycle and cleanup are transactional | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-store.test.ts` | ✅ | ✅ green |
+| 07-02-01 | 02 | 2 | DATA-06 | T-07-02 | Missing factors skip a stock instead of using raw prices | unit | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-reader.test.ts` | ✅ | ✅ green |
+| 07-02-02 | 02 | 2 | DATA-06 | T-07-02 | Active generation is the only normalized screening source | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-reader.test.ts tests/screening/screening-runner.test.ts tests/results/chart-data.test.ts` | ✅ | ✅ green |
+| 07-03-01 | 03 | 3 | DATA-08 | T-07-01, T-07-03 | Provider responses are mapped without persisting secrets | unit | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/bootstrap-market-data.test.ts tests/refresh/fetch-refresh-data.test.ts` | ✅ | ✅ green |
+| 07-03-02 | 03 | 3 | DATA-08 | T-07-02 | Exactly 60 paired market dates are required before activation | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/bootstrap-market-data.test.ts tests/refresh/market-data-store.test.ts` | ✅ | ✅ green |
+| 07-03-03 | 03 | 3 | DATA-08 | T-07-02, T-07-03 | Failure deletes partial generation and success immediately screens | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/bootstrap-market-data.test.ts tests/refresh/refresh-runner.test.ts tests/screening/screening-runner.test.ts` | ✅ | ✅ green |
+| 07-04-01 | 04 | 4 | DATA-09 | T-07-01 | Cache source/status contains no secret or database path | component | `D:\NodeJS\npm.cmd run test -- --run tests/ui/status-workspace.test.tsx tests/ui/results-table.test.tsx` | ✅ | ✅ green |
+| 07-04-02 | 04 | 4 | DATA-09 | T-07-02 | Legacy fallback exists only before normalized activation | integration | `D:\NodeJS\npm.cmd run test -- --run tests/results/results-snapshot.test.ts tests/ui/status-workspace.test.tsx tests/ui/results-table.test.tsx` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -64,10 +64,10 @@ created: 2026-06-25
 
 ## Wave 0 Requirements
 
-- [ ] `tests/refresh/market-data-store.test.ts` — generation lifecycle, normalized UPSERT, activation, cleanup, and retention fixtures.
-- [ ] `tests/refresh/market-data-reader.test.ts` — dynamic adjustment and structured skip-reason fixtures.
-- [ ] `tests/refresh/bootstrap-market-data.test.ts` — 60-date bootstrap, status synchronization, failure restart, and immediate screening fixtures.
-- [ ] Extend existing temp SQLite helpers where practical; do not introduce a second test database abstraction without a concrete reuse benefit.
+- [x] `tests/refresh/market-data-store.test.ts` — generation lifecycle, normalized UPSERT, activation, cleanup, and retention fixtures.
+- [x] `tests/refresh/market-data-reader.test.ts` — dynamic adjustment and structured skip-reason fixtures.
+- [x] `tests/refresh/bootstrap-market-data.test.ts` — 60-date bootstrap, status synchronization, failure restart, and immediate screening fixtures.
+- [x] Extend existing temp SQLite helpers where practical; do not introduce a second test database abstraction without a concrete reuse benefit.
 
 ---
 
