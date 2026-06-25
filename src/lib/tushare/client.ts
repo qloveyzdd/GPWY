@@ -7,6 +7,7 @@ import type {
   TushareDataTable,
   TushareEndpoint,
   TushareErrorCategory,
+  TushareQueryOptions,
 } from "@/lib/tushare/types";
 
 const tushareResponseSchema = z.object({
@@ -37,6 +38,7 @@ type FetchLike = (
     method: "POST";
     headers: Record<string, string>;
     body: string;
+    signal?: AbortSignal;
   },
 ) => Promise<Response>;
 
@@ -107,9 +109,12 @@ function detectCategory(error: unknown): TushareErrorCategory {
 
   if (
     error instanceof TypeError ||
+    (error instanceof Error && error.name === "AbortError") ||
     message.includes("fetch failed") ||
     message.includes("network") ||
-    message.includes("econn")
+    message.includes("econn") ||
+    message.includes("abort") ||
+    message.includes("timeout")
   ) {
     return "network_or_service";
   }
@@ -149,19 +154,34 @@ export class TushareClient implements TushareClientLike {
   async query(
     endpoint: TushareEndpoint,
     params: Record<string, unknown> = {},
+    options: TushareQueryOptions = {},
   ): Promise<TushareDataTable> {
-    const response = await this.fetcher(this.apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        api_name: endpoint.apiName,
-        token: this.token,
-        params,
-        fields: endpoint.fields.join(","),
-      }),
-    });
+    let response: Response;
+    try {
+      response = await this.fetcher(this.apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_name: endpoint.apiName,
+          token: this.token,
+          params,
+          fields: endpoint.fields.join(","),
+        }),
+        signal: options.signal,
+      });
+    } catch (error) {
+      const safeError = classifyTushareError(error, endpoint.apiName);
+      if (safeError.category === "network_or_service") {
+        throw new TushareApiError(
+          endpoint.apiName,
+          null,
+          "network_or_service",
+        );
+      }
+      throw error;
+    }
 
     if (!response.ok) {
       throw new TushareApiError(

@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TushareApiError } from "@/lib/tushare/client";
 import { ProviderRequestScheduler } from "@/lib/tushare/request-scheduler";
+import { ScheduledTushareClient } from "@/lib/tushare/scheduled-client";
+import type { TushareClientLike } from "@/lib/tushare/types";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -246,5 +248,35 @@ describe("ProviderRequestScheduler", () => {
     await expect(chipRequest).resolves.toBe("chip");
     await expect(validationRequest).resolves.toBe("validation");
     expect(order).toEqual(["chip", "validation"]);
+  });
+
+  it("scheduled client defaults to market priority and delegates once per attempt", async () => {
+    const scheduler = new ProviderRequestScheduler({
+      maxConcurrency: 1,
+      requestTimeoutMs: 60_000,
+    });
+    const scheduleSpy = vi.spyOn(scheduler, "schedule");
+    const rawClient: TushareClientLike = {
+      query: vi.fn(async (_endpoint, _params, options) => {
+        expect(options?.signal).toBeInstanceOf(AbortSignal);
+        return { fields: ["ts_code"], items: [["000001.SZ"]] };
+      }),
+    };
+    const client = new ScheduledTushareClient(rawClient, scheduler);
+
+    await expect(
+      client.query({ apiName: "daily", fields: ["ts_code"] }),
+    ).resolves.toEqual({
+      fields: ["ts_code"],
+      items: [["000001.SZ"]],
+    });
+
+    expect(scheduleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        affectedInterface: "daily",
+        priority: "market",
+      }),
+    );
+    expect(rawClient.query).toHaveBeenCalledTimes(1);
   });
 });

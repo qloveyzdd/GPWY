@@ -50,6 +50,12 @@ describe("Tushare error sanitizer", () => {
 
     expect(classifyTushareError(new TypeError("fetch failed"), "daily").category)
       .toBe("network_or_service");
+
+    const abortError = new Error("operation aborted");
+    abortError.name = "AbortError";
+    expect(classifyTushareError(abortError, "daily").category).toBe(
+      "network_or_service",
+    );
   });
 
   it("sends the official generic query shape and returns only response data", async () => {
@@ -60,6 +66,7 @@ describe("Tushare error sanitizer", () => {
           method: "POST";
           headers: Record<string, string>;
           body: string;
+          signal?: AbortSignal;
         },
       ) => {
         expect(input).toBe("https://api.tushare.pro");
@@ -96,5 +103,40 @@ describe("Tushare error sanitizer", () => {
       fields: "ts_code,name,market,list_status",
     });
     expect(JSON.stringify(result)).not.toContain("request-only-token");
+  });
+
+  it("passes the scheduler signal to fetch and sanitizes abort errors", async () => {
+    const controller = new AbortController();
+    const secret = "secret-payload";
+    const fetcher = vi.fn(
+      async (
+        _input: string,
+        init: {
+          method: "POST";
+          headers: Record<string, string>;
+          body: string;
+          signal?: AbortSignal;
+        },
+      ) => {
+        expect(init.signal).toBe(controller.signal);
+        const error = new Error(`aborted ${secret}`);
+        error.name = "AbortError";
+        throw error;
+      },
+    );
+    const client = new TushareClient({
+      token: "request-only-token",
+      fetcher,
+    });
+
+    const error = await client
+      .query(TUSHARE_ENDPOINTS.daily, {}, { signal: controller.signal })
+      .catch((reason: unknown) => reason);
+    const safeError = classifyTushareError(error, "daily");
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(safeError.category).toBe("network_or_service");
+    expect(JSON.stringify(safeError)).not.toContain(secret);
+    expect(JSON.stringify(safeError)).not.toContain("request-only-token");
   });
 });
