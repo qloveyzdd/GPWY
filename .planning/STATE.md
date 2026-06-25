@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: 增量刷新与筹码分布对比
-status: ready_to_plan
-stopped_at: Phase 7 verified and complete
-last_updated: "2026-06-25T17:29:28.078Z"
+status: planning
+stopped_at: Phase 8 context gathered
+last_updated: "2026-06-25T22:52:34.067Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 5
@@ -112,9 +112,9 @@ No milestone blockers. Tinyshare worker concurrency safety must be validated wit
 
 ## Session Continuity
 
-Last session: 2026-06-25T17:29:28.071Z
-Stopped at: Phase 7 verified and complete
-Resume file: None
+Last session: 2026-06-25T22:52:34.061Z
+Stopped at: Phase 8 context gathered
+Resume file: .planning/phases/08-controlled-provider-concurrency/08-CONTEXT.md
 
 ## Operator Next Steps
 
