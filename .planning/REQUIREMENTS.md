@@ -11,7 +11,7 @@
 - [x] **DATA-06**: 系统独立保存复权因子，并在筛选读取时按同一最新基准动态计算前复权价格。
 - [ ] **DATA-07**: 普通刷新只获取本地缓存中缺失的有效交易日行情和复权因子。
 - [x] **DATA-08**: 首次升级到新缓存结构时，系统从数据源重新获取最近 60 个交易日，不把旧复权快照作为原始行情迁移。
-- [ ] **DATA-09**: 新缓存完成完整性验证前，系统继续保留并提供最后一份可用筛选结果。
+- [x] **DATA-09**: 新缓存完成完整性验证前，系统继续保留并提供最后一份可用筛选结果。
 
 ### Refresh Workflow
 
@@ -93,7 +93,7 @@
 | DATA-06 | Phase 7 | Complete |
 | DATA-07 | Phase 9 | Pending |
 | DATA-08 | Phase 7 | Complete |
-| DATA-09 | Phase 7 | Pending |
+| DATA-09 | Phase 7 | Complete |
 | REFR-06 | Phase 8 | Pending |
 | REFR-07 | Phase 8 | Pending |
 | REFR-08 | Phase 8 | Pending |
