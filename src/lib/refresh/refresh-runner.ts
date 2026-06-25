@@ -17,6 +17,7 @@ import {
 } from "@/lib/refresh/refresh-store";
 import {
   readActiveMarketCacheGeneration,
+  readActiveMarketCacheStats,
   readMarketStocks,
 } from "@/lib/refresh/market-data-store";
 import {
@@ -167,12 +168,13 @@ async function finishRefreshJob(
 export function readRefreshStatus(): RefreshStatusSnapshot {
   const activeJob = readActiveRefreshJob();
   const latestSuccessfulJob = readLatestSuccessfulRefreshJob();
+  const normalizedCacheStats = readActiveMarketCacheStats();
 
   return {
     activeJob,
     latestJob: readLatestRefreshJob(),
     latestSuccessfulJob,
-    latestCacheStats: readLatestCacheStats(),
+    latestCacheStats: normalizedCacheStats ?? readLatestCacheStats(),
     isRunning: Boolean(activeJob),
     mode: activeJob?.mode ?? null,
     lastSuccessfulFinishedAt: latestSuccessfulJob?.finishedAt ?? null,

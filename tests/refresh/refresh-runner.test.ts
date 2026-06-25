@@ -388,6 +388,10 @@ describe("refresh runner", () => {
     expect(generation).not.toBeNull();
     expect(readMarketStocks()).toHaveLength(3);
     expect(readMarketDailyQuotes(generation?.id ?? 0)).toHaveLength(60);
+    expect(readRefreshStatus().latestCacheStats).toEqual({
+      stockCount: 3,
+      dailyBarCount: 60,
+    });
     expect(screeningRun?.sourceRefreshJobId).toBe(result.job.id);
     expect(screeningRun?.sourceMarketGenerationId).toBe(generation?.id);
     expect(readLatestScreeningResults()).toHaveLength(1);

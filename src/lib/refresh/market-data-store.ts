@@ -11,6 +11,7 @@ import type {
   MarketStockRecord,
   RawDailyQuoteRecord,
 } from "@/lib/refresh/market-data-types";
+import type { RefreshCacheStats } from "@/lib/refresh/refresh-types";
 
 type StatementResult = {
   lastInsertRowid: number | bigint;
@@ -73,6 +74,10 @@ type GenerationDateRow = {
 type ValidationCountRow = {
   actual_count: number;
   paired_count: number;
+};
+
+type CountRow = {
+  count: number;
 };
 
 const require = createRequire(import.meta.url);
@@ -330,6 +335,49 @@ export function readActiveMarketCacheGeneration(): MarketCacheGeneration | null 
       .get() as GenerationRow | undefined;
 
     return row ? mapGeneration(row) : null;
+  } finally {
+    db.close();
+  }
+}
+
+export function readActiveMarketCacheStats(): RefreshCacheStats | null {
+  const db = openDatabase();
+
+  try {
+    const activeGeneration = db
+      .prepare(
+        `
+        select generation.id
+        from market_cache_state state
+        join market_cache_generations generation
+          on generation.id = state.active_generation_id
+        where state.singleton_id = 1
+          and generation.status = 'active'
+        `,
+      )
+      .get() as { id: number } | undefined;
+
+    if (!activeGeneration) {
+      return null;
+    }
+
+    const stockCount = db
+      .prepare("select count(*) as count from market_stocks")
+      .get() as CountRow;
+    const dailyBarCount = db
+      .prepare(
+        `
+        select count(*) as count
+        from market_daily_quotes
+        where generation_id = ?
+        `,
+      )
+      .get(activeGeneration.id) as CountRow;
+
+    return {
+      stockCount: stockCount.count,
+      dailyBarCount: dailyBarCount.count,
+    };
   } finally {
     db.close();
   }
