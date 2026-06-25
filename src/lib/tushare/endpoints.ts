@@ -15,6 +15,10 @@ export const TUSHARE_ENDPOINTS = {
     apiName: "adj_factor",
     fields: ["ts_code", "trade_date", "adj_factor"],
   },
+  tradeCalendar: {
+    apiName: "trade_cal",
+    fields: ["cal_date", "is_open"],
+  },
   chipChips: {
     apiName: "cyq_chips",
     fields: ["ts_code", "trade_date", "price", "percent"],

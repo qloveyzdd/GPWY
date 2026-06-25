@@ -101,12 +101,12 @@ export function createProviderRefreshWorker({
       maxLookbackDays,
     });
 
-    writeStockBasics(job.id, data.stockBasics);
-    writeDailyBars(job.id, data.dailyBars);
+    writeStockBasics(job.id, data.stocks);
+    writeDailyBars(job.id, data.dailyQuotes);
 
     return {
-      totalStocks: data.stockBasics.length,
-      successCount: data.stockBasics.length,
+      totalStocks: data.stocks.length,
+      successCount: data.stocks.length,
       failedCount: 0,
     };
   };
