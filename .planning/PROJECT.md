@@ -24,6 +24,7 @@
 
 ### Validated
 
+- ✓ 原始日线与复权因子按 generation 标准化存储，读取时动态前复权；首次升级安全引导最近 60 个交易日 — Phase 7
 - ✓ 云端自托管网页和个人访问密码保护 — v1.0
 - ✓ 服务端 Tushare/tinyshare 配置、数据源验证和错误脱敏 — v1.0
 - ✓ 手动刷新、并发锁、任务状态和 SQLite 成功快照缓存 — v1.0
@@ -36,7 +37,7 @@
 
 ### Active
 
-- [ ] 行情与复权数据采用增量存储和增量拉取，避免每次复制完整 60 日快照。
+- [ ] 普通刷新只拉取缺失交易日并支持可恢复续跑，避免重复获取已有 60 日数据。
 - [ ] Tushare/tinyshare 请求采用受控并行，并支持限频退避、重试和失败恢复。
 - [ ] tinyshare 调用避免每次请求重复启动 Python 进程。
 - [ ] 筛选股票保存最新交易日和前一交易日的完整筹码分布。
@@ -94,6 +95,8 @@
 | 筹码峰优先使用 Tushare 现有能力 | 数据口径优先，避免首版引入未验证估算模型 | ✓ 使用 `cyq_chips` 前三占比价格档 |
 | tinyshare 作为显式 provider | 兼容 tinyshare 授权码，同时保持 REST 为默认路径 | ✓ 真实接口验证 |
 | SQLite 按任务保存成功快照 | 个人单实例部署足够简单，失败刷新不会污染最新成功结果 | ✓ v1.0 验证 |
+| 原始行情与复权因子分开存储并在读取时动态前复权 | 避免把派生价格当作原始事实，后续可安全增量追加 | ✓ Phase 7 验证 |
+| 新缓存通过 60 个成对成功交易日清单后原子激活 | 半成品不会替换可用结果，失败后可从头重建 | ✓ Phase 7 验证 |
 
 ## Current State
 
@@ -101,6 +104,8 @@
 
 - 37/37 v1 需求完成。
 - 6/6 阶段通过阶段验证和 Nyquist 覆盖审计。
+- v2.0 Phase 7 已于 2026-06-26 完成；当前进入 Phase 8 受控 provider 并发。
+- 标准化缓存已独立保存原始日线和复权因子，首次刷新可安全引导最近 60 个交易日。
 - 工作区支持登录、数据源验证、手动刷新、筛选、筹码峰、排序和行内图表。
 - 云端部署所需环境变量、PM2 启动方式和验证命令已记录在 README。
 
@@ -126,4 +131,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-25 after v2.0 milestone initialization*
+*Last updated: 2026-06-26 after Phase 7 completion*
