@@ -38,6 +38,12 @@ type TinyshareBridgeResult =
       error_type?: string;
     };
 
+type TinyshareBridgeError = {
+  type: "error";
+  category?: string;
+  error_type?: string;
+};
+
 type TinyshareRunner = (
   request: TinyshareBridgeRequest,
 ) => Promise<TushareDataTable>;
@@ -310,6 +316,21 @@ export class TinysharePythonClient implements TushareClientLike {
         return;
       }
 
+      if (this.isBridgeError(message)) {
+        const category =
+          message.category || message.error_type || "unknown";
+        if (
+          category === "rate_limited" ||
+          category === "network_or_service"
+        ) {
+          this.rejectNextQueued(category);
+          this.failSlot(slot, child);
+        } else {
+          this.disablePool(category);
+        }
+        return;
+      }
+
       this.failSlot(slot, child);
       return;
     }
@@ -474,6 +495,51 @@ export class TinysharePythonClient implements TushareClientLike {
     }
   }
 
+  private rejectNextQueued(category: string): void {
+    const request = this.takeNextRequest();
+    if (!request) {
+      return;
+    }
+
+    this.settleRequest(
+      request,
+      "reject",
+      new TushareApiError(request.endpoint.apiName, null, category),
+    );
+  }
+
+  private disablePool(category: string): void {
+    for (const slot of this.slots) {
+      if (slot.startupTimeout) {
+        clearTimeout(slot.startupTimeout);
+        slot.startupTimeout = null;
+      }
+      const child = slot.child;
+      slot.child = null;
+      slot.lines?.close();
+      slot.lines = null;
+      slot.state = "disabled";
+      child?.kill();
+      const request = slot.current;
+      slot.current = null;
+      if (request) {
+        this.settleRequest(
+          request,
+          "reject",
+          new TushareApiError(request.endpoint.apiName, null, category),
+        );
+      }
+    }
+
+    for (const request of this.queue.splice(0)) {
+      this.settleRequest(
+        request,
+        "reject",
+        new TushareApiError(request.endpoint.apiName, null, category),
+      );
+    }
+  }
+
   private networkError(apiName: string): TushareApiError {
     return new TushareApiError(apiName, null, "network_or_service");
   }
@@ -504,6 +570,15 @@ export class TinysharePythonClient implements TushareClientLike {
           Array.isArray(value.data.fields) &&
           "items" in value.data &&
           Array.isArray(value.data.items)))
+    );
+  }
+
+  private isBridgeError(value: unknown): value is TinyshareBridgeError {
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      "type" in value &&
+      value.type === "error"
     );
   }
 

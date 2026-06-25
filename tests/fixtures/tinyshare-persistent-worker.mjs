@@ -61,6 +61,16 @@ lines.on("line", (line) => {
       lines.close();
       return;
     }
+    if (message.token === "invalid-init") {
+      emit({
+        type: "error",
+        category: "invalid_token",
+        error_type: "AuthenticationError",
+      });
+      lines.close();
+      process.stdin.pause();
+      return;
+    }
     initialized = true;
     emit({ type: "ready" });
     return;

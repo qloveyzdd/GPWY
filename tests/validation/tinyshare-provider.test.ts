@@ -8,7 +8,10 @@ import { createInterface } from "node:readline";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TushareApiError } from "@/lib/tushare/client";
+import {
+  classifyTushareError,
+  TushareApiError,
+} from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
 import {
   createTushareClient,
@@ -139,6 +142,23 @@ describe("TinysharePythonClient", () => {
     );
 
     expect(result.items[0]?.[2]).toBe("utf-8");
+    await client.close();
+  });
+
+  it("preserves definitive provider errors from worker initialization", async () => {
+    const client = createPersistentClient({ token: "invalid-init" });
+
+    const error = await client
+      .query(TUSHARE_ENDPOINTS.daily)
+      .catch((reason: unknown) => reason);
+
+    expect(classifyTushareError(error, "daily").category).toBe(
+      "invalid_token",
+    );
+    expect(error).toMatchObject({
+      name: "TushareApiError",
+      message: "invalid_token",
+    });
     await client.close();
   });
 
