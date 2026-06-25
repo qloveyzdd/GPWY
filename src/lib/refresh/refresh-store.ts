@@ -26,6 +26,7 @@ type DatabaseConstructor = new (filePath: string) => DatabaseConnection;
 
 type RefreshJobRow = {
   id: number;
+  mode: RefreshJob["mode"];
   status: RefreshJob["status"];
   started_at: string;
   finished_at: string | null;
@@ -56,6 +57,10 @@ type CountRow = {
   count: number;
 };
 
+type TableInfoRow = {
+  name: string;
+};
+
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3") as DatabaseConstructor;
 
@@ -73,6 +78,7 @@ function toIsoString(date: Date) {
 function mapJob(row: RefreshJobRow): RefreshJob {
   return {
     id: row.id,
+    mode: row.mode,
     status: row.status,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
@@ -116,6 +122,7 @@ function openDatabase() {
   db.exec(`
     create table if not exists refresh_jobs (
       id integer primary key autoincrement,
+      mode text not null default 'ordinary' check (mode in ('bootstrap', 'ordinary')),
       status text not null check (status in ('running', 'succeeded', 'failed')),
       started_at text not null,
       finished_at text,
@@ -157,6 +164,15 @@ function openDatabase() {
     create index if not exists daily_bars_job_date
       on daily_bars(refresh_job_id, trade_date);
   `);
+  const refreshJobColumns = db
+    .prepare("pragma table_info(refresh_jobs)")
+    .all() as TableInfoRow[];
+
+  if (!refreshJobColumns.some((column) => column.name === "mode")) {
+    db.exec(
+      "alter table refresh_jobs add column mode text not null default 'ordinary'",
+    );
+  }
 
   return db;
 }
@@ -189,14 +205,19 @@ export function readRefreshJobById(refreshJobId: number): RefreshJob | null {
   }
 }
 
-export function startRefreshJob(now = new Date()): RefreshStartResult {
+export function startRefreshJob(
+  now = new Date(),
+  mode: RefreshJob["mode"] = "ordinary",
+): RefreshStartResult {
   const db = openDatabase();
 
   try {
     try {
       const result = db
-        .prepare("insert into refresh_jobs (status, started_at) values (?, ?)")
-        .run("running", toIsoString(now));
+        .prepare(
+          "insert into refresh_jobs (mode, status, started_at) values (?, ?, ?)",
+        )
+        .run(mode, "running", toIsoString(now));
       const id = Number(result.lastInsertRowid);
       const row = db
         .prepare("select * from refresh_jobs where id = ?")

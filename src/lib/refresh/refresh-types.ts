@@ -1,7 +1,9 @@
 export type RefreshJobStatus = "running" | "succeeded" | "failed";
+export type RefreshMode = "bootstrap" | "ordinary";
 
 export type RefreshJob = {
   id: number;
+  mode: RefreshMode;
   status: RefreshJobStatus;
   startedAt: string;
   finishedAt: string | null;
@@ -27,6 +29,7 @@ export type RefreshStatusSnapshot = {
   latestSuccessfulJob: RefreshJob | null;
   latestCacheStats: RefreshCacheStats | null;
   isRunning: boolean;
+  mode: RefreshMode | null;
   lastSuccessfulFinishedAt: string | null;
 };
 
@@ -36,6 +39,7 @@ export const EMPTY_REFRESH_STATUS: RefreshStatusSnapshot = {
   latestSuccessfulJob: null,
   latestCacheStats: null,
   isRunning: false,
+  mode: null,
   lastSuccessfulFinishedAt: null,
 };
 

@@ -115,6 +115,7 @@ describe("StatusWorkspace", () => {
     const runningStatus = {
       activeJob: {
         id: 7,
+        mode: "ordinary" as const,
         status: "running" as const,
         startedAt: "2026-06-23T00:00:00.000Z",
         finishedAt: null,
@@ -125,6 +126,7 @@ describe("StatusWorkspace", () => {
       },
       latestJob: {
         id: 7,
+        mode: "ordinary" as const,
         status: "running" as const,
         startedAt: "2026-06-23T00:00:00.000Z",
         finishedAt: null,
@@ -136,6 +138,7 @@ describe("StatusWorkspace", () => {
       latestSuccessfulJob: null,
       latestCacheStats: null,
       isRunning: true,
+      mode: "ordinary" as const,
       lastSuccessfulFinishedAt: null,
     };
 
@@ -172,6 +175,7 @@ describe("StatusWorkspace", () => {
     const runningStatus = {
       activeJob: {
         id: 7,
+        mode: "ordinary" as const,
         status: "running" as const,
         startedAt: "2026-06-23T00:00:00.000Z",
         finishedAt: null,
@@ -182,6 +186,7 @@ describe("StatusWorkspace", () => {
       },
       latestJob: {
         id: 7,
+        mode: "ordinary" as const,
         status: "running" as const,
         startedAt: "2026-06-23T00:00:00.000Z",
         finishedAt: null,
@@ -193,6 +198,7 @@ describe("StatusWorkspace", () => {
       latestSuccessfulJob: null,
       latestCacheStats: null,
       isRunning: true,
+      mode: "ordinary" as const,
       lastSuccessfulFinishedAt: null,
     };
     const completedStatus = {
@@ -212,6 +218,7 @@ describe("StatusWorkspace", () => {
         dailyBarCount: 60,
       },
       isRunning: false,
+      mode: null,
       lastSuccessfulFinishedAt: "2026-06-23T00:02:00.000Z",
     };
 

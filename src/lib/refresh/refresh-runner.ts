@@ -3,9 +3,9 @@ import type {
   RefreshStatusSnapshot,
 } from "@/lib/refresh/refresh-types";
 import {
-  fetchRefreshData,
-  type FetchRefreshDataOptions,
-} from "@/lib/refresh/fetch-refresh-data";
+  bootstrapMarketData,
+  type BootstrapMarketDataOptions,
+} from "@/lib/refresh/bootstrap-market-data";
 import {
   completeRefreshJob,
   failRefreshJob,
@@ -14,9 +14,11 @@ import {
   readLatestRefreshJob,
   readLatestSuccessfulRefreshJob,
   startRefreshJob,
-  writeDailyBars,
-  writeStockBasics,
 } from "@/lib/refresh/refresh-store";
+import {
+  readActiveMarketCacheGeneration,
+  readMarketStocks,
+} from "@/lib/refresh/market-data-store";
 import {
   runChipPeakIntegrationFromLatestScreening,
 } from "@/lib/chip/chip-runner";
@@ -45,6 +47,7 @@ export type ChipPeakWorkflowRunner = (options: {
 
 export type StartManualRefreshOptions = {
   worker?: RefreshWorker;
+  providerWorkerOptions?: ProviderRefreshWorkerOptions;
   screeningRunner?: ScreeningWorkflowRunner;
   chipPeakRunner?: ChipPeakWorkflowRunner;
   now?: Date;
@@ -58,7 +61,7 @@ export type StartManualRefreshResult = {
 };
 
 export type ProviderRefreshWorkerOptions = Omit<
-  FetchRefreshDataOptions,
+  BootstrapMarketDataOptions,
   "client"
 > & {
   client?: TushareClientLike;
@@ -85,8 +88,11 @@ export function createProviderRefreshWorker({
   now,
   targetTradingDates,
   maxLookbackDays,
+  providerRetryCount,
+  providerRetryDelayMs,
+  store,
 }: ProviderRefreshWorkerOptions = {}): RefreshWorker {
-  return async (job) => {
+  return async () => {
     const token = readTushareTokenSecret();
     const tushareClient = client ?? (token ? createTushareClient(token) : null);
 
@@ -94,19 +100,33 @@ export function createProviderRefreshWorker({
       throw new Error("missing_config:TUSHARE_TOKEN");
     }
 
-    const data = await fetchRefreshData({
+    const data = await bootstrapMarketData({
       client: tushareClient,
       now,
       targetTradingDates,
       maxLookbackDays,
+      providerRetryCount,
+      providerRetryDelayMs,
+      store,
     });
 
-    writeStockBasics(job.id, data.stocks);
-    writeDailyBars(job.id, data.dailyQuotes);
+    return {
+      totalStocks: data.stockCount,
+      successCount: data.stockCount,
+      failedCount: 0,
+    };
+  };
+}
+
+function createActiveGenerationRefreshWorker(): RefreshWorker {
+  return async () => {
+    const tradableStockCount = readMarketStocks().filter(
+      (stock) => stock.listStatus === "L",
+    ).length;
 
     return {
-      totalStocks: data.stocks.length,
-      successCount: data.stocks.length,
+      totalStocks: tradableStockCount,
+      successCount: tradableStockCount,
       failedCount: 0,
     };
   };
@@ -154,18 +174,22 @@ export function readRefreshStatus(): RefreshStatusSnapshot {
     latestSuccessfulJob,
     latestCacheStats: readLatestCacheStats(),
     isRunning: Boolean(activeJob),
+    mode: activeJob?.mode ?? null,
     lastSuccessfulFinishedAt: latestSuccessfulJob?.finishedAt ?? null,
   };
 }
 
 export async function startManualRefresh({
   worker,
+  providerWorkerOptions,
   screeningRunner,
   chipPeakRunner,
   now = new Date(),
   waitForCompletion = false,
 }: StartManualRefreshOptions = {}): Promise<StartManualRefreshResult> {
-  const startResult = startRefreshJob(now);
+  const activeGeneration = readActiveMarketCacheGeneration();
+  const mode = worker ? "ordinary" : activeGeneration ? "ordinary" : "bootstrap";
+  const startResult = startRefreshJob(now, mode);
 
   if (!startResult.started) {
     return {
@@ -174,9 +198,17 @@ export async function startManualRefresh({
     };
   }
 
+  const selectedWorker =
+    worker ??
+    (activeGeneration
+      ? createActiveGenerationRefreshWorker()
+      : createProviderRefreshWorker({
+          ...providerWorkerOptions,
+          now: providerWorkerOptions?.now ?? now,
+        }));
   const refreshPromise = finishRefreshJob(
     startResult.job,
-    worker ?? createProviderRefreshWorker(),
+    selectedWorker,
     {
       now,
       screeningRunner,

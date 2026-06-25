@@ -6,13 +6,18 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  createProviderRefreshWorker,
   readRefreshStatus,
   startManualRefresh,
 } from "@/lib/refresh/refresh-runner";
 import {
-  readLatestDailyBars,
-  readLatestStockBasics,
+  activateMarketCacheGeneration,
+  createMarketCacheGeneration,
+  readActiveMarketCacheGeneration,
+  readMarketDailyQuotes,
+  readMarketStocks,
+  upsertMarketGenerationDate,
+} from "@/lib/refresh/market-data-store";
+import {
   writeDailyBars,
   writeStockBasics,
 } from "@/lib/refresh/refresh-store";
@@ -87,6 +92,20 @@ function chipRunFixture(): ChipPeakRunRecord {
     blockedCount: 0,
     failedCount: 0,
   };
+}
+
+function createEmptyActiveGeneration() {
+  const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
+
+  for (let index = 1; index <= 60; index += 1) {
+    upsertMarketGenerationDate(generation.id, {
+      tradeDate: `2026${String(index).padStart(4, "0")}`,
+      dailyStatus: "succeeded",
+      factorStatus: "succeeded",
+    });
+  }
+
+  return activateMarketCacheGeneration(generation.id);
 }
 
 describe("refresh runner", () => {
@@ -301,20 +320,46 @@ describe("refresh runner", () => {
     expect(readLatestScreeningResults()).toHaveLength(1);
   });
 
-  it("writes provider-fetched stock basics and daily bars", async () => {
+  it("automatically bootstraps normalized market data and immediately screens it", async () => {
     useTempRefreshStore();
     const client = createMockClient(async (endpoint, params) => {
       if (endpoint.apiName === "stock_basic") {
-        return table(["ts_code", "name", "market", "list_status"], [
-          ["000001.SZ", "平安银行", "主板", "L"],
+        const status = String(params.list_status);
+        return table(TUSHARE_ENDPOINTS.stockBasic.fields, [
+          [
+            status === "L" ? "000001.SZ" : `${status}.SZ`,
+            status === "L" ? "平安银行" : status,
+            "主板",
+            status,
+          ],
         ]);
       }
 
-      if (endpoint.apiName === "daily") {
+      if (endpoint.apiName === "trade_cal") {
         return table(
-          ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
-          [["000001.SZ", "20260623", 10, 11, 9, 10.5, 1200]],
+          TUSHARE_ENDPOINTS.tradeCalendar.fields,
+          Array.from({ length: 60 }, (_, index) => [
+            `2026${String(index + 1).padStart(4, "0")}`,
+            1,
+          ]),
         );
+      }
+
+      if (endpoint.apiName === "daily") {
+        const tradeDate = String(params.trade_date);
+        const index = Number(tradeDate.slice(-4));
+        const close = 101 - index;
+        return table(TUSHARE_ENDPOINTS.daily.fields, [
+          [
+            "000001.SZ",
+            tradeDate,
+            close + 0.5,
+            index === 51 ? 90 : close + 1,
+            close - 1,
+            close,
+            1000 + index,
+          ],
+        ]);
       }
 
       if (endpoint.apiName === "adj_factor") {
@@ -328,40 +373,41 @@ describe("refresh runner", () => {
 
     const result = await startManualRefresh({
       waitForCompletion: true,
-      worker: createProviderRefreshWorker({
+      providerWorkerOptions: {
         client,
         now: new Date("2026-06-23T00:00:00.000Z"),
-        targetTradingDates: 1,
-        maxLookbackDays: 1,
-      }),
+        providerRetryCount: 0,
+      },
+      chipPeakRunner: async () => chipRunFixture(),
     });
-    const status = readRefreshStatus();
+    const generation = readActiveMarketCacheGeneration();
+    const screeningRun = readLatestScreeningRun();
 
     expect(result.job.status).toBe("succeeded");
-    expect(status.latestSuccessfulJob?.successCount).toBe(1);
-    expect(status.latestCacheStats).toEqual({
-      stockCount: 1,
-      dailyBarCount: 1,
+    expect(result.job.mode).toBe("bootstrap");
+    expect(generation).not.toBeNull();
+    expect(readMarketStocks()).toHaveLength(3);
+    expect(readMarketDailyQuotes(generation?.id ?? 0)).toHaveLength(60);
+    expect(screeningRun?.sourceRefreshJobId).toBe(result.job.id);
+    expect(screeningRun?.sourceMarketGenerationId).toBe(generation?.id);
+    expect(readLatestScreeningResults()).toHaveLength(1);
+  });
+
+  it("reuses an active generation without downloading market data again", async () => {
+    useTempRefreshStore();
+    const generation = createEmptyActiveGeneration();
+
+    const result = await startManualRefresh({
+      waitForCompletion: true,
+      chipPeakRunner: async () => chipRunFixture(),
     });
-    expect(readLatestStockBasics()).toEqual([
-      {
-        tsCode: "000001.SZ",
-        name: "平安银行",
-        market: "主板",
-        listStatus: "L",
-      },
-    ]);
-    expect(readLatestDailyBars()).toEqual([
-      {
-        tsCode: "000001.SZ",
-        tradeDate: "20260623",
-        open: 10,
-        high: 11,
-        low: 9,
-        close: 10.5,
-        vol: 1200,
-      },
-    ]);
+
+    expect(result.job.status).toBe("succeeded");
+    expect(result.job.mode).toBe("ordinary");
+    expect(readActiveMarketCacheGeneration()?.id).toBe(generation.id);
+    expect(readLatestScreeningRun()?.sourceMarketGenerationId).toBe(
+      generation.id,
+    );
   });
 
   it("stores a sanitized missing-config failure for the default worker", async () => {
