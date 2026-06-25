@@ -15,8 +15,8 @@
 
 ### Refresh Workflow
 
-- [ ] **REFR-06**: 行情和筹码数据请求使用受控并发，且并发参数仅通过服务端环境变量配置。
-- [ ] **REFR-07**: 系统对限频、网络或临时服务错误执行有次数上限的退避重试，对配置或权限错误不做无效重试。
+- [x] **REFR-06**: 行情和筹码数据请求使用受控并发，且并发参数仅通过服务端环境变量配置。
+- [x] **REFR-07**: 系统对限频、网络或临时服务错误执行有次数上限的退避重试，对配置或权限错误不做无效重试。
 - [ ] **REFR-08**: tinyshare provider 使用可复用的持久 Python worker，避免每个数据请求重新启动 Python 进程。
 - [ ] **REFR-09**: 刷新中断后，系统可以识别并跳过已完成的数据项目，继续处理缺失或失败项目。
 - [ ] **REFR-10**: 系统记录刷新各阶段的状态、开始时间、结束时间、总数、完成数、失败数和重试数。
@@ -94,8 +94,8 @@
 | DATA-07 | Phase 9 | Pending |
 | DATA-08 | Phase 7 | Complete |
 | DATA-09 | Phase 7 | Complete |
-| REFR-06 | Phase 8 | Pending |
-| REFR-07 | Phase 8 | Pending |
+| REFR-06 | Phase 8 | Complete |
+| REFR-07 | Phase 8 | Complete |
 | REFR-08 | Phase 8 | Pending |
 | REFR-09 | Phase 9 | Pending |
 | REFR-10 | Phase 9 | Pending |

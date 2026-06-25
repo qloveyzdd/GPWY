@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: 增量刷新与筹码分布对比
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-06-25T23:11:16.668Z"
-last_activity: 2026-06-25 -- Phase 08 planning complete
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-06-25T23:30:28.170Z"
+last_activity: 2026-06-25
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 8
-  completed_plans: 4
+  completed_plans: 5
   percent: 20
 ---
 
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-26)
 
 **Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到对应筹码分布。
 
-**Current focus:** Phase 8 — Controlled Provider Concurrency
+**Current focus:** Phase 08 — Controlled Provider Concurrency
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
+Phase: 08 (Controlled Provider Concurrency) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-06-25 -- Phase 08 planning complete
+Last activity: 2026-06-25
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Last activity: 2026-06-25 -- Phase 08 planning complete
 | Phase 07 P02 | 6 min | 2 tasks | 9 files |
 | Phase 07 P03 | 11 min | 3 tasks | 10 files |
 | Phase 07 P04 | 12 min | 2 tasks | 15 files |
+| Phase 08 P01 | 10 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Recent decisions affecting current work:
 - Publish screening results before chip distribution enrichment finishes.
 - Remove chip peak columns from the results table and show two full distributions in stock details.
 - Configure concurrency through server environment variables; keep full rebuild as an operations command.
+- [Phase 08]: 调度器是 provider 重试、退避、动态并发和优先级的唯一政策层。 — 避免工作流和客户端叠加重试，确保尝试次数及并发预算可证明。
+- [Phase 08]: REST attempt 超时通过 AbortSignal 下传到 fetch。 — 终止真实网络请求，避免外层超时后仍存在幽灵在途请求。
 
 ### Pending Todos
 
@@ -112,9 +115,9 @@ No milestone blockers. Tinyshare worker concurrency safety must be validated wit
 
 ## Session Continuity
 
-Last session: 2026-06-25T22:52:34.061Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-controlled-provider-concurrency/08-CONTEXT.md
+Last session: 2026-06-25T23:30:28.164Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
