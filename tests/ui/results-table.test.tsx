@@ -203,6 +203,37 @@ describe("ResultsTable", () => {
     expect(screen.getByText("000002.SZ")).toBeTruthy();
   });
 
+  it("marks legacy ready results once while preserving table interaction", () => {
+    render(
+      <ResultsTable
+        snapshot={{ ...sortableSnapshot, cacheSource: "legacy" }}
+      />,
+    );
+
+    expect(screen.getAllByText("旧缓存结果")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "按下跌幅度排序" }));
+    expect(renderedCodes()).toEqual(["000001.SZ", "000004.SZ", "000002.SZ"]);
+
+    const targetRow = screen.getByText("000001.SZ").closest("tr");
+    fireEvent.click(targetRow as HTMLTableRowElement);
+    expect(screen.getByTestId("stock-chart").textContent).toBe(
+      "chart 000001.SZ",
+    );
+  });
+
+  it("does not render an orphaned legacy marker for normalized or empty results", () => {
+    const { rerender } = render(<ResultsTable snapshot={readySnapshot} />);
+
+    expect(screen.queryByText("旧缓存结果")).toBeNull();
+
+    rerender(
+      <ResultsTable
+        snapshot={{ ...emptySnapshot, cacheSource: "legacy" }}
+      />,
+    );
+    expect(screen.queryByText("旧缓存结果")).toBeNull();
+  });
+
   it("defaults to current/high ratio ascending with visible active sort state", () => {
     render(<ResultsTable snapshot={sortableSnapshot} />);
 

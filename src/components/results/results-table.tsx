@@ -244,9 +244,19 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
           </p>
         </div>
         {snapshot.status === "ready" ? (
-          <Badge variant="outline" className="w-fit">
-            {snapshot.rows.length} 只
-          </Badge>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Badge variant="outline" className="w-fit">
+              {snapshot.rows.length} 只
+            </Badge>
+            {snapshot.cacheSource === "legacy" ? (
+              <Badge
+                variant="outline"
+                className="w-fit border-[#B45309]/30 bg-[#B45309]/5 text-[#B45309]"
+              >
+                旧缓存结果
+              </Badge>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

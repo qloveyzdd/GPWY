@@ -170,6 +170,59 @@ describe("StatusWorkspace", () => {
     });
   });
 
+  it("renders the exact bootstrap state without exposing internal details", () => {
+    const bootstrapStatus = {
+      activeJob: {
+        id: 8,
+        mode: "bootstrap" as const,
+        status: "running" as const,
+        startedAt: "2026-06-26T00:00:00.000Z",
+        finishedAt: null,
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+        errorSummary: null,
+      },
+      latestJob: {
+        id: 8,
+        mode: "bootstrap" as const,
+        status: "running" as const,
+        startedAt: "2026-06-26T00:00:00.000Z",
+        finishedAt: null,
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+        errorSummary: null,
+      },
+      latestSuccessfulJob: null,
+      latestCacheStats: null,
+      isRunning: true,
+      mode: "bootstrap" as const,
+      lastSuccessfulFinishedAt: null,
+    };
+
+    render(
+      <StatusWorkspace
+        initialSnapshot={EMPTY_VALIDATION_SNAPSHOT}
+        initialRefreshStatus={bootstrapStatus}
+        logoutAction={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "正在初始化缓存" });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByRole("heading", { name: "正在初始化缓存" })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "正在重新获取最近 60 个交易日的数据。完成前继续显示旧缓存结果。",
+      ),
+    ).toBeTruthy();
+    expect(document.body.textContent).not.toContain("market_cache_generations");
+    expect(document.body.textContent).not.toContain("refresh.sqlite");
+    expect(document.body.textContent).not.toContain("TUSHARE_TOKEN");
+  });
+
   it("refreshes server-rendered snapshots when a running refresh finishes", async () => {
     vi.useFakeTimers();
     const runningStatus = {

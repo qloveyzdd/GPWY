@@ -117,7 +117,7 @@ function refreshBadgeStatus(status: RefreshStatusSnapshot): ValidationStatus {
 
 function refreshSummary(status: RefreshStatusSnapshot) {
   if (status.isRunning) {
-    return "刷新正在运行";
+    return status.mode === "bootstrap" ? "正在初始化缓存" : "刷新正在运行";
   }
 
   if (status.latestJob?.status === "failed") {
@@ -133,6 +133,10 @@ function refreshSummary(status: RefreshStatusSnapshot) {
 
 function refreshDetail(status: RefreshStatusSnapshot) {
   if (status.activeJob) {
+    if (status.mode === "bootstrap") {
+      return "正在重新获取最近 60 个交易日的数据。完成前继续显示旧缓存结果。";
+    }
+
     return `任务 #${status.activeJob.id} 已开始，正在写入本地缓存。`;
   }
 
@@ -233,6 +237,8 @@ export function StatusWorkspace({
   const sections = useMemo(() => mergeSections(snapshot), [snapshot]);
   const isEmpty = snapshot.overallStatus === "not_validated";
   const refreshBusy = isStartingRefresh || refreshStatus.isRunning;
+  const isBootstrapRunning =
+    refreshStatus.isRunning && refreshStatus.mode === "bootstrap";
 
   useEffect(() => {
     if (!refreshStatus.isRunning) {
@@ -341,7 +347,11 @@ export function StatusWorkspace({
               <Database
                 className={cn("size-4", refreshBusy ? "animate-pulse" : "")}
               />
-              {refreshBusy ? "刷新缓存中" : "手动刷新缓存"}
+              {isBootstrapRunning
+                ? "正在初始化缓存"
+                : refreshBusy
+                  ? "刷新缓存中"
+                  : "手动刷新缓存"}
             </Button>
             <Button
               type="button"
