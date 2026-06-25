@@ -105,7 +105,7 @@ v2.0 先修正行情数据模型和复权口径，再建立统一的受控请求
 
 | Phase | Requirements | Status | Completed |
 |-------|--------------|--------|-----------|
-| 7. Standardized Market Data Cache | 1/4 | In Progress|  |
+| 7. Standardized Market Data Cache | 2/4 | In Progress|  |
 | 8. Controlled Provider Concurrency | 3 | Not started | — |
 | 9. Incremental Refresh Workflow | 8 | Not started | — |
 | 10. Dual-Day Chip Distribution | 6 | Not started | — |
