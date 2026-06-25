@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: Awaiting next milestone
-stopped_at: Milestone v1.0 archived
-last_updated: "2026-06-24T14:01:56.222Z"
-last_activity: 2026-06-24 — Milestone v1.0 completed and archived
+milestone: v2.0
+milestone_name: 增量刷新与筹码分布对比
+status: planning
+last_updated: "2026-06-25T13:08:30.922Z"
+last_activity: 2026-06-25
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 16
-  completed_plans: 16
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -26,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-24)
 
 ## Current Position
 
-Phase: Milestone v1.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-24 — Milestone v1.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-25 — Milestone v2.0 started
 
 ## Performance Metrics
 

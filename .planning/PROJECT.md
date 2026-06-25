@@ -10,6 +10,16 @@
 
 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到对应筹码峰位置。
 
+## Current Milestone: v2.0 增量刷新与筹码分布对比
+
+**Goal:** 将串行全量刷新改造为可恢复的增量刷新和受控并行处理，并让用户对比筛选股票最新交易日与前一交易日的完整筹码分布。
+
+**Target features:**
+- 行情和复权因子复用已有数据，只拉取缺失交易日，并保留手动全量重建能力。
+- 外部接口使用受控并行、限频退避、重试和失败恢复；tinyshare 避免每次请求重复启动 Python 进程。
+- 筹码数据覆盖最新有效交易日和前一有效交易日，股票详情展示两个完整筹码分布图。
+- 记录刷新各阶段的进度、耗时和结果，为后续制定性能验收标准提供真实基线。
+
 ## Requirements
 
 ### Validated
@@ -26,7 +36,13 @@
 
 ### Active
 
-- 下一里程碑需求尚未定义。候选方向见“Next Milestone Goals”，正式范围由 `$gsd-new-milestone` 确认。
+- [ ] 行情与复权数据采用增量存储和增量拉取，避免每次复制完整 60 日快照。
+- [ ] Tushare/tinyshare 请求采用受控并行，并支持限频退避、重试和失败恢复。
+- [ ] tinyshare 调用避免每次请求重复启动 Python 进程。
+- [ ] 筛选股票保存最新交易日和前一交易日的完整筹码分布。
+- [ ] 股票详情展示两个交易日的筹码分布图供用户对比。
+- [ ] 刷新流程记录阶段进度、耗时和结果，以实测数据确定后续性能标准。
+- [ ] 保留手动全量重建数据的操作路径。
 
 ### Out of Scope
 
@@ -90,14 +106,7 @@
 
 ## Next Milestone Goals
 
-下一里程碑尚未立项。优先候选：
-
-- 降低或并行化筹码 enrichment 的全市场刷新耗时。
-- 自动每日刷新和多次刷新历史对比。
-- 可配置筛选参数与 CSV 导出。
-- 根据实际部署规模评估后台队列或 PostgreSQL。
-
-正式目标、边界和优先级由 `$gsd-new-milestone` 流程确认。
+v2.0 已立项，当前重点是增量刷新、受控并行和双交易日筹码分布对比。自动每日刷新、可配置筛选、CSV 导出、外部任务队列和 PostgreSQL 不在本里程碑范围内。
 
 ## Evolution
 
@@ -117,4 +126,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-24 after v1.0 milestone completion*
+*Last updated: 2026-06-25 after v2.0 milestone initialization*
