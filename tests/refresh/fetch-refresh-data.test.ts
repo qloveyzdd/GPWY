@@ -75,19 +75,31 @@ describe("fetchRefreshData", () => {
       maxLookbackDays: 10,
     });
 
-    expect(client.query).toHaveBeenCalledWith(TUSHARE_ENDPOINTS.stockBasic, {
-      list_status: "L",
-    });
-    expect(client.query).toHaveBeenCalledWith(TUSHARE_ENDPOINTS.stockBasic, {
-      list_status: "P",
-    });
-    expect(client.query).toHaveBeenCalledWith(TUSHARE_ENDPOINTS.stockBasic, {
-      list_status: "D",
-    });
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.stockBasic,
+      { list_status: "L" },
+      { priority: "market" },
+    );
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.stockBasic,
+      { list_status: "P" },
+      { priority: "market" },
+    );
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.stockBasic,
+      { list_status: "D" },
+      { priority: "market" },
+    );
     expect(client.query).toHaveBeenCalledWith(
       expect.objectContaining({ apiName: "trade_cal" }),
       expect.objectContaining({ is_open: "1" }),
+      { priority: "market" },
     );
+    expect(
+      vi.mocked(client.query).mock.calls.every(
+        (call) => call[2]?.priority === "market",
+      ),
+    ).toBe(true);
     expect(result.tradeDates).toEqual(["20260626", "20260624"]);
     expect(result.stocks.map((stock) => stock.listStatus)).toEqual([
       "L",
@@ -169,7 +181,7 @@ describe("fetchRefreshData", () => {
     ]);
   });
 
-  it("retries transient provider failures once by default", async () => {
+  it("does not add a workflow-local retry around transient failures", async () => {
     let calendarAttempts = 0;
     const client = createMockClient(async (endpoint, params) => {
       if (endpoint.apiName === "stock_basic") {
@@ -201,21 +213,23 @@ describe("fetchRefreshData", () => {
       throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
     });
 
-    await fetchRefreshData({
-      client,
-      targetTradingDates: 1,
-      maxLookbackDays: 2,
-      providerRetryDelayMs: 0,
-    });
+    await expect(
+      fetchRefreshData({
+        client,
+        targetTradingDates: 1,
+        maxLookbackDays: 2,
+      }),
+    ).rejects.toThrow("fetch failed");
 
-    expect(calendarAttempts).toBe(2);
+    expect(calendarAttempts).toBe(1);
   });
 
   it("does not retry non-transient provider failures", async () => {
-    let attempts = 0;
-    const client = createMockClient(async (endpoint) => {
+    const attempts = new Map<string, number>();
+    const client = createMockClient(async (endpoint, params) => {
       if (endpoint.apiName === "stock_basic") {
-        attempts += 1;
+        const status = String(params.list_status);
+        attempts.set(status, (attempts.get(status) ?? 0) + 1);
         throw new TushareApiError("stock_basic", null, "permission_denied");
       }
 
@@ -226,10 +240,14 @@ describe("fetchRefreshData", () => {
       fetchRefreshData({
         client,
         targetTradingDates: 1,
-        providerRetryCount: 2,
-        providerRetryDelayMs: 0,
       }),
     ).rejects.toThrow("permission_denied");
-    expect(attempts).toBe(1);
+    expect(attempts).toEqual(
+      new Map([
+        ["L", 1],
+        ["P", 1],
+        ["D", 1],
+      ]),
+    );
   });
 });

@@ -18,6 +18,8 @@ import {
 } from "@/lib/refresh/market-data-store";
 import { TushareApiError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
+import { ProviderRequestScheduler } from "@/lib/tushare/request-scheduler";
+import { ScheduledTushareClient } from "@/lib/tushare/scheduled-client";
 import type {
   TushareClientLike,
   TushareDataTable,
@@ -112,7 +114,6 @@ describe("bootstrapMarketData", () => {
     const result = await bootstrapMarketData({
       client,
       now: new Date("2026-06-26T00:00:00.000Z"),
-      providerRetryCount: 0,
     });
     const active = readActiveMarketCacheGeneration();
 
@@ -146,7 +147,6 @@ describe("bootstrapMarketData", () => {
     await expect(
       bootstrapMarketData({
         client: createBootstrapClient({ failFactorDate: firstDate }),
-        providerRetryCount: 0,
       }),
     ).rejects.toThrow("network_or_service");
 
@@ -155,7 +155,6 @@ describe("bootstrapMarketData", () => {
 
     const retry = await bootstrapMarketData({
       client: createBootstrapClient(),
-      providerRetryCount: 0,
     });
 
     expect(retry.generationId).toBe(2);
@@ -168,7 +167,6 @@ describe("bootstrapMarketData", () => {
     await expect(
       bootstrapMarketData({
         client: createBootstrapClient({ dateCount: 59 }),
-        providerRetryCount: 0,
       }),
     ).rejects.toThrow("insufficient_trading_dates");
 
@@ -188,12 +186,83 @@ describe("bootstrapMarketData", () => {
     await expect(
       bootstrapMarketData({
         client: createBootstrapClient(),
-        providerRetryCount: 0,
         store,
       }),
     ).rejects.toThrow("sqlite_write_failed");
 
     expect(readMarketCacheGenerationById(1)).toBeNull();
     expect(readActiveMarketCacheGeneration()).toBeNull();
+  });
+
+  it("fans out provider work while the shared scheduler caps the true peak", async () => {
+    useTempMarketStore();
+    const baseClient = createBootstrapClient();
+    let active = 0;
+    let peak = 0;
+    const rawClient: TushareClientLike = {
+      query: vi.fn(async (endpoint, params, options) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        try {
+          return await baseClient.query(endpoint, params, options);
+        } finally {
+          active -= 1;
+        }
+      }),
+    };
+    const scheduler = new ProviderRequestScheduler({
+      maxConcurrency: 2,
+      requestTimeoutMs: 60_000,
+    });
+    const client = new ScheduledTushareClient(rawClient, scheduler);
+
+    await bootstrapMarketData({ client });
+
+    expect(peak).toBe(2);
+    expect(scheduler.getSnapshot().configuredConcurrency).toBe(2);
+  });
+
+  it("waits for every date task before deleting a failed generation", async () => {
+    useTempMarketStore();
+    const failDate = tradeDates(60)[0];
+    let activeDateQueries = 0;
+    let activeAtDelete = -1;
+    const baseClient = createBootstrapClient({ failFactorDate: failDate });
+    const client: TushareClientLike = {
+      query: vi.fn(async (endpoint, params, options) => {
+        const isDateQuery =
+          endpoint.apiName === "daily" || endpoint.apiName === "adj_factor";
+        if (isDateQuery) {
+          activeDateQueries += 1;
+        }
+        try {
+          if (isDateQuery && String(params?.trade_date) !== failDate) {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+          return await baseClient.query(endpoint, params, options);
+        } finally {
+          if (isDateQuery) {
+            activeDateQueries -= 1;
+          }
+        }
+      }),
+    };
+    const store = {
+      ...DEFAULT_BOOTSTRAP_MARKET_DATA_STORE,
+      deleteBuildingGeneration: (generationId: number) => {
+        activeAtDelete = activeDateQueries;
+        return DEFAULT_BOOTSTRAP_MARKET_DATA_STORE.deleteBuildingGeneration(
+          generationId,
+        );
+      },
+    };
+
+    await expect(bootstrapMarketData({ client, store })).rejects.toThrow(
+      "network_or_service",
+    );
+
+    expect(activeAtDelete).toBe(0);
+    expect(readMarketCacheGenerationById(1)).toBeNull();
   });
 });

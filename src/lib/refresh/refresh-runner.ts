@@ -89,8 +89,6 @@ export function createProviderRefreshWorker({
   now,
   targetTradingDates,
   maxLookbackDays,
-  providerRetryCount,
-  providerRetryDelayMs,
   store,
 }: ProviderRefreshWorkerOptions = {}): RefreshWorker {
   return async () => {
@@ -106,8 +104,6 @@ export function createProviderRefreshWorker({
       now,
       targetTradingDates,
       maxLookbackDays,
-      providerRetryCount,
-      providerRetryDelayMs,
       store,
     });
 

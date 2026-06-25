@@ -4,25 +4,16 @@ import type {
   MarketStockStatus,
   RawDailyQuoteRecord,
 } from "@/lib/refresh/market-data-types";
-import { classifyTushareError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
 import type {
   TushareClientLike,
   TushareDataTable,
-  TushareEndpoint,
 } from "@/lib/tushare/types";
 
 export const DEFAULT_TRADING_DATE_COUNT = 60;
 export const DEFAULT_MAX_LOOKBACK_DAYS = 180;
-export const DEFAULT_PROVIDER_RETRY_COUNT = 1;
-export const DEFAULT_PROVIDER_RETRY_DELAY_MS = 1_000;
 
-type ProviderRetryOptions = {
-  providerRetryCount?: number;
-  providerRetryDelayMs?: number;
-};
-
-export type FetchRefreshDataOptions = ProviderRetryOptions & {
+export type FetchRefreshDataOptions = {
   client: TushareClientLike;
   now?: Date;
   targetTradingDates?: number;
@@ -75,45 +66,6 @@ function requiredNumber(value: unknown, field: string) {
   }
 
   throw new Error(`invalid ${field}`);
-}
-
-function delay(ms: number) {
-  if (ms <= 0) {
-    return Promise.resolve();
-  }
-
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function isTransientProviderError(error: unknown, apiName: string) {
-  return classifyTushareError(error, apiName).category === "network_or_service";
-}
-
-async function queryWithRetry(
-  client: TushareClientLike,
-  endpoint: TushareEndpoint,
-  params: Record<string, unknown>,
-  {
-    providerRetryCount = DEFAULT_PROVIDER_RETRY_COUNT,
-    providerRetryDelayMs = DEFAULT_PROVIDER_RETRY_DELAY_MS,
-  }: ProviderRetryOptions,
-) {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await client.query(endpoint, params);
-    } catch (error) {
-      if (
-        attempt >= providerRetryCount ||
-        !isTransientProviderError(error, endpoint.apiName)
-      ) {
-        throw error;
-      }
-
-      await delay(providerRetryDelayMs * (attempt + 1));
-    }
-  }
 }
 
 function mapStocks(
@@ -181,20 +133,22 @@ function mapAdjustmentFactors(
 
 export async function fetchMarketStocks({
   client,
-  ...retryOptions
-}: ProviderRetryOptions & {
+}: {
   client: TushareClientLike;
 }) {
   const stocksByCode = new Map<string, MarketStockRecord>();
+  const tables = await Promise.all(
+    (["L", "P", "D"] as const).map(async (listStatus) => ({
+      listStatus,
+      table: await client.query(
+        TUSHARE_ENDPOINTS.stockBasic,
+        { list_status: listStatus },
+        { priority: "market" },
+      ),
+    })),
+  );
 
-  for (const listStatus of ["L", "P", "D"] as const) {
-    const table = await queryWithRetry(
-      client,
-      TUSHARE_ENDPOINTS.stockBasic,
-      { list_status: listStatus },
-      retryOptions,
-    );
-
+  for (const { listStatus, table } of tables) {
     for (const stock of mapStocks(table, listStatus)) {
       stocksByCode.set(stock.tsCode, stock);
     }
@@ -208,15 +162,13 @@ export async function fetchTargetTradeDates({
   now = new Date(),
   targetTradingDates = DEFAULT_TRADING_DATE_COUNT,
   maxLookbackDays = DEFAULT_MAX_LOOKBACK_DAYS,
-  ...retryOptions
-}: ProviderRetryOptions & {
+}: {
   client: TushareClientLike;
   now?: Date;
   targetTradingDates?: number;
   maxLookbackDays?: number;
 }) {
-  const table = await queryWithRetry(
-    client,
+  const table = await client.query(
     TUSHARE_ENDPOINTS.tradeCalendar,
     {
       exchange: "",
@@ -224,7 +176,7 @@ export async function fetchTargetTradeDates({
       end_date: formatDate(now),
       is_open: "1",
     },
-    retryOptions,
+    { priority: "market" },
   );
   const tradeDates = mapTradeDates(table).slice(0, targetTradingDates);
 
@@ -240,16 +192,14 @@ export async function fetchTargetTradeDates({
 export async function fetchDailyQuotesForDate({
   client,
   tradeDate,
-  ...retryOptions
-}: ProviderRetryOptions & {
+}: {
   client: TushareClientLike;
   tradeDate: string;
 }) {
-  const table = await queryWithRetry(
-    client,
+  const table = await client.query(
     TUSHARE_ENDPOINTS.daily,
     { trade_date: tradeDate },
-    retryOptions,
+    { priority: "market" },
   );
 
   return mapDailyQuotes(table);
@@ -258,16 +208,14 @@ export async function fetchDailyQuotesForDate({
 export async function fetchAdjustmentFactorsForDate({
   client,
   tradeDate,
-  ...retryOptions
-}: ProviderRetryOptions & {
+}: {
   client: TushareClientLike;
   tradeDate: string;
 }) {
-  const table = await queryWithRetry(
-    client,
+  const table = await client.query(
     TUSHARE_ENDPOINTS.adjFactor,
     { trade_date: tradeDate },
-    retryOptions,
+    { priority: "market" },
   );
 
   return mapAdjustmentFactors(table);
@@ -278,45 +226,36 @@ export async function fetchRefreshData({
   now = new Date(),
   targetTradingDates = DEFAULT_TRADING_DATE_COUNT,
   maxLookbackDays = DEFAULT_MAX_LOOKBACK_DAYS,
-  providerRetryCount = DEFAULT_PROVIDER_RETRY_COUNT,
-  providerRetryDelayMs = DEFAULT_PROVIDER_RETRY_DELAY_MS,
 }: FetchRefreshDataOptions): Promise<FetchRefreshDataResult> {
-  const retryOptions = {
-    providerRetryCount,
-    providerRetryDelayMs,
-  };
-  const stocks = await fetchMarketStocks({ client, ...retryOptions });
+  const stocks = await fetchMarketStocks({ client });
   const tradeDates = await fetchTargetTradeDates({
     client,
     now,
     targetTradingDates,
     maxLookbackDays,
-    ...retryOptions,
   });
-  const dailyQuotes: RawDailyQuoteRecord[] = [];
-  const adjustmentFactors: AdjustmentFactorRecord[] = [];
-
-  for (const tradeDate of tradeDates) {
-    dailyQuotes.push(
-      ...(await fetchDailyQuotesForDate({
-        client,
-        tradeDate,
-        ...retryOptions,
-      })),
-    );
-    adjustmentFactors.push(
-      ...(await fetchAdjustmentFactorsForDate({
-        client,
-        tradeDate,
-        ...retryOptions,
-      })),
-    );
-  }
+  const dateResults = await Promise.all(
+    tradeDates.map(async (tradeDate) => {
+      const [dailyQuotes, adjustmentFactors] = await Promise.all([
+        fetchDailyQuotesForDate({
+          client,
+          tradeDate,
+        }),
+        fetchAdjustmentFactorsForDate({
+          client,
+          tradeDate,
+        }),
+      ]);
+      return { dailyQuotes, adjustmentFactors };
+    }),
+  );
 
   return {
     stocks,
-    dailyQuotes,
-    adjustmentFactors,
+    dailyQuotes: dateResults.flatMap((result) => result.dailyQuotes),
+    adjustmentFactors: dateResults.flatMap(
+      (result) => result.adjustmentFactors,
+    ),
     tradeDates,
   };
 }

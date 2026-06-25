@@ -376,7 +376,6 @@ describe("refresh runner", () => {
       providerWorkerOptions: {
         client,
         now: new Date("2026-06-23T00:00:00.000Z"),
-        providerRetryCount: 0,
       },
       chipPeakRunner: async () => chipRunFixture(),
     });

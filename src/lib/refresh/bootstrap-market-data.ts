@@ -1,7 +1,5 @@
 import {
   DEFAULT_MAX_LOOKBACK_DAYS,
-  DEFAULT_PROVIDER_RETRY_COUNT,
-  DEFAULT_PROVIDER_RETRY_DELAY_MS,
   DEFAULT_TRADING_DATE_COUNT,
   fetchAdjustmentFactorsForDate,
   fetchDailyQuotesForDate,
@@ -72,8 +70,6 @@ export type BootstrapMarketDataOptions = {
   now?: Date;
   targetTradingDates?: number;
   maxLookbackDays?: number;
-  providerRetryCount?: number;
-  providerRetryDelayMs?: number;
   store?: BootstrapMarketDataStore;
 };
 
@@ -90,35 +86,23 @@ export async function bootstrapMarketData({
   now = new Date(),
   targetTradingDates = DEFAULT_TRADING_DATE_COUNT,
   maxLookbackDays = DEFAULT_MAX_LOOKBACK_DAYS,
-  providerRetryCount = DEFAULT_PROVIDER_RETRY_COUNT,
-  providerRetryDelayMs = DEFAULT_PROVIDER_RETRY_DELAY_MS,
   store = DEFAULT_BOOTSTRAP_MARKET_DATA_STORE,
 }: BootstrapMarketDataOptions): Promise<BootstrapMarketDataResult> {
   const generation = store.createGeneration({
     targetTradeDateCount: targetTradingDates,
     now,
   });
-  const retryOptions = {
-    providerRetryCount,
-    providerRetryDelayMs,
-  };
   let activated = false;
 
   try {
-    const stocks = await fetchMarketStocks({
-      client,
-      ...retryOptions,
-    });
+    const stocks = await fetchMarketStocks({ client });
     store.upsertStocks(stocks, now);
     const tradeDates = await fetchTargetTradeDates({
       client,
       now,
       targetTradingDates,
       maxLookbackDays,
-      ...retryOptions,
     });
-    let dailyQuoteCount = 0;
-    let adjustmentFactorCount = 0;
 
     for (const tradeDate of tradeDates) {
       store.upsertGenerationDate(
@@ -130,29 +114,15 @@ export async function bootstrapMarketData({
         },
         now,
       );
-      const dailyQuotes = await fetchDailyQuotesForDate({
-        client,
-        tradeDate,
-        ...retryOptions,
-      });
+    }
+
+    const dateTasks = tradeDates.map(async (tradeDate) => {
+      const [dailyQuotes, adjustmentFactors] = await Promise.all([
+        fetchDailyQuotesForDate({ client, tradeDate }),
+        fetchAdjustmentFactorsForDate({ client, tradeDate }),
+      ]);
       store.upsertDailyQuotes(generation.id, dailyQuotes, now);
-      dailyQuoteCount += dailyQuotes.length;
-      store.upsertGenerationDate(
-        generation.id,
-        {
-          tradeDate,
-          dailyStatus: "succeeded",
-          factorStatus: "pending",
-        },
-        now,
-      );
-      const adjustmentFactors = await fetchAdjustmentFactorsForDate({
-        client,
-        tradeDate,
-        ...retryOptions,
-      });
       store.upsertAdjustmentFactors(generation.id, adjustmentFactors, now);
-      adjustmentFactorCount += adjustmentFactors.length;
       store.upsertGenerationDate(
         generation.id,
         {
@@ -162,7 +132,31 @@ export async function bootstrapMarketData({
         },
         now,
       );
+      return {
+        dailyQuoteCount: dailyQuotes.length,
+        adjustmentFactorCount: adjustmentFactors.length,
+      };
+    });
+    const dateResults = await Promise.allSettled(dateTasks);
+    const failedDate = dateResults.find(
+      (result): result is PromiseRejectedResult =>
+        result.status === "rejected",
+    );
+    if (failedDate) {
+      throw failedDate.reason;
     }
+    const fulfilledDates = dateResults as PromiseFulfilledResult<{
+      dailyQuoteCount: number;
+      adjustmentFactorCount: number;
+    }>[];
+    const dailyQuoteCount = fulfilledDates.reduce(
+      (total, result) => total + result.value.dailyQuoteCount,
+      0,
+    );
+    const adjustmentFactorCount = fulfilledDates.reduce(
+      (total, result) => total + result.value.adjustmentFactorCount,
+      0,
+    );
 
     store.activateGeneration(generation.id, now);
     activated = true;
