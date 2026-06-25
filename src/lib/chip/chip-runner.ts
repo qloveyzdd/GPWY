@@ -13,8 +13,8 @@ import type {
 } from "@/lib/chip/chip-types";
 import { readTushareTokenSecret } from "@/lib/config";
 import {
-  readLatestScreeningResults,
   readLatestScreeningRun,
+  readScreeningResultsForRun,
 } from "@/lib/screening/screening-store";
 import { classifyTushareError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
@@ -95,33 +95,33 @@ export async function runChipPeakIntegrationFromLatestScreening({
     throw new Error("no_screening_results");
   }
 
-  const screeningResults = readLatestScreeningResults();
+  const screeningResults = readScreeningResultsForRun(screeningRun.id);
   const token = readTushareTokenSecret();
   const tushareClient = client ?? (token ? createTushareClient(token) : null);
-  const results: Omit<ChipPeakResultRecord, "chipPeakRunId">[] = [];
-
-  for (const screeningResult of screeningResults) {
+  const results = await Promise.all(
+    screeningResults.map(async (screeningResult) => {
     if (!tushareClient) {
-      results.push(
-        createBlockedResult(
-          screeningRun.id,
-          screeningResult.tsCode,
-          new Error("missing_config:TUSHARE_TOKEN"),
-        ),
+      return createBlockedResult(
+        screeningRun.id,
+        screeningResult.tsCode,
+        new Error("missing_config:TUSHARE_TOKEN"),
       );
-      continue;
     }
 
     try {
-      const table = await tushareClient.query(TUSHARE_ENDPOINTS.chipChips, {
-        ts_code: screeningResult.tsCode,
-        trade_date: screeningResult.latestTradeDate,
-      });
+      const table = await tushareClient.query(
+        TUSHARE_ENDPOINTS.chipChips,
+        {
+          ts_code: screeningResult.tsCode,
+          trade_date: screeningResult.latestTradeDate,
+        },
+        { priority: "chip" },
+      );
       const rows = mapCyqChipsTable(table);
       const peaks = extractChipPeaks(rows);
       const peak = peaks[0];
 
-      results.push({
+      return {
         screeningRunId: screeningRun.id,
         tsCode: screeningResult.tsCode,
         status: "succeeded",
@@ -132,13 +132,16 @@ export async function runChipPeakIntegrationFromLatestScreening({
         peaks,
         errorCategory: null,
         errorSummary: null,
-      });
+      } satisfies Omit<ChipPeakResultRecord, "chipPeakRunId">;
     } catch (error) {
-      results.push(
-        createBlockedResult(screeningRun.id, screeningResult.tsCode, error),
+      return createBlockedResult(
+        screeningRun.id,
+        screeningResult.tsCode,
+        error,
       );
     }
-  }
+    }),
+  );
 
   const successCount = results.filter(
     (result) => result.status === "succeeded",

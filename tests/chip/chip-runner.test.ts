@@ -12,6 +12,8 @@ import {
 } from "@/lib/screening/screening-store";
 import { TushareApiError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
+import { ProviderRequestScheduler } from "@/lib/tushare/request-scheduler";
+import { ScheduledTushareClient } from "@/lib/tushare/scheduled-client";
 import type {
   TushareClientLike,
   TushareDataTable,
@@ -21,6 +23,7 @@ import type {
 const tempRoots: string[] = [];
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   for (const root of tempRoots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
@@ -51,29 +54,27 @@ function createMockClient(
   };
 }
 
-function writeScreeningFixture() {
+function writeScreeningFixture(tsCodes = ["000001.SZ"]) {
   return writeScreeningRun({
     sourceRefreshJobId: 7,
-    totalStocks: 1,
-    matchedCount: 1,
+    totalStocks: tsCodes.length,
+    matchedCount: tsCodes.length,
     skippedCount: 0,
     now: new Date("2026-06-23T00:00:00.000Z"),
-    results: [
-      {
-        tsCode: "000001.SZ",
-        name: "平安银行",
+    results: tsCodes.map((tsCode, index) => ({
+        tsCode,
+        name: `股票${index + 1}`,
         latestTradeDate: "20260211",
         currentPrice: 8.5,
         intervalHigh: 10,
         intervalHighTradeDate: "20260201",
         intervalHighSource: "swing_high",
-        currentHighRatio: 0.85,
+        currentHighRatio: 0.8 + index / 100,
         drawdownPct: 0.15,
         ma20: 9,
         ma60: 11,
         ma20Slope: -0.1,
-      },
-    ],
+      })),
   });
 }
 
@@ -93,10 +94,14 @@ describe("chip runner", () => {
       now: new Date("2026-06-23T00:01:00.000Z"),
     });
 
-    expect(client.query).toHaveBeenCalledWith(TUSHARE_ENDPOINTS.chipChips, {
-      ts_code: "000001.SZ",
-      trade_date: "20260211",
-    });
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.chipChips,
+      {
+        ts_code: "000001.SZ",
+        trade_date: "20260211",
+      },
+      { priority: "chip" },
+    );
     expect(run.screeningRunId).toBe(screeningRun.id);
     expect(run.status).toBe("succeeded");
     expect(readLatestChipPeakResults()).toMatchObject([
@@ -136,5 +141,71 @@ describe("chip runner", () => {
         errorCategory: "permission_denied",
       },
     ]);
+  });
+
+  it("runs candidates concurrently with bounded retries and isolated row failures", async () => {
+    vi.useFakeTimers();
+    useTempStore();
+    const codes = [
+      "000001.SZ",
+      "000002.SZ",
+      "000003.SZ",
+      "000004.SZ",
+      "000005.SZ",
+      "000006.SZ",
+    ];
+    writeScreeningFixture(codes);
+    const attempts = new Map<string, number>();
+    let active = 0;
+    let peak = 0;
+    const rawClient = createMockClient(async (_endpoint, params) => {
+      const tsCode = String(params.ts_code);
+      attempts.set(tsCode, (attempts.get(tsCode) ?? 0) + 1);
+
+      if (tsCode === "000005.SZ") {
+        throw new TushareApiError(
+          "cyq_chips",
+          -2002,
+          "没有访问该接口的权限",
+        );
+      }
+      if (tsCode === "000006.SZ") {
+        throw new TypeError("fetch failed");
+      }
+
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      active -= 1;
+      return table([[tsCode, "20260211", 10.2, 6]]);
+    });
+    const scheduler = new ProviderRequestScheduler({
+      maxConcurrency: 2,
+      requestTimeoutMs: 60_000,
+      random: () => 0.5,
+    });
+    const client = new ScheduledTushareClient(rawClient, scheduler);
+
+    const runPromise = runChipPeakIntegrationFromLatestScreening({ client });
+    await vi.runAllTimersAsync();
+    const run = await runPromise;
+    const results = readLatestChipPeakResults();
+
+    expect(peak).toBe(2);
+    expect(attempts.get("000005.SZ")).toBe(1);
+    expect(attempts.get("000006.SZ")).toBe(3);
+    expect(run.status).toBe("partial");
+    expect(run.successCount).toBe(4);
+    expect(run.blockedCount).toBe(1);
+    expect(run.failedCount).toBe(1);
+    expect(results.map((result) => result.tsCode)).toEqual(codes);
+    expect(results.find((result) => result.tsCode === "000005.SZ")).toMatchObject({
+      status: "blocked",
+      errorCategory: "permission_denied",
+    });
+    expect(results.find((result) => result.tsCode === "000006.SZ")).toMatchObject({
+      status: "failed",
+      errorCategory: "network_or_service",
+    });
   });
 });
