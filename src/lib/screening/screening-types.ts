@@ -72,10 +72,22 @@ export type DowntrendEvaluationResult =
 export type ScreeningRunRecord = {
   id: number;
   sourceRefreshJobId: number;
+  sourceMarketGenerationId: number | null;
   createdAt: string;
   totalStocks: number;
   matchedCount: number;
   skippedCount: number;
+};
+
+export type ScreeningSkipReason =
+  | "insufficient_bars"
+  | "missing_adjustment_factor";
+
+export type ScreeningSkipRecord = {
+  screeningRunId: number;
+  tsCode: string;
+  reason: ScreeningSkipReason;
+  availableBars: number | null;
 };
 
 export type ScreeningResultRecord = Omit<
