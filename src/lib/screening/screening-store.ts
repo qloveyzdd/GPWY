@@ -5,6 +5,7 @@ import path from "node:path";
 import type {
   ScreeningResultRecord,
   ScreeningRunRecord,
+  ScreeningSkipRecord,
 } from "@/lib/screening/screening-types";
 
 type Statement = {
@@ -24,6 +25,7 @@ type DatabaseConstructor = new (filePath: string) => DatabaseConnection;
 type ScreeningRunRow = {
   id: number;
   source_refresh_job_id: number;
+  source_market_generation_id: number | null;
   created_at: string;
   total_stocks: number;
   matched_count: number;
@@ -46,12 +48,25 @@ type ScreeningResultRow = {
   ma20_slope: number;
 };
 
+type ScreeningSkipRow = {
+  screening_run_id: number;
+  ts_code: string;
+  reason: ScreeningSkipRecord["reason"];
+  available_bars: number | null;
+};
+
+type TableInfoRow = {
+  name: string;
+};
+
 export type WriteScreeningRunInput = {
   sourceRefreshJobId: number;
+  sourceMarketGenerationId?: number | null;
   totalStocks: number;
   matchedCount: number;
   skippedCount: number;
   results: Omit<ScreeningResultRecord, "screeningRunId">[];
+  skips?: Omit<ScreeningSkipRecord, "screeningRunId">[];
   now?: Date;
 };
 
@@ -83,6 +98,7 @@ function openDatabase() {
     create table if not exists screening_runs (
       id integer primary key autoincrement,
       source_refresh_job_id integer not null,
+      source_market_generation_id integer,
       created_at text not null,
       total_stocks integer not null,
       matched_count integer not null,
@@ -106,7 +122,29 @@ function openDatabase() {
       primary key (screening_run_id, ts_code),
       foreign key (screening_run_id) references screening_runs(id)
     );
+
+    create table if not exists screening_skips (
+      screening_run_id integer not null,
+      ts_code text not null,
+      reason text not null check (reason in ('insufficient_bars', 'missing_adjustment_factor')),
+      available_bars integer,
+      primary key (screening_run_id, ts_code),
+      foreign key (screening_run_id) references screening_runs(id)
+    );
   `);
+  const screeningRunColumns = db
+    .prepare("pragma table_info(screening_runs)")
+    .all() as TableInfoRow[];
+
+  if (
+    !screeningRunColumns.some(
+      (column) => column.name === "source_market_generation_id",
+    )
+  ) {
+    db.exec(
+      "alter table screening_runs add column source_market_generation_id integer",
+    );
+  }
 
   return db;
 }
@@ -115,6 +153,7 @@ function mapRun(row: ScreeningRunRow): ScreeningRunRecord {
   return {
     id: row.id,
     sourceRefreshJobId: row.source_refresh_job_id,
+    sourceMarketGenerationId: row.source_market_generation_id,
     createdAt: row.created_at,
     totalStocks: row.total_stocks,
     matchedCount: row.matched_count,
@@ -140,12 +179,23 @@ function mapResult(row: ScreeningResultRow): ScreeningResultRecord {
   };
 }
 
+function mapSkip(row: ScreeningSkipRow): ScreeningSkipRecord {
+  return {
+    screeningRunId: row.screening_run_id,
+    tsCode: row.ts_code,
+    reason: row.reason,
+    availableBars: row.available_bars,
+  };
+}
+
 export function writeScreeningRun({
   sourceRefreshJobId,
+  sourceMarketGenerationId = null,
   totalStocks,
   matchedCount,
   skippedCount,
   results,
+  skips = [],
   now = new Date(),
 }: WriteScreeningRunInput): ScreeningRunRecord {
   const db = openDatabase();
@@ -157,11 +207,25 @@ export function writeScreeningRun({
       .prepare(
         `
         insert into screening_runs
-          (source_refresh_job_id, created_at, total_stocks, matched_count, skipped_count)
-        values (?, ?, ?, ?, ?)
+          (
+            source_refresh_job_id,
+            source_market_generation_id,
+            created_at,
+            total_stocks,
+            matched_count,
+            skipped_count
+          )
+        values (?, ?, ?, ?, ?, ?)
         `,
       )
-      .run(sourceRefreshJobId, createdAt, totalStocks, matchedCount, skippedCount);
+      .run(
+        sourceRefreshJobId,
+        sourceMarketGenerationId,
+        createdAt,
+        totalStocks,
+        matchedCount,
+        skippedCount,
+      );
     const screeningRunId = Number(insertRun.lastInsertRowid);
     const insertResult = db.prepare(
       `
@@ -202,12 +266,29 @@ export function writeScreeningRun({
         result.ma20Slope,
       );
     }
+    const insertSkip = db.prepare(
+      `
+      insert into screening_skips
+        (screening_run_id, ts_code, reason, available_bars)
+      values (?, ?, ?, ?)
+      `,
+    );
+
+    for (const skip of skips) {
+      insertSkip.run(
+        screeningRunId,
+        skip.tsCode,
+        skip.reason,
+        skip.availableBars,
+      );
+    }
 
     db.exec("commit");
 
     return {
       id: screeningRunId,
       sourceRefreshJobId,
+      sourceMarketGenerationId,
       createdAt,
       totalStocks,
       matchedCount,
@@ -257,6 +338,33 @@ export function readLatestScreeningResults(): ScreeningResultRecord[] {
         )
         .all(latestRun.id) as ScreeningResultRow[]
     ).map(mapResult);
+  } finally {
+    db.close();
+  }
+}
+
+export function readLatestScreeningSkips(): ScreeningSkipRecord[] {
+  const latestRun = readLatestScreeningRun();
+
+  if (!latestRun) {
+    return [];
+  }
+
+  const db = openDatabase();
+
+  try {
+    return (
+      db
+        .prepare(
+          `
+          select screening_run_id, ts_code, reason, available_bars
+          from screening_skips
+          where screening_run_id = ?
+          order by ts_code
+          `,
+        )
+        .all(latestRun.id) as ScreeningSkipRow[]
+    ).map(mapSkip);
   } finally {
     db.close();
   }

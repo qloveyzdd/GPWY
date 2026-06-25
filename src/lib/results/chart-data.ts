@@ -1,4 +1,5 @@
 import { readDailyBarsForRefreshJob } from "@/lib/refresh/refresh-store";
+import { readAdjustedMarketBarsForStock } from "@/lib/refresh/market-data-reader";
 import { readLatestResultsSnapshot } from "@/lib/results/results-snapshot";
 import type {
   ChartDailyBar,
@@ -77,10 +78,16 @@ export function readLatestChartSnapshot(tsCode: string): ChartSnapshot {
     return unavailable("stock_not_in_latest_results");
   }
 
-  const bars = readDailyBarsForRefreshJob(screeningRun.sourceRefreshJobId)
-    .filter((bar) => bar.tsCode === row.tsCode)
-    .sort((left, right) => left.tradeDate.localeCompare(right.tradeDate))
-    .slice(-60);
+  const bars =
+    screeningRun.sourceMarketGenerationId !== null
+      ? readAdjustedMarketBarsForStock(
+          screeningRun.sourceMarketGenerationId,
+          row.tsCode,
+        )
+      : readDailyBarsForRefreshJob(screeningRun.sourceRefreshJobId)
+          .filter((bar) => bar.tsCode === row.tsCode)
+          .sort((left, right) => left.tradeDate.localeCompare(right.tradeDate))
+          .slice(-60);
 
   return {
     status: "ready",

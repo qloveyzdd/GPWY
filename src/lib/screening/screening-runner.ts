@@ -1,4 +1,10 @@
 import {
+  readActiveMarketCacheGeneration,
+} from "@/lib/refresh/market-data-store";
+import {
+  readAdjustedMarketData,
+} from "@/lib/refresh/market-data-reader";
+import {
   readDailyBarsForRefreshJob,
   readLatestSuccessfulRefreshJob,
   readRefreshJobById,
@@ -10,6 +16,7 @@ import type {
   ScreeningDailyBar,
   ScreeningResultRecord,
   ScreeningRunRecord,
+  ScreeningSkipRecord,
 } from "@/lib/screening/screening-types";
 
 export type RunDowntrendScreeningOptions = {
@@ -37,29 +44,80 @@ export function runDowntrendScreeningFromCache({
   now = new Date(),
   sourceRefreshJobId,
 }: RunDowntrendScreeningOptions = {}): ScreeningRunRecord {
-  const sourceRefreshJob = sourceRefreshJobId
-    ? readRefreshJobById(sourceRefreshJobId)
-    : readLatestSuccessfulRefreshJob();
+  const activeGeneration = readActiveMarketCacheGeneration();
+  let resolvedRefreshJobId: number;
+  let sourceMarketGenerationId: number | null = null;
+  let stockInputs: Array<{
+    tsCode: string;
+    name: string;
+    bars: ScreeningDailyBar[];
+  }>;
+  let totalStocks: number;
+  const skips: Omit<ScreeningSkipRecord, "screeningRunId">[] = [];
 
-  if (!sourceRefreshJob) {
-    throw new Error("no_successful_refresh_cache");
+  if (activeGeneration) {
+    const refreshJob =
+      (sourceRefreshJobId ? readRefreshJobById(sourceRefreshJobId) : null) ??
+      readLatestSuccessfulRefreshJob();
+
+    if (!refreshJob) {
+      throw new Error("no_refresh_job_provenance");
+    }
+
+    const marketData = readAdjustedMarketData({
+      generationId: activeGeneration.id,
+    });
+    resolvedRefreshJobId = refreshJob.id;
+    sourceMarketGenerationId = marketData.generationId;
+    stockInputs = marketData.stocks.map(({ stock, bars }) => ({
+      tsCode: stock.tsCode,
+      name: stock.name,
+      bars,
+    }));
+    skips.push(
+      ...marketData.skips.map((skip) => ({
+        tsCode: skip.tsCode,
+        reason: skip.reason,
+        availableBars: skip.availableBars,
+      })),
+    );
+    totalStocks = marketData.stocks.length + marketData.skips.length;
+  } else {
+    const sourceRefreshJob = sourceRefreshJobId
+      ? readRefreshJobById(sourceRefreshJobId)
+      : readLatestSuccessfulRefreshJob();
+
+    if (!sourceRefreshJob) {
+      throw new Error("no_successful_refresh_cache");
+    }
+
+    const stockBasics = readStockBasicsForRefreshJob(sourceRefreshJob.id);
+    const barsByTsCode = groupBarsByTsCode(
+      readDailyBarsForRefreshJob(sourceRefreshJob.id),
+    );
+    resolvedRefreshJobId = sourceRefreshJob.id;
+    stockInputs = stockBasics.map((stock) => ({
+      tsCode: stock.tsCode,
+      name: stock.name,
+      bars: barsByTsCode.get(stock.tsCode) ?? [],
+    }));
+    totalStocks = stockInputs.length;
   }
 
-  const stockBasics = readStockBasicsForRefreshJob(sourceRefreshJob.id);
-  const barsByTsCode = groupBarsByTsCode(
-    readDailyBarsForRefreshJob(sourceRefreshJob.id),
-  );
   const results: Omit<ScreeningResultRecord, "screeningRunId">[] = [];
-  let skippedCount = 0;
 
-  for (const stock of stockBasics) {
+  for (const stock of stockInputs) {
     const evaluation = evaluateDowntrendStock({
       tsCode: stock.tsCode,
-      bars: barsByTsCode.get(stock.tsCode) ?? [],
+      bars: stock.bars,
     });
 
     if (evaluation.status === "skipped") {
-      skippedCount += 1;
+      skips.push({
+        tsCode: stock.tsCode,
+        reason: evaluation.reason,
+        availableBars: evaluation.availableBars,
+      });
       continue;
     }
 
@@ -82,11 +140,13 @@ export function runDowntrendScreeningFromCache({
   }
 
   return writeScreeningRun({
-    sourceRefreshJobId: sourceRefreshJob.id,
-    totalStocks: stockBasics.length,
+    sourceRefreshJobId: resolvedRefreshJobId,
+    sourceMarketGenerationId,
+    totalStocks,
     matchedCount: results.length,
-    skippedCount,
+    skippedCount: skips.length,
     results,
+    skips,
     now,
   });
 }

@@ -72,7 +72,7 @@ export type DowntrendEvaluationResult =
 export type ScreeningRunRecord = {
   id: number;
   sourceRefreshJobId: number;
-  sourceMarketGenerationId?: number | null;
+  sourceMarketGenerationId: number | null;
   createdAt: string;
   totalStocks: number;
   matchedCount: number;
