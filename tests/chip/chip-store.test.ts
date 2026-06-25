@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  readChipPeakResultsForRun,
   readLatestChipPeakResults,
   readLatestChipPeakRun,
   writeChipPeakRun,
@@ -98,5 +99,36 @@ describe("chip store", () => {
         chipPeakRunId: run.id,
       },
     ]);
+  });
+
+  it("reads chip results from the requested run instead of the current latest run", () => {
+    useTempStore();
+    const firstRun = writeChipPeakRun({
+      screeningRunId: 5,
+      status: "succeeded",
+      totalCandidates: 1,
+      successCount: 1,
+      blockedCount: 0,
+      failedCount: 0,
+      results: [result({ tsCode: "000001.SZ" })],
+    });
+    writeChipPeakRun({
+      screeningRunId: 6,
+      status: "succeeded",
+      totalCandidates: 1,
+      successCount: 1,
+      blockedCount: 0,
+      failedCount: 0,
+      results: [
+        result({
+          screeningRunId: 6,
+          tsCode: "000002.SZ",
+        }),
+      ],
+    });
+
+    expect(
+      readChipPeakResultsForRun(firstRun.id).map((row) => row.tsCode),
+    ).toEqual(["000001.SZ"]);
   });
 });

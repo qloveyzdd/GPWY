@@ -9,6 +9,8 @@ import {
   readLatestScreeningSkips,
   readLatestScreeningResults,
   readLatestScreeningRun,
+  readScreeningResultsForRun,
+  readScreeningRunById,
   writeScreeningRun,
 } from "@/lib/screening/screening-store";
 import type { ScreeningResultRecord } from "@/lib/screening/screening-types";
@@ -69,6 +71,7 @@ describe("screening store", () => {
     });
 
     expect(readLatestScreeningRun()).toEqual(run);
+    expect(readScreeningRunById(run.id)).toEqual(run);
     expect(run.sourceMarketGenerationId).toBe(9);
     expect(readLatestScreeningResults()).toEqual([
       {
@@ -84,5 +87,27 @@ describe("screening store", () => {
         availableBars: 60,
       },
     ]);
+  });
+
+  it("reads results from the requested run instead of the current latest run", () => {
+    useTempStore();
+    const firstRun = writeScreeningRun({
+      sourceRefreshJobId: 3,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [result({ tsCode: "000001.SZ" })],
+    });
+    writeScreeningRun({
+      sourceRefreshJobId: 4,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [result({ tsCode: "000002.SZ" })],
+    });
+
+    expect(
+      readScreeningResultsForRun(firstRun.id).map((row) => row.tsCode),
+    ).toEqual(["000001.SZ"]);
   });
 });

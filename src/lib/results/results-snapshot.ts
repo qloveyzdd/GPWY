@@ -1,8 +1,11 @@
-import { readLatestChipPeakResults, readLatestChipPeakRun } from "@/lib/chip/chip-store";
+import {
+  readChipPeakResultsForRun,
+  readLatestChipPeakRun,
+} from "@/lib/chip/chip-store";
 import type { ChipPeakResultRecord } from "@/lib/chip/chip-types";
 import {
-  readLatestScreeningResults,
   readLatestScreeningRun,
+  readScreeningResultsForRun,
 } from "@/lib/screening/screening-store";
 import type { ScreeningResultRecord } from "@/lib/screening/screening-types";
 import type {
@@ -83,7 +86,7 @@ export function readLatestResultsSnapshot(): ResultsSnapshot {
     };
   }
 
-  const screeningResults = readLatestScreeningResults();
+  const screeningResults = readScreeningResultsForRun(screeningRun.id);
 
   if (screeningResults.length === 0) {
     return {
@@ -100,7 +103,9 @@ export function readLatestResultsSnapshot(): ResultsSnapshot {
 
   const chipPeakRun = readLatestChipPeakRun();
   const canUseChipRun = chipPeakRun?.screeningRunId === screeningRun.id;
-  const chipResults = canUseChipRun ? readLatestChipPeakResults() : [];
+  const chipResults = canUseChipRun
+    ? readChipPeakResultsForRun(chipPeakRun.id)
+    : [];
   const chipByCode = new Map(
     chipResults.map((result) => [result.tsCode, result] as const),
   );

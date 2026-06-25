@@ -8,7 +8,7 @@ import type {
   ChartSnapshot,
 } from "@/lib/results/chart-types";
 import { calculateMovingAverageSeries } from "@/lib/screening/indicators";
-import { readLatestScreeningRun } from "@/lib/screening/screening-store";
+import { readScreeningRunById } from "@/lib/screening/screening-store";
 import type { ScreeningDailyBar } from "@/lib/screening/screening-types";
 
 function toChartBar(bar: ScreeningDailyBar): ChartDailyBar {
@@ -58,16 +58,27 @@ function unavailable(unavailableReason: ChartUnavailableReason): ChartSnapshot {
 
 export function readLatestChartSnapshot(tsCode: string): ChartSnapshot {
   const normalizedTsCode = tsCode.trim().toUpperCase();
-  const screeningRun = readLatestScreeningRun();
+  const resultsSnapshot = readLatestResultsSnapshot();
 
-  if (!screeningRun) {
+  if (resultsSnapshot.status === "unavailable") {
     return unavailable("no_screening_run");
   }
 
-  const resultsSnapshot = readLatestResultsSnapshot();
-
   if (resultsSnapshot.status !== "ready") {
     return unavailable("stock_not_in_latest_results");
+  }
+  const screeningRunId = resultsSnapshot.sourceScreeningRunId;
+
+  if (screeningRunId === null) {
+    return unavailable("no_screening_run");
+  }
+
+  const screeningRun = readScreeningRunById(
+    screeningRunId,
+  );
+
+  if (!screeningRun) {
+    return unavailable("no_screening_run");
   }
 
   const row = resultsSnapshot.rows.find(

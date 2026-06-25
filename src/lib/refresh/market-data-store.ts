@@ -701,13 +701,13 @@ export function activateMarketCacheGeneration(
         active_generation_id = excluded.active_generation_id
       `,
     ).run(generationId);
-    db.exec("commit");
-
     const activeGeneration = readGenerationFromDatabase(db, generationId);
 
     if (!activeGeneration) {
       throw new Error("market_generation_activation_failed");
     }
+
+    db.exec("commit");
 
     return activeGeneration;
   } catch (error) {

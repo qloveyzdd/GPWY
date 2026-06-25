@@ -302,13 +302,9 @@ export function readLatestChipPeakRun(): ChipPeakRunRecord | null {
   }
 }
 
-export function readLatestChipPeakResults(): ChipPeakResultRecord[] {
-  const latestRun = readLatestChipPeakRun();
-
-  if (!latestRun) {
-    return [];
-  }
-
+export function readChipPeakResultsForRun(
+  chipPeakRunId: number,
+): ChipPeakResultRecord[] {
   const db = openDatabase();
 
   try {
@@ -317,21 +313,21 @@ export function readLatestChipPeakResults(): ChipPeakResultRecord[] {
         `
         select *
         from chip_peak_results
-        where chip_peak_run_id = ?
-        order by ts_code asc
-        `,
+          where chip_peak_run_id = ?
+          order by ts_code asc
+          `,
       )
-      .all(latestRun.id) as ChipPeakResultRow[];
+      .all(chipPeakRunId) as ChipPeakResultRow[];
     const levelRows = db
       .prepare(
         `
         select *
         from chip_peak_levels
-        where chip_peak_run_id = ?
-        order by ts_code asc, peak_rank asc
-        `,
+          where chip_peak_run_id = ?
+          order by ts_code asc, peak_rank asc
+          `,
       )
-      .all(latestRun.id) as ChipPeakLevelRow[];
+      .all(chipPeakRunId) as ChipPeakLevelRow[];
     const levelsByCode = new Map<string, ChipPeakLevel[]>();
 
     for (const level of levelRows) {
@@ -368,4 +364,10 @@ export function readLatestChipPeakResults(): ChipPeakResultRecord[] {
   } finally {
     db.close();
   }
+}
+
+export function readLatestChipPeakResults(): ChipPeakResultRecord[] {
+  const latestRun = readLatestChipPeakRun();
+
+  return latestRun ? readChipPeakResultsForRun(latestRun.id) : [];
 }

@@ -316,13 +316,25 @@ export function readLatestScreeningRun(): ScreeningRunRecord | null {
   }
 }
 
-export function readLatestScreeningResults(): ScreeningResultRecord[] {
-  const latestRun = readLatestScreeningRun();
+export function readScreeningRunById(
+  screeningRunId: number,
+): ScreeningRunRecord | null {
+  const db = openDatabase();
 
-  if (!latestRun) {
-    return [];
+  try {
+    const row = db
+      .prepare("select * from screening_runs where id = ?")
+      .get(screeningRunId) as ScreeningRunRow | undefined;
+
+    return row ? mapRun(row) : null;
+  } finally {
+    db.close();
   }
+}
 
+export function readScreeningResultsForRun(
+  screeningRunId: number,
+): ScreeningResultRecord[] {
   const db = openDatabase();
 
   try {
@@ -336,11 +348,17 @@ export function readLatestScreeningResults(): ScreeningResultRecord[] {
           order by current_high_ratio asc, ts_code asc
           `,
         )
-        .all(latestRun.id) as ScreeningResultRow[]
+        .all(screeningRunId) as ScreeningResultRow[]
     ).map(mapResult);
   } finally {
     db.close();
   }
+}
+
+export function readLatestScreeningResults(): ScreeningResultRecord[] {
+  const latestRun = readLatestScreeningRun();
+
+  return latestRun ? readScreeningResultsForRun(latestRun.id) : [];
 }
 
 export function readLatestScreeningSkips(): ScreeningSkipRecord[] {
