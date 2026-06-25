@@ -40,7 +40,11 @@ async function handleQuery(message) {
         [
           process.pid,
           observedActive,
-          ...message.fields.map((field) => message.params?.[field] ?? null),
+          ...message.fields.map((field) =>
+            field === "encoding"
+              ? process.env.PYTHONIOENCODING
+              : (message.params?.[field] ?? null),
+          ),
         ],
       ],
     },

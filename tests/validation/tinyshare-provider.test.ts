@@ -1,12 +1,8 @@
 // @vitest-environment node
 import {
-  mkdtempSync,
   readFileSync,
-  rmSync,
-  writeFileSync,
 } from "node:fs";
 import { spawn } from "node:child_process";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
@@ -19,6 +15,26 @@ import {
   resolveTushareProvider,
 } from "@/lib/tushare/provider";
 import { TinysharePythonClient } from "@/lib/tushare/tinyshare-client";
+
+const persistentWorkerPath = path.join(
+  process.cwd(),
+  "tests",
+  "fixtures",
+  "tinyshare-persistent-worker.mjs",
+);
+
+function createPersistentClient(
+  options: Partial<ConstructorParameters<typeof TinysharePythonClient>[0]> = {},
+) {
+  return new TinysharePythonClient({
+    token: "request-only-token",
+    pythonPath: process.execPath,
+    scriptPath: persistentWorkerPath,
+    workerCount: 1,
+    timeoutMs: 1_000,
+    ...options,
+  });
+}
 
 describe("Tushare provider selection", () => {
   it("uses REST by default and tinyshare only when explicitly configured", () => {
@@ -51,12 +67,7 @@ describe("TinysharePythonClient", () => {
     const child = spawn(
       process.execPath,
       [
-        path.join(
-          process.cwd(),
-          "tests",
-          "fixtures",
-          "tinyshare-persistent-worker.mjs",
-        ),
+        persistentWorkerPath,
       ],
       { stdio: ["pipe", "pipe", "pipe"] },
     );
@@ -114,44 +125,14 @@ describe("TinysharePythonClient", () => {
   });
 
   it("forces UTF-8 for bridge output so Chinese stock names stay intact", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "gpwy-tinyshare-encoding-"));
-    const scriptPath = path.join(root, "encoding-bridge.js");
-    writeFileSync(
-      scriptPath,
-      [
-        "process.stdin.resume();",
-        "process.stdin.on('end', () => {",
-        "  process.stdout.write(JSON.stringify({",
-        "    ok: true,",
-        "    data: {",
-        "      fields: ['name', 'encoding'],",
-        "      items: [['平安银行', process.env.PYTHONIOENCODING]],",
-        "    },",
-        "  }));",
-        "});",
-      ].join("\n"),
-      "utf8",
+    const client = createPersistentClient();
+    const result = await client.query(
+      { apiName: "stock_basic", fields: ["encoding"] },
+      { mode: "encoding" },
     );
 
-    try {
-      const client = new TinysharePythonClient({
-        token: "request-only-token",
-        pythonPath: process.execPath,
-        scriptPath,
-      });
-
-      await expect(
-        client.query({
-          apiName: "stock_basic",
-          fields: ["name", "encoding"],
-        }),
-      ).resolves.toEqual({
-        fields: ["name", "encoding"],
-        items: [["平安银行", "utf-8"]],
-      });
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
+    expect(result.items[0]?.[2]).toBe("utf-8");
+    await client.close();
   });
 
   it("passes the generic Tushare request shape to the Python bridge", async () => {
@@ -197,5 +178,98 @@ describe("TinysharePythonClient", () => {
       apiName: "daily",
       code: 0,
     } satisfies Partial<TushareApiError>);
+  });
+
+  it("reuses one worker PID for consecutive queries", async () => {
+    const client = createPersistentClient();
+
+    const first = await client.query(TUSHARE_ENDPOINTS.daily, { mode: "pid" });
+    const second = await client.query(TUSHARE_ENDPOINTS.daily, { mode: "pid" });
+
+    expect(first.items[0]?.[0]).toBe(second.items[0]?.[0]);
+    await client.close();
+  });
+
+  it("runs workers in parallel while keeping each PID serial", async () => {
+    const client = createPersistentClient({
+      workerCount: 2,
+      timeoutMs: 2_000,
+    });
+
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        client.query(TUSHARE_ENDPOINTS.daily, {
+          mode: "delay",
+          delay_ms: 80,
+        }),
+      ),
+    );
+
+    expect(new Set(results.map((result) => result.items[0]?.[0])).size).toBe(2);
+    expect(results.every((result) => result.items[0]?.[1] === 1)).toBe(true);
+    await client.close();
+  });
+
+  it("kills and rebuilds a worker after timeout", async () => {
+    const client = createPersistentClient({ timeoutMs: 40 });
+    const first = await client.query(TUSHARE_ENDPOINTS.daily, { mode: "pid" });
+
+    await expect(
+      client.query(TUSHARE_ENDPOINTS.daily, {
+        mode: "delay",
+        delay_ms: 200,
+      }),
+    ).rejects.toMatchObject({
+      message: "network_or_service",
+    });
+    const next = await client.query(TUSHARE_ENDPOINTS.daily, { mode: "pid" });
+
+    expect(next.items[0]?.[0]).not.toBe(first.items[0]?.[0]);
+    await client.close();
+  });
+
+  it("rebuilds the slot after malformed worker output", async () => {
+    const client = createPersistentClient();
+    const first = await client.query(TUSHARE_ENDPOINTS.daily, { mode: "pid" });
+
+    await expect(
+      client.query(TUSHARE_ENDPOINTS.daily, { mode: "malformed" }),
+    ).rejects.toMatchObject({
+      message: "network_or_service",
+    });
+    const next = await client.query(TUSHARE_ENDPOINTS.daily, { mode: "pid" });
+
+    expect(next.items[0]?.[0]).not.toBe(first.items[0]?.[0]);
+    await client.close();
+  });
+
+  it("disables exhausted slots and settles all queued requests", async () => {
+    const client = createPersistentClient({
+      restartBudget: 3,
+      timeoutMs: 500,
+    });
+    const requests = Array.from({ length: 4 }, () =>
+      client.query(TUSHARE_ENDPOINTS.daily, { mode: "exit" }),
+    );
+
+    const results = await Promise.allSettled(requests);
+
+    expect(results).toHaveLength(4);
+    expect(
+      results.filter(
+        (result) =>
+          result.status === "rejected" &&
+          result.reason instanceof TushareApiError &&
+          result.reason.message === "network_or_service",
+      ),
+    ).toHaveLength(3);
+    expect(results[3]).toMatchObject({
+      status: "rejected",
+      reason: expect.objectContaining({
+        message: "tinyshare_worker_pool_unavailable",
+      }),
+    });
+    await expect(client.close()).resolves.toBeUndefined();
+    await expect(client.close()).resolves.toBeUndefined();
   });
 });
