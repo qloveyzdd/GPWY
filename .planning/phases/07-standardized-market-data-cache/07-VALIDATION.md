@@ -1,7 +1,7 @@
 ---
 phase: 7
 slug: standardized-market-data-cache
-status: draft
+status: approved
 nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-25
@@ -56,7 +56,7 @@ created: 2026-06-25
 | 07-03-02 | 03 | 3 | DATA-08 | T-07-02 | Exactly 60 paired market dates are required before activation | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/bootstrap-market-data.test.ts tests/refresh/market-data-store.test.ts` | ❌ W0 | ⬜ pending |
 | 07-03-03 | 03 | 3 | DATA-08 | T-07-02, T-07-03 | Failure deletes partial generation and success immediately screens | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/bootstrap-market-data.test.ts tests/refresh/refresh-runner.test.ts tests/screening/screening-runner.test.ts` | partial | ⬜ pending |
 | 07-04-01 | 04 | 4 | DATA-09 | T-07-01 | Cache source/status contains no secret or database path | component | `D:\NodeJS\npm.cmd run test -- --run tests/ui/status-workspace.test.tsx tests/ui/results-table.test.tsx` | partial | ⬜ pending |
-| 07-04-02 | 04 | 4 | DATA-09 | T-07-02 | Legacy fallback exists only before normalized activation | integration | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/refresh-runner.test.ts tests/screening/screening-runner.test.ts tests/results/results-snapshot.test.ts tests/results/chart-data.test.ts tests/ui/status-workspace.test.tsx tests/ui/results-table.test.tsx` | partial | ⬜ pending |
+| 07-04-02 | 04 | 4 | DATA-09 | T-07-02 | Legacy fallback exists only before normalized activation | integration | `D:\NodeJS\npm.cmd run test -- --run tests/results/results-snapshot.test.ts tests/ui/status-workspace.test.tsx tests/ui/results-table.test.tsx` | partial | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -89,4 +89,4 @@ created: 2026-06-25
 - [x] Focused feedback latency target is below 15 seconds.
 - [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** pending plan checker
+**Approval:** approved 2026-06-25

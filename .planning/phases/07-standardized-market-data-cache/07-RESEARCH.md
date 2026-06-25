@@ -367,22 +367,19 @@ Source: Existing project formula, reorganized so raw data remains canonical.
 </sota_updates>
 
 <open_questions>
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **How should full-market request completion be persisted?**
+1. **How should full-market request completion be persisted? — RESOLVED**
    - What we know: activation requires paired success for 60 quote/factor dates.
-   - What's unclear: whether per-date completion rows are useful before Phase 9's detailed progress model.
-   - Recommendation: include a minimal generation-date manifest in Phase 7 because validation cannot safely infer provider success solely from row counts; Phase 9 can extend it with richer progress fields.
+   - Resolution: include a minimal generation-date manifest in Phase 7 because validation cannot safely infer provider success solely from row counts; Phase 9 can extend it with richer progress fields.
 
-2. **Should WAL mode be enabled explicitly?**
+2. **Should WAL mode be enabled explicitly? — RESOLVED**
    - What we know: single-host deployment and concurrent reads during bootstrap fit WAL well.
-   - What's unclear: the existing database may currently use the default rollback journal and tests do not assert journal mode.
-   - Recommendation: planner may enable WAL through centralized database initialization if verified across current tests; do not make WAL a requirement for correctness.
+   - Resolution: do not make WAL a Phase 7 correctness requirement. Preserve the current journal behavior unless centralized initialization can enable WAL without changing existing tests; short transactions remain the required concurrency protection.
 
-3. **How are “currently tradable” stocks identified?**
+3. **How are “currently tradable” stocks identified? — RESOLVED**
    - What we know: stock statuses L/P/D must be retained.
-   - What's unclear: whether Tushare `L` alone is sufficient when a listed stock is temporarily suspended from daily quotes.
-   - Recommendation: preserve provider status exactly; screening should select `L`, then naturally skip stocks lacking 60 usable bars.
+   - Resolution: preserve provider status exactly; screening selects `L`, then naturally skips stocks lacking 60 usable bars.
 </open_questions>
 
 ## Validation Architecture
