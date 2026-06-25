@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: 增量刷新与筹码分布对比
-status: executing
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-06-25T23:42:13.507Z"
+status: verifying
+stopped_at: Completed 08-04-PLAN.md
+last_updated: "2026-06-25T23:50:39.903Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 7
-  percent: 20
+  completed_plans: 8
+  percent: 40
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-26)
 
 Phase: 08 (Controlled Provider Concurrency) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-25
 
 ## Performance Metrics
@@ -67,6 +67,7 @@ Last activity: 2026-06-25
 | Phase 08 P01 | 10 min | 3 tasks | 10 files |
 | Phase 08 P02 | 6 min | 2 tasks | 4 files |
 | Phase 08 P03 | 5 min | 2 tasks | 8 files |
+| Phase 08 P04 | 9 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase 08]: 全池禁用后以 tinyshare_worker_pool_unavailable 终止排队请求。 — 该错误保持非重试分类，防止永久失效池继续退避。
 - [Phase 08]: 所有 createTushareClient 调用通过同一 globalThis runtime 获取共享 scheduler。 — 避免 Next.js 模块重复加载后叠加独立并发池。
 - [Phase 08]: tinyshare scheduler 上限取全局并发上限和 worker 数的较小值。 — worker 物理容量计入全局预算，不形成额外并发额度。
+- [Phase 08]: 工作流只并行提交独立任务，真实启动上限和重试完全由共享 scheduler 管理。 — 避免私有并发池和重试预算叠加，同时让 fan-out 真正缩短刷新耗时。
+- [Phase 08]: bootstrap 等待全部日期任务 settle 后才清理 building generation。 — 防止失败清理后仍有迟到任务写入已删除 generation。
 
 ### Pending Todos
 
@@ -121,8 +124,8 @@ No milestone blockers. Tinyshare worker concurrency safety must be validated wit
 
 ## Session Continuity
 
-Last session: 2026-06-25T23:42:13.501Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-06-25T23:50:39.895Z
+Stopped at: Completed 08-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

@@ -12,7 +12,7 @@ v2.0 先修正行情数据模型和复权口径，再建立统一的受控请求
 ## Phases
 
 - [x] **Phase 7: Standardized Market Data Cache** — 建立原始日线与复权因子标准化缓存，并安全完成首次 60 日引导。 (completed 2026-06-26)
-- [ ] **Phase 8: Controlled Provider Concurrency** — 建立统一限流调度器和可复用 tinyshare worker。
+- [x] **Phase 8: Controlled Provider Concurrency** — 建立统一限流调度器和可复用 tinyshare worker。 (completed 2026-06-25)
 - [ ] **Phase 9: Incremental Refresh Workflow** — 交付可恢复的增量刷新、阶段进度和运维全量重建。
 - [ ] **Phase 10: Dual-Day Chip Distribution** — 保存并增量补齐最新交易日与前一交易日的完整筹码分布。
 - [ ] **Phase 11: Distribution Comparison Experience** — 删除表格筹码峰并交付两个独立筹码分布图。
@@ -106,7 +106,7 @@ v2.0 先修正行情数据模型和复权口径，再建立统一的受控请求
 | Phase | Requirements | Status | Completed |
 |-------|--------------|--------|-----------|
 | 7. Standardized Market Data Cache | 4/4 | Complete    | 2026-06-26 |
-| 8. Controlled Provider Concurrency | 3/4 | In Progress|  |
+| 8. Controlled Provider Concurrency | 4/4 | Complete   | 2026-06-25 |
 | 9. Incremental Refresh Workflow | 8 | Not started | — |
 | 10. Dual-Day Chip Distribution | 6 | Not started | — |
 | 11. Distribution Comparison Experience | 6 | Not started | — |
