@@ -128,9 +128,9 @@ describe("market data reader", () => {
     expect(firstStock?.bars).toHaveLength(60);
     expect(firstStock?.bars[0]).toMatchObject({
       tradeDate: "20260002",
-      close: (2.5 * 2) / 61,
       vol: 1002,
     });
+    expect(firstStock?.bars[0]?.close).toBeCloseTo((2.5 * 2) / 61, 12);
     expect(firstStock?.bars.at(-1)?.close).toBe(61.5);
     expect(secondStock?.bars[0]?.close).toBeCloseTo(
       (101.5 * 1) / 60,
