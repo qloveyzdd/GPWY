@@ -23,9 +23,17 @@ export type TushareDataTable = {
   items: unknown[][];
 };
 
+export type ProviderRequestPriority = "validation" | "market" | "chip";
+
+export type TushareQueryOptions = {
+  priority?: ProviderRequestPriority;
+  signal?: AbortSignal;
+};
+
 export type TushareClientLike = {
   query: (
     endpoint: TushareEndpoint,
     params?: Record<string, unknown>,
+    options?: TushareQueryOptions,
   ) => Promise<TushareDataTable>;
 };

@@ -18,6 +18,23 @@ const envSchema = z.object({
   PYTHON_BIN: optionalSecret,
 });
 
+const providerRuntimeEnvSchema = z.object({
+  TUSHARE_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(8),
+  TUSHARE_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(300_000)
+    .default(60_000),
+  TINYSHARE_WORKER_COUNT: z.coerce.number().int().min(1).max(8).default(2),
+});
+
+export type ProviderRuntimeConfig = {
+  maxConcurrency: number;
+  requestTimeoutMs: number;
+  tinyshareWorkerCount: number;
+};
+
 export type ConfigIssueCategory = "missing_config";
 
 export type ConfigIssue = {
@@ -74,6 +91,22 @@ export function loadServerConfig(
     },
     provider: parsed.TUSHARE_PROVIDER ?? "rest",
     issues,
+  };
+}
+
+export function readProviderRuntimeConfig(
+  env: Partial<Record<string, string | undefined>> = process.env,
+): ProviderRuntimeConfig {
+  const parsed = providerRuntimeEnvSchema.parse({
+    TUSHARE_MAX_CONCURRENCY: env.TUSHARE_MAX_CONCURRENCY,
+    TUSHARE_REQUEST_TIMEOUT_MS: env.TUSHARE_REQUEST_TIMEOUT_MS,
+    TINYSHARE_WORKER_COUNT: env.TINYSHARE_WORKER_COUNT,
+  });
+
+  return {
+    maxConcurrency: parsed.TUSHARE_MAX_CONCURRENCY,
+    requestTimeoutMs: parsed.TUSHARE_REQUEST_TIMEOUT_MS,
+    tinyshareWorkerCount: parsed.TINYSHARE_WORKER_COUNT,
   };
 }
 

@@ -14,6 +14,9 @@ v1.0 已完成 37 项需求和浏览器冒烟验证。v2.0 已完成标准化行
 APP_PASSWORD=your-access-password
 TUSHARE_TOKEN=your-tushare-or-tinyshare-token
 TUSHARE_PROVIDER=rest
+TUSHARE_MAX_CONCURRENCY=8
+TUSHARE_REQUEST_TIMEOUT_MS=60000
+TINYSHARE_WORKER_COUNT=2
 REFRESH_DB_PATH=.data/refresh.sqlite
 ```
 
@@ -22,6 +25,9 @@ REFRESH_DB_PATH=.data/refresh.sqlite
 - `APP_PASSWORD`：个人访问密码，用于保护页面和 API。
 - `TUSHARE_TOKEN`：Tushare token；使用 tinyshare 时填写 tinyshare 授权码。
 - `TUSHARE_PROVIDER`：`rest` 或 `tinyshare`。
+- `TUSHARE_MAX_CONCURRENCY`：provider 请求硬并发上限，默认 `8`，允许 `1–32`。
+- `TUSHARE_REQUEST_TIMEOUT_MS`：单次 provider 请求超时，默认 `60000` 毫秒。
+- `TINYSHARE_WORKER_COUNT`：tinyshare 常驻 Python worker 数，默认 `2`，允许 `1–8`，且不会突破 provider 硬并发上限。
 - `REFRESH_DB_PATH`：SQLite 数据库路径，默认可用 `.data/refresh.sqlite`。
 
 使用 tinyshare 前安装 Python bridge 依赖：
