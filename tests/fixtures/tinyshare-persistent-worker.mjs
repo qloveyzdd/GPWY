@@ -71,6 +71,16 @@ lines.on("line", (line) => {
       process.stdin.pause();
       return;
     }
+    if (message.token === "network-init") {
+      emit({
+        type: "error",
+        category: "network_or_service",
+        error_type: "ConnectionError",
+      });
+      lines.close();
+      process.stdin.pause();
+      return;
+    }
     initialized = true;
     emit({ type: "ready" });
     return;

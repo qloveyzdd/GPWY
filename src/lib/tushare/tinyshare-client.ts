@@ -229,7 +229,7 @@ export class TinysharePythonClient implements TushareClientLike {
     }
 
     for (const slot of this.slots) {
-      if (slot.state === "new") {
+      if (slot.state === "new" && this.hasQueuedRequests()) {
         this.startWorker(slot);
       }
       if (slot.state !== "idle") {
@@ -470,6 +470,10 @@ export class TinysharePythonClient implements TushareClientLike {
       }
     }
     return null;
+  }
+
+  private hasQueuedRequests(): boolean {
+    return this.queue.some((request) => !request.settled);
   }
 
   private removeQueuedRequest(request: PendingRequest): void {

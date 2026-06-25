@@ -162,6 +162,23 @@ describe("TinysharePythonClient", () => {
     await client.close();
   });
 
+  it("spends restart budget only when a transient init failure has a request", async () => {
+    const client = createPersistentClient({
+      token: "network-init",
+      restartBudget: 3,
+    });
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(client.query(TUSHARE_ENDPOINTS.daily)).rejects.toMatchObject({
+        message: "network_or_service",
+      });
+    }
+    await expect(client.query(TUSHARE_ENDPOINTS.daily)).rejects.toMatchObject({
+      message: "tinyshare_worker_pool_unavailable",
+    });
+    await client.close();
+  });
+
   it("passes the generic Tushare request shape to the Python bridge", async () => {
     const runner = vi.fn(async () => ({
       fields: TUSHARE_ENDPOINTS.daily.fields,
