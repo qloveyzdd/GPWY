@@ -6,14 +6,16 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TushareApiError, TushareClient } from "@/lib/tushare/client";
+import { TushareApiError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
 import {
   createTushareClient,
   resolveTushareProvider,
 } from "@/lib/tushare/provider";
+import { resetProviderRuntimeForTests } from "@/lib/tushare/provider-runtime";
+import { ScheduledTushareClient } from "@/lib/tushare/scheduled-client";
 import { TinysharePythonClient } from "@/lib/tushare/tinyshare-client";
 
 const persistentWorkerPath = path.join(
@@ -22,6 +24,10 @@ const persistentWorkerPath = path.join(
   "fixtures",
   "tinyshare-persistent-worker.mjs",
 );
+
+afterEach(async () => {
+  await resetProviderRuntimeForTests();
+});
 
 function createPersistentClient(
   options: Partial<ConstructorParameters<typeof TinysharePythonClient>[0]> = {},
@@ -37,7 +43,7 @@ function createPersistentClient(
 }
 
 describe("Tushare provider selection", () => {
-  it("uses REST by default and tinyshare only when explicitly configured", () => {
+  it("uses REST by default and tinyshare only when explicitly configured", async () => {
     expect(resolveTushareProvider({})).toBe("rest");
     expect(resolveTushareProvider({ TUSHARE_PROVIDER: "rest" })).toBe("rest");
     expect(resolveTushareProvider({ TUSHARE_PROVIDER: "tinyshare" })).toBe(
@@ -45,14 +51,15 @@ describe("Tushare provider selection", () => {
     );
 
     expect(createTushareClient("test-token", {})).toBeInstanceOf(
-      TushareClient,
+      ScheduledTushareClient,
     );
+    await resetProviderRuntimeForTests();
     expect(
       createTushareClient("test-token", {
         TUSHARE_PROVIDER: "tinyshare",
         PYTHON_BIN: "python",
       }),
-    ).toBeInstanceOf(TinysharePythonClient);
+    ).toBeInstanceOf(ScheduledTushareClient);
   });
 });
 
