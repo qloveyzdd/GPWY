@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  readLatestScreeningSkips,
   readLatestScreeningResults,
   readLatestScreeningRun,
   writeScreeningRun,
@@ -52,18 +53,35 @@ describe("screening store", () => {
 
     const run = writeScreeningRun({
       sourceRefreshJobId: 3,
+      sourceMarketGenerationId: 9,
       totalStocks: 2,
       matchedCount: 1,
       skippedCount: 1,
       results: [result()],
+      skips: [
+        {
+          tsCode: "000002.SZ",
+          reason: "missing_adjustment_factor",
+          availableBars: 60,
+        },
+      ],
       now: new Date("2026-06-23T00:00:00.000Z"),
     });
 
     expect(readLatestScreeningRun()).toEqual(run);
+    expect(run.sourceMarketGenerationId).toBe(9);
     expect(readLatestScreeningResults()).toEqual([
       {
         ...result(),
         screeningRunId: run.id,
+      },
+    ]);
+    expect(readLatestScreeningSkips()).toEqual([
+      {
+        screeningRunId: run.id,
+        tsCode: "000002.SZ",
+        reason: "missing_adjustment_factor",
+        availableBars: 60,
       },
     ]);
   });

@@ -6,13 +6,24 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  activateMarketCacheGeneration,
+  createMarketCacheGeneration,
+  upsertMarketAdjustmentFactors,
+  upsertMarketDailyQuotes,
+  upsertMarketGenerationDate,
+  upsertMarketStocks,
+} from "@/lib/refresh/market-data-store";
+import {
   completeRefreshJob,
   startRefreshJob,
   writeDailyBars,
   writeStockBasics,
 } from "@/lib/refresh/refresh-store";
 import { runDowntrendScreeningFromCache } from "@/lib/screening/screening-runner";
-import { readLatestScreeningResults } from "@/lib/screening/screening-store";
+import {
+  readLatestScreeningResults,
+  readLatestScreeningSkips,
+} from "@/lib/screening/screening-store";
 import type { DailyBarRecord } from "@/lib/refresh/refresh-types";
 
 const tempRoots: string[] = [];
@@ -45,6 +56,20 @@ function makeBars(tsCode: string, count: number): DailyBarRecord[] {
       vol: 1000 + index,
     };
   });
+}
+
+function createActiveGeneration() {
+  const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
+
+  for (let index = 1; index <= 60; index += 1) {
+    upsertMarketGenerationDate(generation.id, {
+      tradeDate: `2026${String(index).padStart(4, "0")}`,
+      dailyStatus: "succeeded",
+      factorStatus: "succeeded",
+    });
+  }
+
+  return activateMarketCacheGeneration(generation.id);
 }
 
 describe("screening runner", () => {
@@ -105,5 +130,59 @@ describe("screening runner", () => {
     expect(() => runDowntrendScreeningFromCache()).toThrow(
       "no_successful_refresh_cache",
     );
+  });
+
+  it("uses the active normalized generation and persists structured skips", () => {
+    useTempStore();
+    const refreshJob = startRefreshJob().job;
+    const generation = createActiveGeneration();
+    const matchedBars = makeBars("000001.SZ", 60);
+    const missingFactorBars = makeBars("000002.SZ", 60);
+
+    upsertMarketStocks([
+      {
+        tsCode: "000001.SZ",
+        name: "平安银行",
+        market: "主板",
+        listStatus: "L",
+      },
+      {
+        tsCode: "000002.SZ",
+        name: "缺复权因子",
+        market: "主板",
+        listStatus: "L",
+      },
+    ]);
+    upsertMarketDailyQuotes(generation.id, [
+      ...matchedBars,
+      ...missingFactorBars,
+    ]);
+    upsertMarketAdjustmentFactors(
+      generation.id,
+      matchedBars.map((bar) => ({
+        tsCode: bar.tsCode,
+        tradeDate: bar.tradeDate,
+        adjFactor: 1,
+      })),
+    );
+
+    const run = runDowntrendScreeningFromCache({
+      sourceRefreshJobId: refreshJob.id,
+      now: new Date("2026-06-26T00:00:00.000Z"),
+    });
+
+    expect(run.sourceRefreshJobId).toBe(refreshJob.id);
+    expect(run.sourceMarketGenerationId).toBe(generation.id);
+    expect(run.totalStocks).toBe(2);
+    expect(run.matchedCount).toBe(1);
+    expect(run.skippedCount).toBe(1);
+    expect(readLatestScreeningSkips()).toEqual([
+      {
+        screeningRunId: run.id,
+        tsCode: "000002.SZ",
+        reason: "missing_adjustment_factor",
+        availableBars: 60,
+      },
+    ]);
   });
 });

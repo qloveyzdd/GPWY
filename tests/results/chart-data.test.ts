@@ -7,6 +7,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { writeChipPeakRun } from "@/lib/chip/chip-store";
 import {
+  activateMarketCacheGeneration,
+  createMarketCacheGeneration,
+  upsertMarketAdjustmentFactors,
+  upsertMarketDailyQuotes,
+  upsertMarketGenerationDate,
+} from "@/lib/refresh/market-data-store";
+import {
   completeRefreshJob,
   startRefreshJob,
   writeDailyBars,
@@ -59,6 +66,20 @@ function writeRefreshWithBars(tsCode: string, bars: DailyBarRecord[]) {
   });
 
   return refreshJob;
+}
+
+function createActiveGeneration() {
+  const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
+
+  for (let index = 1; index <= 60; index += 1) {
+    upsertMarketGenerationDate(generation.id, {
+      tradeDate: `2026${String(index).padStart(4, "0")}`,
+      dailyStatus: "succeeded",
+      factorStatus: "succeeded",
+    });
+  }
+
+  return activateMarketCacheGeneration(generation.id);
 }
 
 describe("chart data snapshot", () => {
@@ -209,5 +230,96 @@ describe("chart data snapshot", () => {
     }
     expect(snapshot.overlays.chipPeakState).toBe("missing");
     expect(snapshot.overlays.chipPeaks).toEqual([]);
+  });
+
+  it("reads chart bars from the screening generation instead of legacy bars", () => {
+    useTempStore();
+    const legacy = writeRefreshWithBars(
+      "000001.SZ",
+      makeBars("000001.SZ", 60, 1000),
+    );
+    const generation = createActiveGeneration();
+    const normalizedBars = makeBars("000001.SZ", 65);
+
+    upsertMarketDailyQuotes(generation.id, normalizedBars);
+    upsertMarketAdjustmentFactors(
+      generation.id,
+      normalizedBars.map((bar) => ({
+        tsCode: bar.tsCode,
+        tradeDate: bar.tradeDate,
+        adjFactor: 1,
+      })),
+    );
+    writeScreeningRun({
+      sourceRefreshJobId: legacy.id,
+      sourceMarketGenerationId: generation.id,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [
+        {
+          tsCode: "000001.SZ",
+          name: "平安银行",
+          latestTradeDate: "20260065",
+          currentPrice: 36,
+          intervalHigh: 80,
+          intervalHighTradeDate: "20260055",
+          intervalHighSource: "swing_high",
+          currentHighRatio: 0.45,
+          drawdownPct: 0.55,
+          ma20: 45,
+          ma60: 65,
+          ma20Slope: -1,
+        },
+      ],
+    });
+
+    const snapshot = readLatestChartSnapshot("000001.SZ");
+
+    expect(snapshot.status).toBe("ready");
+    if (snapshot.status !== "ready") {
+      throw new Error("expected ready chart snapshot");
+    }
+    expect(snapshot.bars[0]?.tradeDate).toBe("20260006");
+    expect(snapshot.bars[0]?.close).toBe(95);
+  });
+
+  it("does not fall back to legacy bars when normalized factors are missing", () => {
+    useTempStore();
+    const legacy = writeRefreshWithBars(
+      "000001.SZ",
+      makeBars("000001.SZ", 60, 1000),
+    );
+    const generation = createActiveGeneration();
+    const normalizedBars = makeBars("000001.SZ", 60);
+
+    upsertMarketDailyQuotes(generation.id, normalizedBars);
+    writeScreeningRun({
+      sourceRefreshJobId: legacy.id,
+      sourceMarketGenerationId: generation.id,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [
+        {
+          tsCode: "000001.SZ",
+          name: "平安银行",
+          latestTradeDate: "20260060",
+          currentPrice: 41,
+          intervalHigh: 90,
+          intervalHighTradeDate: "20260051",
+          intervalHighSource: "swing_high",
+          currentHighRatio: 41 / 90,
+          drawdownPct: 1 - 41 / 90,
+          ma20: 50.5,
+          ma60: 70.5,
+          ma20Slope: -1,
+        },
+      ],
+    });
+
+    expect(() => readLatestChartSnapshot("000001.SZ")).toThrow(
+      "missing_adjustment_factor",
+    );
   });
 });
