@@ -4,9 +4,9 @@ milestone: v2.0
 milestone_name: 增量刷新与筹码分布对比
 status: planning
 last_updated: "2026-06-25T13:08:30.922Z"
-last_activity: 2026-06-25
+last_activity: 2026-06-25 — v2.0 roadmap approved
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,18 +17,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-24)
+See: .planning/PROJECT.md (updated 2026-06-25)
 
-**Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到对应筹码峰位置。
+**Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到对应筹码分布。
 
-**Current focus:** Planning next milestone
+**Current focus:** Phase 7 — Standardized Market Data Cache
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 7 of 11 — Standardized Market Data Cache
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-25 — Milestone v2.0 started
+Status: Ready to plan
+Last activity: 2026-06-25 — v2.0 roadmap approved
 
 ## Performance Metrics
 
@@ -74,6 +74,11 @@ Recent decisions affecting current work:
 - Use front-adjusted prices when `daily` plus `adj_factor` are available; otherwise record unadjusted fallback risk.
 - Determine the interval high by walking backward from the latest day only while the previous day's high is strictly greater; stop otherwise.
 - Keep per-phase Nyquist validation maps current; all six v1 phases are compliant as of 2026-06-24.
+- Store raw daily quotes and adjustment factors separately; calculate adjusted prices at read time.
+- Use controlled provider concurrency and persistent tinyshare workers instead of unbounded parallelism.
+- Publish screening results before chip distribution enrichment finishes.
+- Remove chip peak columns from the results table and show two full distributions in stock details.
+- Configure concurrency through server environment variables; keep full rebuild as an operations command.
 
 ### Pending Todos
 
@@ -81,7 +86,7 @@ None yet.
 
 ### Blockers/Concerns
 
-No milestone blockers. Official chip enrichment remains serial and may extend full-market refresh time.
+No milestone blockers. Tinyshare worker concurrency safety must be validated with conservative defaults because the SDK implementation is closed bytecode.
 
 ### Quick Tasks Completed
 
@@ -93,10 +98,11 @@ No milestone blockers. Official chip enrichment remains serial and may extend fu
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Automation | Daily scheduled refresh | Deferred to v2 | Initialization |
-| Analysis | Configurable screening parameters and CSV export | Deferred to v2 | Initialization |
-| Collaboration | Multi-user access and public-rate limiting | Deferred to v2 | Initialization |
-| Infrastructure | PostgreSQL and background queue | Deferred to v2 | Initialization |
+| Performance | Quantified refresh duration target | Deferred until v2.0 measurements | v2.0 requirements |
+| Automation | Daily scheduled refresh and result history | Future milestone | v2.0 requirements |
+| Analysis | Configurable screening parameters, CSV export, full-history backfill | Future milestone | v2.0 requirements |
+| Collaboration | Multi-user access and public-rate limiting | Future milestone | Initialization |
+| Infrastructure | PostgreSQL and external background queue | Future milestone | v2.0 requirements |
 
 ## Session Continuity
 
@@ -106,4 +112,4 @@ Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with `$gsd-new-milestone`
+- Discuss Phase 7 with `$gsd-discuss-phase 7` or plan directly with `$gsd-plan-phase 7`.

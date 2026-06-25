@@ -89,39 +89,39 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-05 | TBD | Pending |
-| DATA-06 | TBD | Pending |
-| DATA-07 | TBD | Pending |
-| DATA-08 | TBD | Pending |
-| DATA-09 | TBD | Pending |
-| REFR-06 | TBD | Pending |
-| REFR-07 | TBD | Pending |
-| REFR-08 | TBD | Pending |
-| REFR-09 | TBD | Pending |
-| REFR-10 | TBD | Pending |
-| REFR-11 | TBD | Pending |
-| REFR-12 | TBD | Pending |
-| REFR-13 | TBD | Pending |
-| CHIP-05 | TBD | Pending |
-| CHIP-06 | TBD | Pending |
-| CHIP-07 | TBD | Pending |
-| CHIP-08 | TBD | Pending |
-| CHIP-09 | TBD | Pending |
-| CHIP-10 | TBD | Pending |
-| UI-05 | TBD | Pending |
-| UI-06 | TBD | Pending |
-| UI-07 | TBD | Pending |
-| CHRT-07 | TBD | Pending |
-| CHRT-08 | TBD | Pending |
-| CHRT-09 | TBD | Pending |
-| CHRT-10 | TBD | Pending |
-| CHRT-11 | TBD | Pending |
+| DATA-05 | Phase 7 | Pending |
+| DATA-06 | Phase 7 | Pending |
+| DATA-07 | Phase 9 | Pending |
+| DATA-08 | Phase 7 | Pending |
+| DATA-09 | Phase 7 | Pending |
+| REFR-06 | Phase 8 | Pending |
+| REFR-07 | Phase 8 | Pending |
+| REFR-08 | Phase 8 | Pending |
+| REFR-09 | Phase 9 | Pending |
+| REFR-10 | Phase 9 | Pending |
+| REFR-11 | Phase 9 | Pending |
+| REFR-12 | Phase 9 | Pending |
+| REFR-13 | Phase 9 | Pending |
+| CHIP-05 | Phase 10 | Pending |
+| CHIP-06 | Phase 10 | Pending |
+| CHIP-07 | Phase 10 | Pending |
+| CHIP-08 | Phase 10 | Pending |
+| CHIP-09 | Phase 10 | Pending |
+| CHIP-10 | Phase 10 | Pending |
+| UI-05 | Phase 11 | Pending |
+| UI-06 | Phase 9 | Pending |
+| UI-07 | Phase 9 | Pending |
+| CHRT-07 | Phase 11 | Pending |
+| CHRT-08 | Phase 11 | Pending |
+| CHRT-09 | Phase 11 | Pending |
+| CHRT-10 | Phase 11 | Pending |
+| CHRT-11 | Phase 11 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 27 total
-- Mapped to phases: 0
-- Unmapped: 27
+- Mapped to phases: 27
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-25*
-*Last updated: 2026-06-25 after user confirmation*
+*Last updated: 2026-06-25 after roadmap mapping*
