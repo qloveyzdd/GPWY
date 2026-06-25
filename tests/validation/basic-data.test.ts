@@ -80,6 +80,11 @@ describe("basic data validation", () => {
     expect(serialized).toContain("available");
     expect(serialized).not.toContain("secret-token-value");
     expect(query).toHaveBeenCalledTimes(5);
+    expect(
+      query.mock.calls.every(
+        (call) => call[2]?.priority === "validation",
+      ),
+    ).toBe(true);
     expect(readLatestValidationSnapshot()).toEqual(snapshot);
   });
 });

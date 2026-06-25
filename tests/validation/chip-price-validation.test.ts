@@ -38,11 +38,21 @@ describe("chip and price validation", () => {
     expect(result.chipCandidate.status).toBe("success");
     expect(JSON.stringify(result.chipCandidate)).toContain("available");
     expect(JSON.stringify(result)).not.toContain("chip_peak");
-    expect(query).toHaveBeenNthCalledWith(1, TUSHARE_ENDPOINTS.adjFactor, {
-      ts_code: "000001.SZ",
-      start_date: "20260613",
-      end_date: "20260623",
-    });
+    expect(query).toHaveBeenNthCalledWith(
+      1,
+      TUSHARE_ENDPOINTS.adjFactor,
+      {
+        ts_code: "000001.SZ",
+        start_date: "20260613",
+        end_date: "20260623",
+      },
+      { priority: "validation" },
+    );
+    expect(
+      query.mock.calls.every(
+        (call) => call[2]?.priority === "validation",
+      ),
+    ).toBe(true);
   });
 
   it("falls back to unadjusted daily and blocks chip peak when official chip data is unavailable", async () => {

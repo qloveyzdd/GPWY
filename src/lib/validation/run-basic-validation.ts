@@ -113,16 +113,24 @@ export async function runBasicValidation({
   const tushareClient = client ?? createTushareClient(token ?? "");
 
   try {
-    const stockBasic = await tushareClient.query(TUSHARE_ENDPOINTS.stockBasic, {
-      list_status: "L",
-    });
+    const stockBasic = await tushareClient.query(
+      TUSHARE_ENDPOINTS.stockBasic,
+      {
+        list_status: "L",
+      },
+      { priority: "validation" },
+    );
     const sample = mapRow(stockBasic.fields, stockBasic.items[0] ?? []);
     const tsCode = String(sample.ts_code ?? "");
-    const daily = await tushareClient.query(TUSHARE_ENDPOINTS.daily, {
-      ts_code: tsCode,
-      start_date: formatDate(dateDaysAgo(now, 10)),
-      end_date: formatDate(now),
-    });
+    const daily = await tushareClient.query(
+      TUSHARE_ENDPOINTS.daily,
+      {
+        ts_code: tsCode,
+        start_date: formatDate(dateDaysAgo(now, 10)),
+        end_date: formatDate(now),
+      },
+      { priority: "validation" },
+    );
     const chipAndPrice = await runChipAndPriceValidation({
       client: tushareClient,
       tsCode,

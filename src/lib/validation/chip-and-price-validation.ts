@@ -73,11 +73,15 @@ async function buildPriceBasisSection({
   now,
 }: RunChipAndPriceValidationOptions): Promise<ValidationSection> {
   try {
-    const adjFactor = await client.query(TUSHARE_ENDPOINTS.adjFactor, {
-      ts_code: tsCode,
-      start_date: formatDate(dateDaysAgo(now ?? new Date(), 10)),
-      end_date: formatDate(now ?? new Date()),
-    });
+    const adjFactor = await client.query(
+      TUSHARE_ENDPOINTS.adjFactor,
+      {
+        ts_code: tsCode,
+        start_date: formatDate(dateDaysAgo(now ?? new Date(), 10)),
+        end_date: formatDate(now ?? new Date()),
+      },
+      { priority: "validation" },
+    );
 
     if (hasRows(dailyProbe) && hasRows(adjFactor)) {
       return {
@@ -119,11 +123,15 @@ async function buildChipCandidateSection({
 
   for (const endpoint of chipCandidateEndpoints) {
     try {
-      const table = await client.query(endpoint, {
-        ts_code: tsCode,
-        start_date: formatDate(dateDaysAgo(now ?? new Date(), 10)),
-        end_date: formatDate(now ?? new Date()),
-      });
+      const table = await client.query(
+        endpoint,
+        {
+          ts_code: tsCode,
+          start_date: formatDate(dateDaysAgo(now ?? new Date(), 10)),
+          end_date: formatDate(now ?? new Date()),
+        },
+        { priority: "validation" },
+      );
 
       if (hasRows(table)) {
         attempts.push({

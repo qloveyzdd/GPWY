@@ -1,7 +1,7 @@
 // @vitest-environment node
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
 import { createTushareClient } from "@/lib/tushare/provider";
@@ -19,6 +19,7 @@ const fixturePath = path.join(
 );
 
 afterEach(async () => {
+  vi.useRealTimers();
   await resetProviderRuntimeForTests();
 });
 
@@ -102,5 +103,61 @@ describe("provider runtime", () => {
     await expect(runtime.close()).resolves.toBeUndefined();
     await expect(runtime.close()).resolves.toBeUndefined();
     expect(runtime.getSnapshot().closed).toBe(true);
+  });
+
+  it("prioritizes validation while allowing an aged chip request to run", async () => {
+    vi.useFakeTimers();
+    const runtime = getProviderRuntime({
+      TUSHARE_PROVIDER: "rest",
+      TUSHARE_MAX_CONCURRENCY: "1",
+    });
+    let releaseBlocker!: () => void;
+    const blocker = new Promise<void>((resolve) => {
+      releaseBlocker = resolve;
+    });
+    let releaseValidation!: () => void;
+    const validationBlocker = new Promise<void>((resolve) => {
+      releaseValidation = resolve;
+    });
+    const order: string[] = [];
+    const active = runtime.scheduler.schedule({
+      affectedInterface: "daily",
+      priority: "market",
+      execute: async () => blocker,
+    });
+    const chip = runtime.scheduler.schedule({
+      affectedInterface: "cyq_chips",
+      priority: "chip",
+      execute: async () => {
+        order.push("chip");
+        return "chip";
+      },
+    });
+    const validation = runtime.scheduler.schedule({
+      affectedInterface: "stock_basic",
+      priority: "validation",
+      execute: async () => {
+        order.push("validation-1");
+        await validationBlocker;
+        return "validation-1";
+      },
+    });
+
+    releaseBlocker();
+    await active;
+    await vi.advanceTimersByTimeAsync(10_000);
+    const nextValidation = runtime.scheduler.schedule({
+      affectedInterface: "trade_cal",
+      priority: "validation",
+      execute: async () => {
+        order.push("validation-2");
+        return "validation-2";
+      },
+    });
+    releaseValidation();
+    await expect(validation).resolves.toBe("validation-1");
+    await expect(chip).resolves.toBe("chip");
+    await expect(nextValidation).resolves.toBe("validation-2");
+    expect(order).toEqual(["validation-1", "chip", "validation-2"]);
   });
 });
