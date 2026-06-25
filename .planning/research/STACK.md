@@ -1,95 +1,78 @@
-# Stack Research
+# 技术栈研究
 
-**Domain:** A 股数据筛选与可视化网页
-**Researched:** 2026-06-23
-**Confidence:** MEDIUM
+**领域：** A 股行情增量同步、受控并发与双交易日筹码分布
+**研究日期：** 2026-06-25
+**置信度：** 高
 
-## Recommended Stack
+## 推荐方案
 
-### Core Technologies
+### 核心技术
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Node.js | 24 LTS, fallback 22 LTS | 运行自托管网页服务 | 官方 LTS 运行时适合云端长期运行，Next.js 生态支持成熟 |
-| Next.js | latest stable, pin in lockfile | 全栈网页应用 | 同一项目内完成页面、API route/server action、环境变量和部署，减少前后端分裂 |
-| React | Next.js bundled compatible version | 表格和图表 UI | 与 Next.js 默认集成，适合交互式筛选结果页面 |
-| SQLite | 3.x | 本地缓存刷新结果和行情切片 | 个人使用、手动刷新场景下足够简单；不需要一开始引入远程数据库 |
-| Tushare Pro REST API | official current API | A 股基础信息、行情、筹码相关数据 | 用户指定数据源；服务端调用可保护 token |
+| 技术 | 版本 | 用途 | 结论 |
+|------|------|------|------|
+| Next.js / Node.js | 现有 Next.js 16.2.9 / Node.js LTS | 保持网页、API 和后台刷新编排在同一应用 | 不拆微服务；个人单实例部署没有必要引入队列系统 |
+| SQLite / better-sqlite3 | 现有 SQLite / 12.11.1 | 标准化保存股票、原始日线、复权因子、筹码分布和任务状态 | 数据规模仍适合 SQLite；关键是消除按刷新任务复制完整快照 |
+| Python tinyshare | 现有 0.1033.0 | 兼容当前授权方式 | 改为少量持久 Python worker，通过 JSON Lines 复用进程和 `pro_api()` 客户端 |
+| ECharts | 现有 6.1.0 | 展示两个交易日的完整筹码分布 | 使用两个独立网格或两个图表，共享价格/占比格式和状态模型 |
 
-### Supporting Libraries
+### 支撑实现
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| echarts / echarts-for-react | latest stable, pin in lockfile | K 线、均线、筹码峰可视化 | 展示价格走势、MA20、MA60、波段高点和筹码峰 |
-| better-sqlite3 | latest stable, pin in lockfile | SQLite 同步访问 | 自托管 Node 服务端缓存数据，避免复杂 ORM |
-| zod | latest stable, pin in lockfile | 环境变量和请求参数校验 | 校验 `TUSHARE_TOKEN`、刷新参数、API 响应结构 |
-| TanStack Table | latest stable, pin in lockfile | 结果表格排序和筛选 | 当表格字段增多、需要稳定排序时引入 |
+| 能力 | 推荐实现 | 使用场景 |
+|------|----------|----------|
+| 受控并发 | 项目内实现小型有界任务池 | 限制同时进行的 Tushare/tinyshare 请求数量 |
+| 频率控制 | 共享请求调度器：并发上限、最小间隔、退避状态 | 避免并发放大后触发每分钟限频 |
+| 重试 | 仅对网络、服务和限频错误做有界重试，使用指数退避和抖动 | 单项暂时失败，不阻塞整批任务 |
+| 断点恢复 | 数据唯一键 + 任务项目状态 | 已成功的日期或筹码分布不重复请求 |
+| 交易日判断 | 优先使用本地日线；补充 `trade_cal` 用于增量日期规划 | 跳过周末和休市日，准确取得前一交易日 |
 
-### Development Tools
+### 不新增依赖
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| TypeScript | 类型约束 | 对 Tushare 响应、筛选结果和图表数据建模 |
-| ESLint | 基础质量检查 | 使用 Next.js 默认配置即可 |
-| Vitest | 算法单元测试 | 重点测试 MA、波段高点、85% 阈值和筹码峰提取 |
-| Playwright | 页面冒烟测试 | 验证刷新按钮、表格、图表渲染 |
+本里程碑不建议为了并发引入 Redis、BullMQ、PostgreSQL 或通用任务队列。当前问题可由单进程调度器、持久 Python worker 池和 SQLite 任务状态解决。也不必引入 `p-limit` 一类库；项目内的有界任务池更容易同时表达并发、限频、取消和测试时钟。
 
-## Installation
+## 数据存储原则
 
-```bash
-npx create-next-app@latest .
-npm install echarts echarts-for-react better-sqlite3 zod @tanstack/react-table
-npm install -D vitest playwright
-```
+- `stock_basics` 改为按 `ts_code` 唯一存储当前基础信息。
+- 原始日线按 `(ts_code, trade_date)` 唯一存储，不按刷新任务复制。
+- 复权因子按 `(ts_code, trade_date)` 独立存储。
+- 筛选时以窗口内最新复权因子为基准动态计算前复权价格。
+- 筹码分布按 `(ts_code, trade_date, price)` 存储完整价格档位。
+- 刷新任务只保存运行元数据和阶段进度，不再作为行情数据分区键。
 
-## Alternatives Considered
+## 备选方案
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Next.js fullstack | FastAPI + React | 如果后续需要大量 Python 数据处理、pandas 或异步任务队列 |
-| SQLite | PostgreSQL | 如果未来变成多人使用、历史数据量明显扩大或需要远程部署多实例 |
-| Direct REST to Tushare | Python tushare SDK | 如果 Tushare REST 行为不稳定，或必须使用 SDK 才能调用某些便捷接口 |
-| ECharts | Recharts | 如果只需要简单折线图；但筹码峰和多轴图更适合 ECharts |
+| 推荐 | 备选 | 何时使用备选 |
+|------|------|--------------|
+| 持久 Python worker 池 | 每次请求启动 Python | 仅用于低频诊断命令，不用于批量刷新 |
+| SQLite 标准化表 | PostgreSQL | 多实例部署、远程并发写入或数据量显著扩大后再评估 |
+| 共享限流调度器 | 无限制 `Promise.all` | 不应使用；会同时启动大量 Python 进程并放大限频 |
+| 动态复权 | 存储已复权行情 | 仅当复权基准固定且不会随新因子变化时可用，本项目不满足 |
 
-## What NOT to Use
+## 不应采用
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| 前端直接调用 Tushare | 会暴露 token，也难以统一缓存和限流 | 服务端 API route/server action 调用 |
-| 首版引入 Redis/队列/微服务 | 个人手动刷新不需要该复杂度 | 单进程刷新任务加 SQLite 状态表 |
-| 未验证筹码分布算法 | 会把数据口径问题伪装成“功能完成” | 先验证 Tushare `cyq_chips`/`cyq_perf` 或等价官方字段 |
-| Serverless 部署假设 | 手动刷新可能有长耗时和本地 SQLite 写入 | 自托管 Node 进程，systemd/PM2 管理 |
+| 避免 | 原因 | 替代 |
+|------|------|------|
+| 对全部候选直接 `Promise.all` | 172～600 个请求会瞬间占满进程、连接和接口额度 | 小并发任务池 + 速率限制 |
+| 每次刷新复制 60 日全市场数据 | 当前约 200 万行已占约 300 MB，大量为重复快照 | 唯一键增量 UPSERT |
+| 从现有 `daily_bars` 直接迁移为原始行情 | 当前表中保存的是以前复权基准处理后的值，无法还原原始价格 | 新表首次执行受控全量引导 |
+| 用 60 日 OHLCV 估算筹码分布 | 数据口径不等同于官方筹码分布 | 继续使用 `cyq_chips` 完整价格档位 |
 
-## Stack Patterns by Variant
+## 兼容性
 
-**If refresh takes under a few minutes:**
-- Use a single authenticated refresh API route.
-- Store refresh status and latest result in SQLite.
+| 组件 | 兼容关系 | 说明 |
+|------|----------|------|
+| better-sqlite3 12.11.1 | 当前 Node/Next 自托管运行时 | 保持同步事务；网络请求不能持有数据库事务 |
+| tinyshare 0.1033.0 | Python 3.11 | worker 启动后设置一次 token 并复用 API 客户端 |
+| ECharts 6.1.0 | React 19 客户端组件 | 沿用现有显式初始化和销毁方式 |
 
-**If refresh exceeds request timeout:**
-- Use refresh job table plus background worker loop in the same Node process.
-- UI polls refresh status.
+## 来源
 
-**If Tushare chip endpoint is not available to the account:**
-- Do not approximate silently.
-- Show the requirement as blocked and surface the missing endpoint/permission.
-
-## Version Compatibility
-
-| Package A | Compatible With | Notes |
-|-----------|-----------------|-------|
-| Next.js latest stable | Node.js 24 LTS / 22 LTS | Pin exact versions in `package-lock.json` during scaffold |
-| better-sqlite3 | Self-hosted Node runtime | Avoid serverless runtimes unless native module support is verified |
-| echarts-for-react | React compatible with selected Next.js | Keep chart code client-side |
-
-## Sources
-
-- https://tushare.pro/ - official Tushare Pro entry point and data API positioning
-- https://raw.githubusercontent.com/waditu/tushare/master/tushare/pro/client.py - official Tushare client shows generic `api_name` query pattern
-- https://nodejs.org/en/about/previous-releases - Node.js release/LTS lifecycle
-- https://nextjs.org/docs/app/getting-started/installation - official Next.js installation flow
-- https://echarts.apache.org/en/index.html - official ECharts project
+- https://tushare.pro/wctapi/documents/25.md — 股票列表单次覆盖全市场，建议本地保存
+- https://tushare.pro/wctapi/documents/26.md — 交易日历和上一交易日字段
+- https://tushare.pro/wctapi/documents/27.md — 日线支持按交易日获取全市场数据
+- https://tushare.pro/wctapi/documents/28.md — 复权因子支持按单日获取全市场数据
+- https://tushare.pro/wctapi/documents/294.md — `cyq_chips` 日期区间、完整价位占比和调用限制
+- https://nodejs.org/api/child_process.html — 长生命周期子进程的标准输入输出通信
+- https://sqlite.org/lang_upsert.html — 唯一键增量写入
 
 ---
-*Stack research for: A 股数据筛选与可视化网页*
-*Researched: 2026-06-23*
+*研究对象：v2.0 增量刷新与筹码分布对比*

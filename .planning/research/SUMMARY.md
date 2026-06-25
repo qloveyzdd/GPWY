@@ -1,146 +1,94 @@
-# Project Research Summary
+# 项目研究摘要
 
-**Project:** A Stock Downtrend Screener
-**Domain:** A 股数据筛选与可视化网页
-**Researched:** 2026-06-23
-**Confidence:** MEDIUM
+**项目：** A Stock Downtrend Screener
+**领域：** A 股增量刷新、受控并发与双交易日筹码分布
+**研究日期：** 2026-06-25
+**置信度：** 高
 
-## Executive Summary
+## 核心结论
 
-这个项目适合按“单体全栈网页 + 服务端数据刷新 + 本地缓存 + 可测试筛选算法”的方式实现。用户是个人使用，刷新方式是手动触发，因此首版不需要队列、Redis、复杂登录或远程数据库。Next.js 自托管应用配合 SQLite 能覆盖页面、刷新接口、缓存和图表数据 API，复杂度最低。
+当前刷新慢不是单一循环问题，而是三个结构问题叠加：按刷新任务复制完整 60 日全市场快照、所有 provider 请求串行、tinyshare 每次请求重新启动 Python。直接增加 `Promise.all` 会把问题变成进程和限频风暴，不能作为解决方案。
 
-最大风险不在页面，而在数据口径：Tushare 的行情复权口径和筹码峰接口可用性必须先实测。尤其是“筹码峰价格”可能不是一个直接字段，而是需要从筹码分布接口中取占比最高的价格档；如果账号权限或接口不可用，首版不能用自研估算冒充完成。
+推荐保持 Next.js、SQLite、better-sqlite3 和 ECharts，不引入外部队列或数据库。数据层改为按股票和交易日唯一存储原始日线与复权因子；请求层增加共享的有界调度器；tinyshare 改为少量持久 Python worker。普通刷新只获取缺失交易日，失败项目可恢复，完整全量重建作为独立模式保留。
 
-路线图应先做 Tushare 数据基础和接口验证，再做筛选管线，最后做表格和图表。这样可以尽早暴露筹码峰、行情口径、额度限制这些根本风险。
+`cyq_chips` 官方接口支持按单只股票的日期区间返回多日完整价格档位，因此最新交易日和前一交易日可以一次请求获取，不需要把请求数翻倍。完整分布应成为源数据，现有“前三筹码峰”可从分布中派生为表格摘要；详情页展示两个标明具体交易日期的分布图。
 
-## Key Findings
+## 关键发现
 
-### Recommended Stack
+### 技术栈
 
-首版推荐使用自托管 Next.js + Node.js LTS + SQLite。Tushare token 只在服务端读取，刷新结果和行情切片写入 SQLite，表格和图表从本地结果读取。
+- 不增加 Redis、PostgreSQL、BullMQ 或微服务。
+- SQLite 继续适用，但必须移除 `refresh_job_id` 作为行情分区键。
+- 原始日线与复权因子分开保存，筛选读取时动态前复权。
+- tinyshare 使用持久 worker 池，worker 内串行、worker 间受控并行。
+- ECharts 沿用现有客户端集成，增加两个筹码分布网格或图表。
 
-**Core technologies:**
-- Next.js: 页面、API route/server action 和部署入口统一。
-- Node.js LTS: 云端自托管运行时。
-- SQLite: 个人手动刷新场景下足够简单。
-- ECharts: 适合价格、均线、阈值和筹码峰标记。
-- TypeScript + Vitest: 筛选算法必须可测试。
+### 必备功能
 
-### Expected Features
+- 增量交易日规划和标准化缓存。
+- 共享并发/限频/退避/重试调度器。
+- 断点恢复和缓存命中跳过。
+- 双交易日完整筹码分布与独立状态。
+- 阶段进度、耗时和结果计数。
+- 手动全量重建。
 
-**Must have (table stakes):**
-- Tushare token 服务端配置。
-- 手动刷新。
-- A 股基础信息获取。
-- 最近 60 交易日行情缓存。
-- MA20/MA60 计算。
-- 最近波段高点识别。
-- 下降区间 85% 筛选。
-- 筹码峰接口验证与峰值提取。
-- 表格和图表展示。
+### 关键风险
 
-**Should have (competitive):**
-- 每只股票显示入选原因和关键数值。
-- 失败股票和接口错误明细。
-- 缓存刷新结果，减少重复调用。
+1. **无限并发：** 必须用统一调度器约束所有 provider。
+2. **复权口径错误：** 不能把旧复权快照直接迁移为原始行情。
+3. **筹码档位残留：** 同一股票日期的分布必须原子替换。
+4. **自然日前一天：** 必须使用前一有效交易日。
+5. **状态耦合：** 行情/筛选与筹码 enrichment 应分阶段持久化。
 
-**Defer (v2+):**
-- 自动每日刷新。
-- 多人账号权限。
-- CSV 导出。
-- 可配置筛选参数。
-- 多数据源融合。
+## 对路线图的影响
 
-### Architecture Approach
+### 阶段 7：标准化市场数据仓库
 
-系统应分为 UI、刷新控制器、Tushare client、SQLite cache、筛选算法和图表数据构建器。筛选算法必须是纯函数；Tushare client 必须是 server-only；刷新流程先缓存输入，再计算和保存结果。
+建立股票、原始日线和复权因子唯一键表；实现动态复权读取和首次 60 日引导策略。先解决数据口径，后续增量和并发才有可靠落点。
 
-**Major components:**
-1. UI shell - 刷新按钮、结果表、单只股票图表。
-2. Tushare client - 封装 token、接口名、字段和错误处理。
-3. SQLite cache - 保存股票、行情、筹码和刷新结果。
-4. Screening engine - 计算 MA、波段高点、下降趋势和 85% 条件。
-5. Chart data builder - 输出 ECharts 所需序列和标记。
+### 阶段 8：受控请求调度与持久 provider
 
-### Critical Pitfalls
+实现有界并发、频率控制、退避、超时、取消和测试时钟；将 tinyshare 改为持久 worker 池。该阶段独立验证资源上限与故障恢复。
 
-1. **筹码峰接口假设错误** - 必须用真实 token 验证 `cyq_chips`/`cyq_perf` 或等价接口。
-2. **复权口径不明确** - 必须决定价格口径，否则 MA 和高点可能失真。
-3. **Tushare 额度和耗时被低估** - 行情尽量批量或缓存，只对候选股取筹码。
-4. **波段高点算法边界没测** - 必须写单元测试。
-5. **图表不能解释筛选** - 必须标出高点、85% 阈值、MA 和筹码峰。
+### 阶段 9：增量刷新与可观测进度
 
-## Implications for Roadmap
+实现缺失交易日规划、缓存跳过、断点恢复、阶段状态和手动全量重建。保持现有筛选算法不变。
 
-### Phase 1: Tushare Data Foundation
-**Rationale:** 先验证最根本的数据可得性，尤其是筹码峰。
-**Delivers:** 项目脚手架、Tushare client、token 配置、基础行情样例、筹码候选接口验证。
-**Addresses:** Tushare integration, stock_basic, daily bars, chip endpoint validation.
-**Avoids:** 筹码接口假设错误、token 泄露、复权口径不明确。
+### 阶段 10：双交易日筹码分布
 
-### Phase 2: Screening Pipeline
-**Rationale:** 数据可得后再实现筛选算法和缓存。
-**Delivers:** SQLite schema、手动刷新流程、MA20/MA60、波段高点、85% 筛选、结果落库。
-**Uses:** Screening engine, refresh_runs, screening_results.
-**Implements:** 核心价值链路。
+实现日期区间请求、完整分布缓存、原子替换、部分失败和筹码峰摘要派生。
 
-### Phase 3: Results UI and Charts
-**Rationale:** 先保证数据正确，再做可视化。
-**Delivers:** 结果表格、排序、刷新状态、单只股票图表、价格/均线/高点/筹码峰标记。
-**Uses:** ECharts and table components.
-**Implements:** 用户查看和研判体验。
+### 阶段 11：双图展示与端到端验证
 
-### Phase 4: Hardening and Deployment
-**Rationale:** 首版可用后再补部署和可靠性。
-**Delivers:** 云端部署脚本/说明、访问保护、错误脱敏、刷新失败明细、基础冒烟测试。
-**Uses:** Node self-hosting, env vars, process manager.
+详情页展示最新有效交易日和前一有效交易日两个筹码分布图；补齐状态、日期标识、组件测试和浏览器验证，并基于实测数据形成后续性能标准。
 
-### Phase Ordering Rationale
+## 待需求阶段确认
 
-- 先验证 Tushare 和筹码数据，避免页面完成后发现核心数据不可用。
-- 筛选算法在 UI 前完成，保证图表展示的是可信结果。
-- 部署放在最后，但环境变量和 server-only 边界从第一阶段开始设计。
+- 行情和筛选完成后，是否应立即发布结果，不等待筹码 enrichment 全部结束。
+- 表格是否继续保留由完整分布派生的筹码峰摘要。
+- 并发参数是否仅通过环境变量配置，还是需要网页设置。
+- 全量重建是否只提供运维命令，还是同时提供网页入口。
 
-### Research Flags
+## 置信度
 
-Phases likely needing deeper research during planning:
-- **Phase 1:** Tushare `cyq_chips`/`cyq_perf` 或等价筹码接口需要真实 token 验证。
-- **Phase 1:** 行情复权口径需要确认使用 `daily` + `adj_factor`、`pro_bar` 还是其他方案。
-- **Phase 2:** 全市场刷新调用策略需要结合 Tushare 额度测试。
+| 领域 | 置信度 | 原因 |
+|------|--------|------|
+| 数据模型 | 高 | 现有代码、SQLite 数据和复权公式可直接验证 |
+| Tushare 接口 | 高 | 官方文档确认查询方式、数据范围和限量 |
+| 并发架构 | 高 | Node 子进程和有界调度是成熟模式 |
+| tinyshare 并发安全 | 中 | SDK 为闭源字节码，需以小 worker 池和实测验证 |
+| 最终性能 | 待测 | 用户已明确先改架构，再依据结果制定标准 |
 
-Phases with standard patterns:
-- **Phase 3:** 表格和 ECharts 图表是成熟模式。
-- **Phase 4:** 单机 Node 自托管和 env 配置是成熟模式。
+## 来源
 
-## Confidence Assessment
-
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Stack | MEDIUM | Next.js/SQLite/ECharts 适配场景明确，但确切包版本在 scaffold 时锁定 |
-| Features | HIGH | 用户已确认首版功能和交互方式 |
-| Architecture | MEDIUM | 单体架构适合个人使用，但刷新耗时需实测 |
-| Pitfalls | MEDIUM | 数据口径风险明确，但筹码接口需要真实账号验证 |
-
-**Overall confidence:** MEDIUM
-
-### Gaps to Address
-
-- **筹码峰接口可用性:** Phase 1 必须用真实 token 试调用候选接口并保存样例字段。
-- **复权价格口径:** Phase 1 必须明确 MA 和波段高点用什么价格口径。
-- **刷新耗时和额度:** Phase 2 必须记录调用量、耗时和失败原因。
-
-## Sources
-
-### Primary (HIGH confidence)
-- https://tushare.pro/ - official Tushare Pro entry point
-- https://raw.githubusercontent.com/waditu/tushare/master/tushare/pro/client.py - official generic API client pattern
-- https://nextjs.org/docs/app/getting-started/installation - official Next.js installation flow
-- https://nodejs.org/en/about/previous-releases - Node.js LTS lifecycle
-- https://echarts.apache.org/en/index.html - official ECharts project
-
-### Project Context
-- `.planning/PROJECT.md` - confirmed project scope, algorithm, and constraints
+- https://tushare.pro/wctapi/documents/25.md
+- https://tushare.pro/wctapi/documents/26.md
+- https://tushare.pro/wctapi/documents/27.md
+- https://tushare.pro/wctapi/documents/28.md
+- https://tushare.pro/wctapi/documents/294.md
+- https://nodejs.org/api/child_process.html
+- https://sqlite.org/lang_upsert.html
 
 ---
-*Research completed: 2026-06-23*
-*Ready for roadmap: yes*
+*研究完成：2026-06-25*
+*可进入需求定义：是*
