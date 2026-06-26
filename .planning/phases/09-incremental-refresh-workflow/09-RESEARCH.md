@@ -204,7 +204,7 @@ Phase 09 needs validation at three levels: store behavior, refresh orchestration
 - `tests/ui/status-workspace.test.tsx`
 - `tests/chip/chip-runner.test.ts`
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 No blocking product question remains for planning. The remaining gate is procedural: this phase has UI scope and should receive a `09-UI-SPEC.md` before detailed implementation planning, unless the user explicitly chooses to skip the UI gate.
 
