@@ -123,6 +123,6 @@ Plans:
 | 8. Controlled Provider Concurrency | 3/3 | Complete   | 2026-06-26 |
 | 9. Incremental Refresh Workflow | 4/4 | Complete   | 2026-06-29 |
 | 10. Dual-Day Chip Distribution | 4/4 | Complete    | 2026-06-29 |
-| 11. Distribution Comparison Experience | 4/4 | Complete   | 2026-06-29 |
+| 11. Distribution Comparison Experience | 4/4 | Complete    | 2026-06-29 |
 
 **Coverage:** 27/27 v2.0 requirements mapped exactly once.
