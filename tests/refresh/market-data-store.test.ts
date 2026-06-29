@@ -7,14 +7,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   activateMarketCacheGeneration,
+  assertActiveGenerationReadyForScreening,
   createMarketCacheGeneration,
   deleteBuildingMarketCacheGeneration,
+  ensureMarketGenerationDates,
+  planActiveGenerationMarketWork,
   readActiveMarketCacheGeneration,
   readMarketAdjustmentFactors,
   readMarketCacheGenerationById,
   readMarketDailyQuotes,
   readMarketGenerationDates,
   readMarketStocks,
+  readPairedSuccessTradeDates,
+  updateMarketGenerationDateItemStatus,
   upsertMarketAdjustmentFactors,
   upsertMarketDailyQuotes,
   upsertMarketGenerationDate,
@@ -261,5 +266,172 @@ describe("market data store", () => {
     expect(readActiveMarketCacheGeneration()?.id).toBe(active.id);
     expect(readMarketDailyQuotes(active.id)).toHaveLength(1);
     expect(deleteBuildingMarketCacheGeneration(active.id)).toBe(false);
+  });
+
+  it("plans missing and failed active-generation daily/factor work independently", () => {
+    useTempMarketStore();
+    const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
+    markCompleteDates(generation.id);
+    activateMarketCacheGeneration(generation.id);
+
+    ensureMarketGenerationDates(generation.id, [
+      "20260625",
+      "20260626",
+      "20260627",
+      "20260628",
+    ]);
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260626",
+      "daily",
+      "succeeded",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260626",
+      "factor",
+      "failed",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260627",
+      "daily",
+      "failed",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260627",
+      "factor",
+      "succeeded",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260628",
+      "daily",
+      "succeeded",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260628",
+      "factor",
+      "succeeded",
+    );
+
+    const plan = planActiveGenerationMarketWork(generation.id, [
+      "20260625",
+      "20260626",
+      "20260627",
+      "20260628",
+    ]);
+
+    expect(plan.ready).toBe(false);
+    expect(plan.items).toEqual([
+      {
+        generationId: generation.id,
+        tradeDate: "20260625",
+        itemKind: "daily",
+        currentStatus: "pending",
+      },
+      {
+        generationId: generation.id,
+        tradeDate: "20260625",
+        itemKind: "factor",
+        currentStatus: "pending",
+      },
+      {
+        generationId: generation.id,
+        tradeDate: "20260626",
+        itemKind: "factor",
+        currentStatus: "failed",
+      },
+      {
+        generationId: generation.id,
+        tradeDate: "20260627",
+        itemKind: "daily",
+        currentStatus: "failed",
+      },
+    ]);
+    expect(readPairedSuccessTradeDates(generation.id, plan.targetTradeDates)).toEqual([
+      "20260628",
+    ]);
+    expect(() =>
+      assertActiveGenerationReadyForScreening(
+        generation.id,
+        plan.targetTradeDates,
+      ),
+    ).toThrow("active_generation_target_incomplete");
+
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260625",
+      "daily",
+      "succeeded",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260625",
+      "factor",
+      "succeeded",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260626",
+      "factor",
+      "succeeded",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260627",
+      "daily",
+      "succeeded",
+    );
+
+    expect(
+      planActiveGenerationMarketWork(generation.id, plan.targetTradeDates),
+    ).toMatchObject({
+      ready: true,
+      items: [],
+      missingDailyCount: 0,
+      missingFactorCount: 0,
+    });
+    expect(() =>
+      assertActiveGenerationReadyForScreening(
+        generation.id,
+        plan.targetTradeDates,
+      ),
+    ).not.toThrow();
+  });
+
+  it("updates one manifest item without overwriting the paired item status", () => {
+    useTempMarketStore();
+    const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
+
+    ensureMarketGenerationDates(generation.id, ["20260625"]);
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260625",
+      "daily",
+      "succeeded",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260625",
+      "factor",
+      "failed",
+    );
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      "20260625",
+      "daily",
+      "failed",
+    );
+
+    expect(readMarketGenerationDates(generation.id)).toEqual([
+      expect.objectContaining({
+        tradeDate: "20260625",
+        dailyStatus: "failed",
+        factorStatus: "failed",
+      }),
+    ]);
   });
 });
