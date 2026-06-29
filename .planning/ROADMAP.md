@@ -13,7 +13,7 @@ v2.0 先修正行情数据模型和复权口径，再建立统一的受控请求
 
 - [x] **Phase 7: Standardized Market Data Cache** — 建立原始日线与复权因子标准化缓存，并安全完成首次 60 日引导。 (completed 2026-06-26)
 - [x] **Phase 8: Controlled Provider Concurrency** — 建立统一限流调度器和可复用 tinyshare worker。 (completed 2026-06-26)
-- [ ] **Phase 9: Incremental Refresh Workflow** — 交付可恢复的增量刷新、阶段进度和运维全量重建。
+- [x] **Phase 9: Incremental Refresh Workflow** — 交付可恢复的增量刷新、阶段进度和运维全量重建。 (completed 2026-06-29)
 - [ ] **Phase 10: Dual-Day Chip Distribution** — 保存并增量补齐最新交易日与前一交易日的完整筹码分布。
 - [ ] **Phase 11: Distribution Comparison Experience** — 删除表格筹码峰并交付两个独立筹码分布图。
 
@@ -67,7 +67,7 @@ v2.0 先修正行情数据模型和复权口径，再建立统一的受控请求
 4. 行情和筛选完成后立即发布新筛选结果，筹码阶段可以继续后台处理或部分失败。
 5. 维护者可通过运维命令执行全量重建，网页没有高成本重建入口。
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 
@@ -79,7 +79,7 @@ Plans:
 - [x] 09-03-PLAN.md — 提供运维全量重建 CLI，并保留 building generation 原子激活语义。
 
 **Wave 3 *(blocked on Wave 2 completion)***
-- [ ] 09-04-PLAN.md — 在页面展示四阶段进度，并按筛选/chip marker 刷新结果。
+- [x] 09-04-PLAN.md — 在页面展示四阶段进度，并按筛选/chip marker 刷新结果。
 
 ### Phase 10: Dual-Day Chip Distribution
 
@@ -121,7 +121,7 @@ Plans:
 |-------|--------------|--------|-----------|
 | 7. Standardized Market Data Cache | 4/4 | Complete    | 2026-06-26 |
 | 8. Controlled Provider Concurrency | 3/3 | Complete   | 2026-06-26 |
-| 9. Incremental Refresh Workflow | 3/4 | In Progress|  |
+| 9. Incremental Refresh Workflow | 4/4 | Complete   | 2026-06-29 |
 | 10. Dual-Day Chip Distribution | 6 | Not started | — |
 | 11. Distribution Comparison Experience | 6 | Not started | — |
 
