@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import { deriveChipPeakLevelsFromDistribution } from "@/lib/chip/chip-peak";
 import type {
   ChipDistributionLevel,
   ChipDistributionRunRecord,
@@ -912,6 +913,86 @@ export function readLatestChipDistributionStatusForTarget(
   } finally {
     db.close();
   }
+}
+
+function distributionStatusToCompatibleChipResult(
+  status: ChipDistributionStatusRecord,
+): ChipPeakResultRecord {
+  const unavailableResult: ChipPeakResultRecord = {
+    chipPeakRunId: status.chipDistributionRunId,
+    screeningRunId: status.screeningRunId,
+    tsCode: status.tsCode,
+    status: status.status,
+    tradeDate: status.tradeDate,
+    chipPeakPrice: null,
+    peakPercent: null,
+    source: null,
+    peaks: [],
+    errorCategory: status.errorCategory,
+    errorSummary: status.errorSummary,
+  };
+
+  if (status.status !== "succeeded" || status.tradeDate === null) {
+    return unavailableResult;
+  }
+
+  const distribution = readChipDistributionForDate(
+    status.tsCode,
+    status.tradeDate,
+  );
+
+  if (distribution.length === 0) {
+    return {
+      ...unavailableResult,
+      status: "blocked",
+      errorCategory: "empty_data",
+      errorSummary: "chip distribution cache has no levels for target date",
+    };
+  }
+
+  const peaks = deriveChipPeakLevelsFromDistribution(distribution);
+  const peak = peaks[0];
+
+  if (!peak) {
+    return {
+      ...unavailableResult,
+      status: "blocked",
+      errorCategory: "empty_data",
+      errorSummary: "chip distribution cache has no levels for target date",
+    };
+  }
+
+  return {
+    chipPeakRunId: status.chipDistributionRunId,
+    screeningRunId: status.screeningRunId,
+    tsCode: status.tsCode,
+    status: "succeeded",
+    tradeDate: peak.tradeDate,
+    chipPeakPrice: peak.price,
+    peakPercent: peak.percent,
+    source: "cyq_chips_highest_percent",
+    peaks,
+    errorCategory: null,
+    errorSummary: null,
+  };
+}
+
+export function readCompatibleChipPeakResultsForDistributionRun(
+  chipDistributionRunId: number,
+): ChipPeakResultRecord[] {
+  return readChipDistributionStatusesForRun(chipDistributionRunId)
+    .filter((status) => status.targetKind === "latest")
+    .map(distributionStatusToCompatibleChipResult);
+}
+
+export function readLatestCompatibleChipPeakResults(
+  screeningRunId: number,
+): ChipPeakResultRecord[] {
+  const distributionRun = readLatestChipDistributionRun(screeningRunId);
+
+  return distributionRun
+    ? readCompatibleChipPeakResultsForDistributionRun(distributionRun.id)
+    : [];
 }
 
 export function planChipDistributionWork(

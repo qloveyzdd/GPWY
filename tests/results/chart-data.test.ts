@@ -5,7 +5,10 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { writeChipPeakRun } from "@/lib/chip/chip-store";
+import {
+  replaceChipDistribution,
+  writeChipDistributionRun,
+} from "@/lib/chip/chip-store";
 import {
   activateMarketCacheGeneration,
   createMarketCacheGeneration,
@@ -82,6 +85,39 @@ function createActiveGeneration() {
   return activateMarketCacheGeneration(generation.id);
 }
 
+function writeLatestChipDistribution(screeningRunId: number) {
+  replaceChipDistribution({
+    tsCode: "000001.SZ",
+    tradeDate: "20260623",
+    levels: [
+      { price: 36.2, percent: 6.5 },
+      { price: 35.8, percent: 4.2 },
+      { price: 37.1, percent: 3.1 },
+    ],
+  });
+  writeChipDistributionRun({
+    screeningRunId,
+    status: "succeeded",
+    totalTargets: 1,
+    successCount: 1,
+    blockedCount: 0,
+    failedCount: 0,
+    missingCount: 0,
+    statuses: [
+      {
+        screeningRunId,
+        tsCode: "000001.SZ",
+        targetKind: "latest",
+        tradeDate: "20260623",
+        status: "succeeded",
+        source: "cyq_chips_highest_percent",
+        errorCategory: null,
+        errorSummary: null,
+      },
+    ],
+  });
+}
+
 describe("chart data snapshot", () => {
   it("returns unavailable when no screening run exists", () => {
     useTempStore();
@@ -140,32 +176,7 @@ describe("chart data snapshot", () => {
         },
       ],
     });
-    writeChipPeakRun({
-      screeningRunId: screeningRun.id,
-      status: "succeeded",
-      totalCandidates: 1,
-      successCount: 1,
-      blockedCount: 0,
-      failedCount: 0,
-      results: [
-        {
-          screeningRunId: screeningRun.id,
-          tsCode: "000001.SZ",
-          status: "succeeded",
-          tradeDate: "20260623",
-          chipPeakPrice: 36.2,
-          peakPercent: 6.5,
-          source: "cyq_chips_highest_percent",
-          peaks: [
-            { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
-            { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
-            { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
-          ],
-          errorCategory: null,
-          errorSummary: null,
-        },
-      ],
-    });
+    writeLatestChipDistribution(screeningRun.id);
 
     const snapshot = readLatestChartSnapshot("000001.sz");
 

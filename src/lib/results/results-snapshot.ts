@@ -1,6 +1,6 @@
 import {
-  readChipPeakResultsForRun,
-  readLatestChipPeakRun,
+  readCompatibleChipPeakResultsForDistributionRun,
+  readLatestChipDistributionRun,
 } from "@/lib/chip/chip-store";
 import type { ChipPeakResultRecord } from "@/lib/chip/chip-types";
 import {
@@ -23,7 +23,11 @@ function chipState(result: ChipPeakResultRecord | undefined): ResultChipPeakStat
     return "available";
   }
 
-  if (result.status === "blocked" || result.status === "failed") {
+  if (
+    result.status === "blocked" ||
+    result.status === "failed" ||
+    result.status === "missing"
+  ) {
     return result.status;
   }
 
@@ -101,10 +105,10 @@ export function readLatestResultsSnapshot(): ResultsSnapshot {
     };
   }
 
-  const chipPeakRun = readLatestChipPeakRun();
-  const canUseChipRun = chipPeakRun?.screeningRunId === screeningRun.id;
+  const chipDistributionRun = readLatestChipDistributionRun(screeningRun.id);
+  const canUseChipRun = chipDistributionRun?.screeningRunId === screeningRun.id;
   const chipResults = canUseChipRun
-    ? readChipPeakResultsForRun(chipPeakRun.id)
+    ? readCompatibleChipPeakResultsForDistributionRun(chipDistributionRun.id)
     : [];
   const chipByCode = new Map(
     chipResults.map((result) => [result.tsCode, result] as const),
@@ -122,7 +126,7 @@ export function readLatestResultsSnapshot(): ResultsSnapshot {
         : "normalized",
     sourceScreeningRunId: screeningRun.id,
     screeningCreatedAt: screeningRun.createdAt,
-    chipPeakRunId: canUseChipRun ? chipPeakRun.id : null,
+    chipPeakRunId: canUseChipRun ? chipDistributionRun.id : null,
     unavailableReason: null,
     rows,
   };

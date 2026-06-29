@@ -5,8 +5,12 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { writeChipPeakRun } from "@/lib/chip/chip-store";
-import type { ChipPeakResultRecord } from "@/lib/chip/chip-types";
+import {
+  replaceChipDistribution,
+  writeChipDistributionRun,
+  writeChipPeakRun,
+} from "@/lib/chip/chip-store";
+import type { ChipDistributionStatusRecord } from "@/lib/chip/chip-types";
 import { readLatestResultsSnapshot } from "@/lib/results/results-snapshot";
 import { writeScreeningRun } from "@/lib/screening/screening-store";
 import type { ScreeningResultRecord } from "@/lib/screening/screening-types";
@@ -46,22 +50,19 @@ function screeningResult(
   };
 }
 
-function chipResult(
-  overrides: Partial<ChipPeakResultRecord> = {},
-): Omit<ChipPeakResultRecord, "chipPeakRunId"> {
+function distributionStatus(
+  screeningRunId: number,
+  overrides: Partial<
+    Omit<ChipDistributionStatusRecord, "chipDistributionRunId" | "updatedAt">
+  > = {},
+): Omit<ChipDistributionStatusRecord, "chipDistributionRunId" | "updatedAt"> {
   return {
-    screeningRunId: 1,
+    screeningRunId,
     tsCode: "000001.SZ",
-    status: "succeeded",
+    targetKind: "latest",
     tradeDate: "20260623",
-    chipPeakPrice: 36.2,
-    peakPercent: 6.5,
+    status: "succeeded",
     source: "cyq_chips_highest_percent",
-    peaks: [
-      { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
-      { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
-      { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
-    ],
     errorCategory: null,
     errorSummary: null,
     ...overrides,
@@ -99,7 +100,7 @@ describe("results snapshot", () => {
     expect(snapshot.rows).toEqual([]);
   });
 
-  it("joins matching chip peak rows and sorts by current/high ratio ascending", () => {
+  it("derives legacy chip peak fields from latest full distributions and sorts rows", () => {
     useTempStore();
     const run = writeScreeningRun({
       sourceRefreshJobId: 12,
@@ -125,24 +126,34 @@ describe("results snapshot", () => {
         }),
       ],
     });
-    const chipRun = writeChipPeakRun({
+    replaceChipDistribution({
+      tsCode: "000001.SZ",
+      tradeDate: "20260623",
+      levels: [
+        { price: 36.2, percent: 6.5 },
+        { price: 35.8, percent: 4.2 },
+        { price: 37.1, percent: 3.1 },
+      ],
+    });
+    replaceChipDistribution({
+      tsCode: "000002.SZ",
+      tradeDate: "20260623",
+      levels: [
+        { price: 38.5, percent: 7 },
+        { price: 39.2, percent: 3 },
+      ],
+    });
+    const distributionRun = writeChipDistributionRun({
       screeningRunId: run.id,
       status: "succeeded",
-      totalCandidates: 2,
+      totalTargets: 2,
       successCount: 2,
       blockedCount: 0,
       failedCount: 0,
-      results: [
-        chipResult({
-          screeningRunId: run.id,
-          tsCode: "000001.SZ",
-          chipPeakPrice: 68.5,
-        }),
-        chipResult({
-          screeningRunId: run.id,
-          tsCode: "000002.SZ",
-          chipPeakPrice: 38.5,
-        }),
+      missingCount: 0,
+      statuses: [
+        distributionStatus(run.id, { tsCode: "000001.SZ" }),
+        distributionStatus(run.id, { tsCode: "000002.SZ" }),
       ],
     });
 
@@ -151,7 +162,7 @@ describe("results snapshot", () => {
     expect(snapshot.status).toBe("ready");
     expect(snapshot.cacheSource).toBe("legacy");
     expect(snapshot.sourceScreeningRunId).toBe(run.id);
-    expect(snapshot.chipPeakRunId).toBe(chipRun.id);
+    expect(snapshot.chipPeakRunId).toBe(distributionRun.id);
     expect(snapshot.rows.map((row) => row.tsCode)).toEqual([
       "000002.SZ",
       "000001.SZ",
@@ -165,10 +176,14 @@ describe("results snapshot", () => {
       drawdownPct: 0.6,
       chipPeakState: "available",
       chipPeakPrice: 38.5,
+      chipPeaks: [
+        { rank: 1, tradeDate: "20260623", price: 38.5, percent: 7 },
+        { rank: 2, tradeDate: "20260623", price: 39.2, percent: 3 },
+      ],
     });
   });
 
-  it("keeps rows visible for blocked, failed, and missing chip peak states", () => {
+  it("keeps rows visible for blocked, failed, and missing latest distribution states", () => {
     useTempStore();
     const run = writeScreeningRun({
       sourceRefreshJobId: 13,
@@ -181,37 +196,36 @@ describe("results snapshot", () => {
         screeningResult({ tsCode: "000003.SZ", name: "国农科技" }),
       ],
     });
-    writeChipPeakRun({
+    writeChipDistributionRun({
       screeningRunId: run.id,
-      status: "partial",
-      totalCandidates: 3,
+      status: "blocked",
+      totalTargets: 3,
       successCount: 0,
       blockedCount: 1,
       failedCount: 1,
-      results: [
-        chipResult({
-          screeningRunId: run.id,
+      missingCount: 1,
+      statuses: [
+        distributionStatus(run.id, {
           tsCode: "000001.SZ",
           status: "blocked",
-          tradeDate: null,
-          chipPeakPrice: null,
-          peakPercent: null,
           source: null,
-          peaks: [],
           errorCategory: "permission_denied",
           errorSummary: "筹码接口权限不足。",
         }),
-        chipResult({
-          screeningRunId: run.id,
+        distributionStatus(run.id, {
           tsCode: "000002.SZ",
           status: "failed",
-          tradeDate: null,
-          chipPeakPrice: null,
-          peakPercent: null,
           source: null,
-          peaks: [],
           errorCategory: "network_or_service",
           errorSummary: "筹码接口暂时不可用。",
+        }),
+        distributionStatus(run.id, {
+          tsCode: "000003.SZ",
+          status: "missing",
+          tradeDate: null,
+          source: null,
+          errorCategory: null,
+          errorSummary: "previous_trade_date_missing",
         }),
       ],
     });
@@ -227,6 +241,56 @@ describe("results snapshot", () => {
         ["000003.SZ", "missing"],
       ],
     );
+  });
+
+  it("does not use previous distribution success as latest chip peak", () => {
+    useTempStore();
+    const run = writeScreeningRun({
+      sourceRefreshJobId: 14,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [screeningResult()],
+    });
+    replaceChipDistribution({
+      tsCode: "000001.SZ",
+      tradeDate: "20260622",
+      levels: [{ price: 35.8, percent: 8 }],
+    });
+    writeChipDistributionRun({
+      screeningRunId: run.id,
+      status: "partial",
+      totalTargets: 2,
+      successCount: 1,
+      blockedCount: 0,
+      failedCount: 1,
+      missingCount: 0,
+      statuses: [
+        distributionStatus(run.id, {
+          targetKind: "latest",
+          tradeDate: "20260623",
+          status: "failed",
+          source: null,
+          errorCategory: "network_or_service",
+          errorSummary: "latest target failed",
+        }),
+        distributionStatus(run.id, {
+          targetKind: "previous",
+          tradeDate: "20260622",
+          status: "succeeded",
+        }),
+      ],
+    });
+
+    const snapshot = readLatestResultsSnapshot();
+
+    expect(snapshot.rows[0]).toMatchObject({
+      tsCode: "000001.SZ",
+      chipPeakState: "failed",
+      chipPeakPrice: null,
+      chipPeaks: [],
+      chipPeakErrorCategory: "network_or_service",
+    });
   });
 
   it("marks ready results normalized only when screening persisted a generation", () => {
@@ -246,18 +310,34 @@ describe("results snapshot", () => {
     expect(snapshot.status).toBe("ready");
     expect(snapshot.cacheSource).toBe("normalized");
     expect(serialized).not.toContain("sourceMarketGenerationId");
+    expect(serialized).not.toContain("chipDistributionRunId");
     expect(serialized).not.toContain("refresh.sqlite");
     expect(serialized).not.toContain("TUSHARE_TOKEN");
   });
 
-  it("does not join chip peak rows from a stale screening run", () => {
+  it("does not join stale distribution runs or legacy chip peak rows", () => {
     useTempStore();
     const staleRun = writeScreeningRun({
-      sourceRefreshJobId: 14,
+      sourceRefreshJobId: 17,
       totalStocks: 1,
       matchedCount: 1,
       skippedCount: 0,
       results: [screeningResult()],
+    });
+    replaceChipDistribution({
+      tsCode: "000001.SZ",
+      tradeDate: "20260623",
+      levels: [{ price: 39.9, percent: 9 }],
+    });
+    writeChipDistributionRun({
+      screeningRunId: staleRun.id,
+      status: "succeeded",
+      totalTargets: 1,
+      successCount: 1,
+      blockedCount: 0,
+      failedCount: 0,
+      missingCount: 0,
+      statuses: [distributionStatus(staleRun.id)],
     });
     writeChipPeakRun({
       screeningRunId: staleRun.id,
@@ -267,15 +347,22 @@ describe("results snapshot", () => {
       blockedCount: 0,
       failedCount: 0,
       results: [
-        chipResult({
+        {
           screeningRunId: staleRun.id,
           tsCode: "000001.SZ",
+          status: "succeeded",
+          tradeDate: "20260623",
           chipPeakPrice: 39.9,
-        }),
+          peakPercent: 9,
+          source: "cyq_chips_highest_percent",
+          peaks: [{ rank: 1, tradeDate: "20260623", price: 39.9, percent: 9 }],
+          errorCategory: null,
+          errorSummary: null,
+        },
       ],
     });
     const latestRun = writeScreeningRun({
-      sourceRefreshJobId: 15,
+      sourceRefreshJobId: 18,
       totalStocks: 1,
       matchedCount: 1,
       skippedCount: 0,

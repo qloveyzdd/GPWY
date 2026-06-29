@@ -87,7 +87,11 @@ export type ChipPeakExtraction = {
   source: ChipPeakExtractionSource;
 };
 
-export type ChipPeakResultStatus = "succeeded" | "blocked" | "failed";
+export type ChipPeakResultStatus =
+  | "succeeded"
+  | "blocked"
+  | "failed"
+  | "missing";
 
 export type ChipPeakRunStatus = "succeeded" | "partial" | "blocked" | "failed";
 
