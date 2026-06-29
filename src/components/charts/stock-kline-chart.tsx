@@ -7,6 +7,8 @@ import { AlertTriangle, CandlestickChart, CircleSlash } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import type {
+  ChartChipDistributionPanel,
+  ChartChipDistributionScale,
   ChartMovingAveragePoint,
   ChartSnapshot,
 } from "@/lib/results/chart-types";
@@ -33,14 +35,49 @@ type MarkLineDataItem = {
   };
 };
 
+type ChipDistributionCardProps = {
+  panel: ChartChipDistributionPanel;
+  scale: ChartChipDistributionScale;
+};
+
 const initialLoadState: ChartLoadState = {
   tsCode: null,
   snapshot: null,
   failed: false,
 };
 
+const distributionStatusLabels: Record<
+  ChartChipDistributionPanel["status"],
+  string
+> = {
+  succeeded: "可用",
+  blocked: "阻塞",
+  failed: "失败",
+  missing: "缺少数据",
+};
+
 function formatPrice(value: number) {
   return value.toFixed(2);
+}
+
+function formatDistributionPercent(value: number) {
+  return `${value.toFixed(2)}%`;
+}
+
+function formatAxisPercent(value: string | number) {
+  return formatDistributionPercent(Number(value));
+}
+
+function sanitizeUnavailableSummary(summary: string | null) {
+  if (!summary) {
+    return null;
+  }
+
+  return summary
+    .replace(/TUSHARE_TOKEN/gi, "[已隐藏]")
+    .replace(/Authorization/gi, "[已隐藏]")
+    .replace(/REFRESH_DB_PATH/gi, "[已隐藏]")
+    .replace(/[A-Za-z]:\\[^\s]+/g, "[已隐藏路径]");
 }
 
 function alignMovingAverageSeries(
@@ -52,6 +89,22 @@ function alignMovingAverageSeries(
   );
 
   return tradeDates.map((tradeDate) => valueByDate.get(tradeDate) ?? null);
+}
+
+function mapDistributionSeries(
+  panel: ChartChipDistributionPanel,
+  scale: ChartChipDistributionScale,
+) {
+  const percentByPrice = new Map(
+    panel.levels.map((level) => [
+      formatPrice(level.price),
+      Number(level.percent.toFixed(4)),
+    ]),
+  );
+
+  return scale.priceLevels.map(
+    (priceLevel) => percentByPrice.get(formatPrice(priceLevel)) ?? 0,
+  );
 }
 
 function buildChartOptions(snapshot: ChartSnapshot): EChartsOption {
@@ -145,6 +198,207 @@ function buildChartOptions(snapshot: ChartSnapshot): EChartsOption {
       },
     ],
   };
+}
+
+function buildDistributionOptions(
+  panel: ChartChipDistributionPanel,
+  scale: ChartChipDistributionScale,
+): EChartsOption {
+  const yAxisData = scale.priceLevels.map(formatPrice);
+  const seriesData = mapDistributionSeries(panel, scale);
+  const maxPercent = scale.maxPercent > 0 ? scale.maxPercent : undefined;
+  const maxLevel = panel.maxLevel;
+
+  return {
+    animation: false,
+    color: [panel.targetKind === "latest" ? "#2563EB" : "#0F766E"],
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      valueFormatter: (value) =>
+        formatDistributionPercent(Number(value ?? 0)),
+    },
+    grid: {
+      top: 20,
+      left: 56,
+      right: 32,
+      bottom: 32,
+      containLabel: true,
+    },
+    xAxis: {
+      type: "value",
+      max: maxPercent,
+      axisLabel: {
+        formatter: formatAxisPercent,
+      },
+      splitLine: {
+        lineStyle: { color: "#E5E7EB" },
+      },
+    },
+    yAxis: {
+      type: "category",
+      data: yAxisData,
+      axisLabel: {
+        hideOverlap: true,
+      },
+    },
+    series: [
+      {
+        name: `${panel.label}占比`,
+        type: "bar",
+        barMaxWidth: 18,
+        data: seriesData,
+        markPoint: maxLevel
+          ? {
+              symbolSize: 48,
+              label: {
+                formatter: `最大占比\n${formatPrice(maxLevel.price)} / ${formatDistributionPercent(maxLevel.percent)}`,
+              },
+              data: [
+                {
+                  name: "最大占比",
+                  coord: [maxLevel.percent, formatPrice(maxLevel.price)],
+                  value: maxLevel.percent,
+                },
+              ],
+            }
+          : undefined,
+      },
+    ],
+  };
+}
+
+function ChipDistributionCard({
+  panel,
+  scale,
+}: ChipDistributionCardProps) {
+  const chartElementRef = useRef<HTMLDivElement | null>(null);
+  const chartInstanceRef = useRef<echarts.ECharts | null>(null);
+  const isReady =
+    panel.status === "succeeded" &&
+    panel.levels.length > 0 &&
+    scale.priceLevels.length > 0;
+  const chartOptions = useMemo(
+    () => (isReady ? buildDistributionOptions(panel, scale) : {}),
+    [isReady, panel, scale],
+  );
+
+  useEffect(() => {
+    if (isReady) {
+      return;
+    }
+
+    chartInstanceRef.current?.dispose();
+    chartInstanceRef.current = null;
+  }, [isReady]);
+
+  useEffect(() => {
+    if (!chartElementRef.current || !isReady) {
+      return;
+    }
+
+    const chart =
+      chartInstanceRef.current ?? echarts.init(chartElementRef.current);
+    chartInstanceRef.current = chart;
+    chart.setOption(chartOptions, true);
+
+    function handleResize() {
+      chart.resize();
+    }
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [chartOptions, isReady]);
+
+  useEffect(() => {
+    return () => {
+      chartInstanceRef.current?.dispose();
+      chartInstanceRef.current = null;
+    };
+  }, []);
+
+  const tradeDateText = panel.tradeDate ?? "未确定交易日";
+
+  if (!isReady) {
+    const summary =
+      sanitizeUnavailableSummary(panel.errorSummary) ??
+      (panel.status === "missing"
+        ? "该交易日暂无筹码分布数据。"
+        : "该交易日筹码分布暂不可用。");
+    const isMissing = panel.status === "missing";
+    const unavailableClassName = isMissing
+      ? "border-dashed border-border bg-muted/20"
+      : panel.status === "blocked"
+        ? "border-[#F59E0B]/40 bg-[#FEF3C7]/30"
+        : "border-destructive/30 bg-destructive/5";
+
+    return (
+      <section
+        className={`flex min-h-[320px] flex-col rounded-lg border p-4 ${unavailableClassName}`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="text-[15px] font-semibold leading-[1.4]">
+              {panel.label} {tradeDateText}
+            </h4>
+            <p className="mt-1 text-[13px] leading-[1.4] text-muted-foreground">
+              {isMissing ? "正常空状态" : "单日数据不可用"}
+            </p>
+          </div>
+          <Badge variant={isMissing ? "outline" : "secondary"}>
+            {distributionStatusLabels[panel.status]}
+          </Badge>
+        </div>
+        <div className="mt-6 flex flex-1 items-center justify-center text-center">
+          <div className="max-w-[320px]">
+            {isMissing ? (
+              <CircleSlash className="mx-auto size-6 text-muted-foreground" />
+            ) : (
+              <AlertTriangle className="mx-auto size-6 text-[#B45309]" />
+            )}
+            {panel.errorCategory ? (
+              <p className="mt-3 text-[13px] font-medium leading-[1.4] text-foreground">
+                {panel.errorCategory}
+              </p>
+            ) : null}
+            <p className="mt-2 text-[13px] leading-[1.5] text-muted-foreground">
+              {summary}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="min-h-[320px] rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h4 className="text-[15px] font-semibold leading-[1.4]">
+            {panel.label} {tradeDateText}
+          </h4>
+          <p className="mt-1 text-[13px] leading-[1.4] text-muted-foreground">
+            完整价格档位分布
+          </p>
+        </div>
+        {panel.maxLevel ? (
+          <Badge variant="secondary">
+            最大占比 {formatPrice(panel.maxLevel.price)} /{" "}
+            {formatDistributionPercent(panel.maxLevel.percent)}
+          </Badge>
+        ) : null}
+      </div>
+      <div
+        ref={chartElementRef}
+        role="img"
+        aria-label={`${panel.label} ${tradeDateText} 筹码分布图`}
+        className="h-[260px] min-h-[240px] w-full"
+      />
+    </section>
+  );
 }
 
 export function StockKlineChart({ tsCode }: StockKlineChartProps) {
@@ -298,6 +552,16 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
         aria-label={`${snapshot.row.tsCode} K线图`}
         className="h-[360px] min-h-[320px] w-full"
       />
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <ChipDistributionCard
+          panel={snapshot.chipDistributions.previous}
+          scale={snapshot.chipDistributions.scale}
+        />
+        <ChipDistributionCard
+          panel={snapshot.chipDistributions.latest}
+          scale={snapshot.chipDistributions.scale}
+        />
+      </div>
     </div>
   );
 }

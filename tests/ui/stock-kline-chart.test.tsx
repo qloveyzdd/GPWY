@@ -7,6 +7,24 @@ import type {
   ReadyChartSnapshot,
 } from "@/lib/results/chart-types";
 
+type RecordedChartOption = {
+  xAxis?: { max?: number };
+  yAxis?: { data?: string[] };
+  series?: Array<{
+    type?: string;
+    name?: string;
+    data?: unknown;
+    markLine?: { data?: Array<{ name: string }> };
+    markPoint?: {
+      data?: Array<{
+        name: string;
+        coord: [number, string];
+        value: number;
+      }>;
+    };
+  }>;
+};
+
 const setOptionMock = vi.hoisted(() => vi.fn());
 const resizeMock = vi.hoisted(() => vi.fn());
 const disposeMock = vi.hoisted(() => vi.fn());
@@ -21,6 +39,24 @@ const initMock = vi.hoisted(() =>
 vi.mock("echarts", () => ({
   init: initMock,
 }));
+
+function chartOptions() {
+  return setOptionMock.mock.calls.map(
+    ([option]) => option as RecordedChartOption,
+  );
+}
+
+function klineOption() {
+  return chartOptions().find(
+    (option) => option.series?.[0]?.type === "candlestick",
+  );
+}
+
+function barOptions() {
+  return chartOptions().filter(
+    (option) => option.series?.[0]?.type === "bar",
+  );
+}
 
 function readySnapshot(
   overrides: Partial<ReadyChartSnapshot> = {},
@@ -153,7 +189,7 @@ describe("StockKlineChart", () => {
     expect(initMock).not.toHaveBeenCalled();
   });
 
-  it("renders a candlestick chart with MA and overlay lines", async () => {
+  it("renders a candlestick chart with MA and only interval overlay lines", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify(readySnapshot()), { status: 200 }),
     );
@@ -164,37 +200,88 @@ describe("StockKlineChart", () => {
     expect(screen.getByText("最近 60 个交易日")).toBeTruthy();
     expect(screen.getByText("区间高点 90.00")).toBeTruthy();
     expect(screen.getByText("85%阈值 76.50")).toBeTruthy();
-    expect(screen.getByText("筹码峰1：36.20 / 6.50%")).toBeTruthy();
-    expect(screen.getByText("筹码峰2：35.80 / 4.20%")).toBeTruthy();
-    expect(screen.getByText("筹码峰3：37.10 / 3.10%")).toBeTruthy();
+    expect(screen.queryByText(/筹码峰/)).toBeNull();
+    expect(screen.queryByText("部分可用")).toBeNull();
 
     await waitFor(() => {
-      expect(setOptionMock).toHaveBeenCalled();
+      expect(klineOption()).toBeTruthy();
     });
 
-    const options = setOptionMock.mock.calls[0][0];
+    const options = klineOption();
 
-    expect(options.series[0].type).toBe("candlestick");
-    expect(options.series[1]).toMatchObject({
+    expect(options?.series?.[0]?.type).toBe("candlestick");
+    expect(options?.series?.[1]).toMatchObject({
       name: "MA20",
       type: "line",
     });
-    expect(options.series[2]).toMatchObject({
+    expect(options?.series?.[2]).toMatchObject({
       name: "MA60",
       type: "line",
     });
     expect(
-      options.series[0].markLine.data.map((line: { name: string }) => line.name),
-    ).toEqual(["区间高点", "85%阈值", "筹码峰1", "筹码峰2", "筹码峰3"]);
+      options?.series?.[0]?.markLine?.data?.map((line) => line.name),
+    ).toEqual(["区间高点", "85%阈值"]);
   });
 
-  it("does not draw a chip peak line when chip peak is unavailable", async () => {
+  it("renders previous and latest distribution charts with shared scale", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify(readySnapshot()), { status: 200 }),
+    );
+
+    render(<StockKlineChart tsCode="000001.SZ" />);
+
+    expect(await screen.findByText("前一有效交易日 20260622")).toBeTruthy();
+    expect(screen.getByText("最新有效交易日 20260623")).toBeTruthy();
+    expect(screen.getByText("最大占比 35.90 / 5.50%")).toBeTruthy();
+    expect(screen.getByText("最大占比 36.20 / 6.50%")).toBeTruthy();
+
+    await waitFor(() => {
+      expect(barOptions()).toHaveLength(2);
+    });
+
+    const [previousOption, latestOption] = barOptions();
+
+    expect(previousOption?.xAxis?.max).toBe(6.5);
+    expect(latestOption?.xAxis?.max).toBe(6.5);
+    expect(previousOption?.yAxis?.data).toEqual([
+      "35.80",
+      "35.90",
+      "36.20",
+      "36.40",
+      "37.10",
+    ]);
+    expect(latestOption?.yAxis?.data).toEqual(previousOption?.yAxis?.data);
+    expect(previousOption?.series?.[0]?.data).toEqual([0, 5.5, 0, 4.4, 0]);
+    expect(latestOption?.series?.[0]?.data).toEqual([4.2, 0, 6.5, 0, 3.1]);
+    expect(previousOption?.series?.[0]?.markPoint?.data?.[0]).toMatchObject({
+      name: "最大占比",
+      coord: [5.5, "35.90"],
+      value: 5.5,
+    });
+    expect(latestOption?.series?.[0]?.markPoint?.data?.[0]).toMatchObject({
+      name: "最大占比",
+      coord: [6.5, "36.20"],
+      value: 6.5,
+    });
+    expect(initMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps previous distribution chart available when latest distribution is blocked", async () => {
+    const base = readySnapshot();
     const snapshot = readySnapshot({
-      row: {
-        ...readySnapshot().row,
-      },
-      overlays: {
-        ...readySnapshot().overlays,
+      chipDistributions: {
+        ...base.chipDistributions,
+        latest: {
+          targetKind: "latest",
+          label: "最新有效交易日",
+          tradeDate: "20260623",
+          status: "blocked",
+          levels: [],
+          maxLevel: null,
+          errorCategory: "permission_denied",
+          errorSummary:
+            "Authorization failed: TUSHARE_TOKEN from C:\\secret REFRESH_DB_PATH",
+        },
       },
     });
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
@@ -203,16 +290,57 @@ describe("StockKlineChart", () => {
 
     render(<StockKlineChart tsCode="000001.SZ" />);
 
-    expect(await screen.findByText("筹码峰：无数据")).toBeTruthy();
+    expect(await screen.findByText("前一有效交易日 20260622")).toBeTruthy();
+    expect(screen.getByText("最新有效交易日 20260623")).toBeTruthy();
+    expect(screen.getByText("阻塞")).toBeTruthy();
+    expect(screen.getByText("permission_denied")).toBeTruthy();
+    expect(screen.queryByText(/TUSHARE_TOKEN/)).toBeNull();
+    expect(screen.queryByText(/Authorization/)).toBeNull();
+    expect(screen.queryByText(/REFRESH_DB_PATH/)).toBeNull();
+    expect(screen.queryByText(/C:\\secret/)).toBeNull();
 
     await waitFor(() => {
-      expect(setOptionMock).toHaveBeenCalled();
+      expect(barOptions()).toHaveLength(1);
     });
 
-    const options = setOptionMock.mock.calls[0][0];
+    expect(initMock).toHaveBeenCalledTimes(2);
+    expect(barOptions()[0]?.series?.[0]?.data).toEqual([0, 5.5, 0, 4.4, 0]);
+  });
 
-    expect(
-      options.series[0].markLine.data.map((line: { name: string }) => line.name),
-    ).toEqual(["区间高点", "85%阈值"]);
+  it("renders missing previous distribution as a neutral empty state", async () => {
+    const base = readySnapshot();
+    const snapshot = readySnapshot({
+      chipDistributions: {
+        ...base.chipDistributions,
+        previous: {
+          targetKind: "previous",
+          label: "前一有效交易日",
+          tradeDate: null,
+          status: "missing",
+          levels: [],
+          maxLevel: null,
+          errorCategory: null,
+          errorSummary: "previous_trade_date_missing",
+        },
+      },
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify(snapshot), { status: 200 }),
+    );
+
+    render(<StockKlineChart tsCode="000001.SZ" />);
+
+    expect(await screen.findByText("前一有效交易日 未确定交易日")).toBeTruthy();
+    expect(screen.getByText("缺少数据")).toBeTruthy();
+    expect(screen.getByText("正常空状态")).toBeTruthy();
+    expect(screen.getByText("previous_trade_date_missing")).toBeTruthy();
+    expect(screen.getByText("最新有效交易日 20260623")).toBeTruthy();
+
+    await waitFor(() => {
+      expect(barOptions()).toHaveLength(1);
+    });
+
+    expect(initMock).toHaveBeenCalledTimes(2);
+    expect(barOptions()[0]?.series?.[0]?.data).toEqual([4.2, 0, 6.5, 0, 3.1]);
   });
 });
