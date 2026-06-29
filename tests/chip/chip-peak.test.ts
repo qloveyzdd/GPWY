@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deriveChipPeakLevelsFromDistribution,
   extractChipPeak,
   extractChipPeaks,
   mapCyqChipsTable,
@@ -85,8 +86,43 @@ describe("chip peak extraction", () => {
     ]);
   });
 
+  it("derives compatibility peaks from one complete trade-date distribution", () => {
+    const peaks = deriveChipPeakLevelsFromDistribution(
+      mapCyqChipsTable(
+        table([
+          ["000001.SZ", "20260211", 10.4, 6],
+          ["000001.SZ", "20260211", 10.2, 6],
+          ["000001.SZ", "20260211", 9.8, 4],
+          ["000001.SZ", "20260211", 11.2, 2],
+        ]),
+      ),
+    );
+
+    expect(peaks).toEqual([
+      { rank: 1, tradeDate: "20260211", price: 10.2, percent: 6 },
+      { rank: 2, tradeDate: "20260211", price: 10.4, percent: 6 },
+      { rank: 3, tradeDate: "20260211", price: 9.8, percent: 4 },
+    ]);
+  });
+
+  it("rejects mixed-date distribution input for explicit compatibility derivation", () => {
+    expect(() =>
+      deriveChipPeakLevelsFromDistribution(
+        mapCyqChipsTable(
+          table([
+            ["000001.SZ", "20260210", 10.4, 6],
+            ["000001.SZ", "20260211", 10.2, 6],
+          ]),
+        ),
+      ),
+    ).toThrow("mixed_chip_distribution_dates");
+  });
+
   it("fails on empty official rows instead of estimating", () => {
     expect(() => extractChipPeak([])).toThrow("empty_chip_distribution");
+    expect(() => deriveChipPeakLevelsFromDistribution([])).toThrow(
+      "empty_chip_distribution",
+    );
     expect(() => mapCyqChipsTable(table([["000001.SZ", "20260211", null, 1]])))
       .toThrow("invalid_chip_price");
   });

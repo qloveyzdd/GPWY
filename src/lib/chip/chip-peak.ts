@@ -1,4 +1,5 @@
 import type {
+  ChipDistributionLevel,
   ChipDistributionRow,
   ChipPeakExtraction,
   ChipPeakLevel,
@@ -59,7 +60,24 @@ export function extractChipPeaks(
     rows[0].tradeDate,
   );
   const latestRows = rows.filter((row) => row.tradeDate === latestTradeDate);
-  return [...latestRows]
+  return deriveChipPeakLevelsFromDistribution(latestRows, limit);
+}
+
+export function deriveChipPeakLevelsFromDistribution(
+  rows: ChipDistributionLevel[],
+  limit = 3,
+): ChipPeakLevel[] {
+  if (!rows.length) {
+    throw new Error("empty_chip_distribution");
+  }
+
+  const tradeDate = rows[0].tradeDate;
+
+  if (rows.some((row) => row.tradeDate !== tradeDate)) {
+    throw new Error("mixed_chip_distribution_dates");
+  }
+
+  return [...rows]
     .sort((left, right) => {
       const percentDiff = right.percent - left.percent;
 
