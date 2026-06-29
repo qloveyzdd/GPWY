@@ -27,7 +27,18 @@ import type {
 export type RunChipPeakIntegrationOptions = {
   client?: TushareClientLike;
   now?: Date;
+  onProgress?: ChipPeakProgressCallback;
 };
+
+export type ChipPeakProgress = {
+  total: number;
+  completed: number;
+  succeeded: number;
+  blocked: number;
+  failed: number;
+};
+
+export type ChipPeakProgressCallback = (progress: ChipPeakProgress) => void;
 
 const failedCategories = new Set<TushareErrorCategory>([
   "rate_limited",
@@ -85,9 +96,21 @@ function createBlockedResult(
   };
 }
 
+function emitProgress(
+  onProgress: ChipPeakProgressCallback | undefined,
+  progress: ChipPeakProgress,
+) {
+  try {
+    onProgress?.({ ...progress });
+  } catch {
+    // Progress reporting must not change chip row-level semantics.
+  }
+}
+
 export async function runChipPeakIntegrationFromLatestScreening({
   client,
   now = new Date(),
+  onProgress,
 }: RunChipPeakIntegrationOptions = {}): Promise<ChipPeakRunRecord> {
   const screeningRun = readLatestScreeningRun();
 
@@ -98,48 +121,74 @@ export async function runChipPeakIntegrationFromLatestScreening({
   const screeningResults = readScreeningResultsForRun(screeningRun.id);
   const token = readTushareTokenSecret();
   const tushareClient = client ?? (token ? createTushareClient(token) : null);
+  const progress: ChipPeakProgress = {
+    total: screeningResults.length,
+    completed: 0,
+    succeeded: 0,
+    blocked: 0,
+    failed: 0,
+  };
+
+  emitProgress(onProgress, progress);
+
   const results = await Promise.all(
     screeningResults.map(async (screeningResult) => {
-    if (!tushareClient) {
-      return createBlockedResult(
-        screeningRun.id,
-        screeningResult.tsCode,
-        new Error("missing_config:TUSHARE_TOKEN"),
-      );
-    }
+      let result: Omit<ChipPeakResultRecord, "chipPeakRunId">;
 
-    try {
-      const table = await tushareClient.query(
-        TUSHARE_ENDPOINTS.chipChips,
-        {
-          ts_code: screeningResult.tsCode,
-          trade_date: screeningResult.latestTradeDate,
-        },
-        { priority: "chip" },
-      );
-      const rows = mapCyqChipsTable(table);
-      const peaks = extractChipPeaks(rows);
-      const peak = peaks[0];
+      if (!tushareClient) {
+        result = createBlockedResult(
+          screeningRun.id,
+          screeningResult.tsCode,
+          new Error("missing_config:TUSHARE_TOKEN"),
+        );
+      } else {
+        try {
+          const table = await tushareClient.query(
+            TUSHARE_ENDPOINTS.chipChips,
+            {
+              ts_code: screeningResult.tsCode,
+              trade_date: screeningResult.latestTradeDate,
+            },
+            { priority: "chip" },
+          );
+          const rows = mapCyqChipsTable(table);
+          const peaks = extractChipPeaks(rows);
+          const peak = peaks[0];
 
-      return {
-        screeningRunId: screeningRun.id,
-        tsCode: screeningResult.tsCode,
-        status: "succeeded",
-        tradeDate: peak.tradeDate,
-        chipPeakPrice: peak.price,
-        peakPercent: peak.percent,
-        source: "cyq_chips_highest_percent",
-        peaks,
-        errorCategory: null,
-        errorSummary: null,
-      } satisfies Omit<ChipPeakResultRecord, "chipPeakRunId">;
-    } catch (error) {
-      return createBlockedResult(
-        screeningRun.id,
-        screeningResult.tsCode,
-        error,
-      );
-    }
+          result = {
+            screeningRunId: screeningRun.id,
+            tsCode: screeningResult.tsCode,
+            status: "succeeded",
+            tradeDate: peak.tradeDate,
+            chipPeakPrice: peak.price,
+            peakPercent: peak.percent,
+            source: "cyq_chips_highest_percent",
+            peaks,
+            errorCategory: null,
+            errorSummary: null,
+          } satisfies Omit<ChipPeakResultRecord, "chipPeakRunId">;
+        } catch (error) {
+          result = createBlockedResult(
+            screeningRun.id,
+            screeningResult.tsCode,
+            error,
+          );
+        }
+      }
+
+      progress.completed += 1;
+
+      if (result.status === "succeeded") {
+        progress.succeeded += 1;
+      } else if (result.status === "blocked") {
+        progress.blocked += 1;
+      } else {
+        progress.failed += 1;
+      }
+
+      emitProgress(onProgress, progress);
+
+      return result;
     }),
   );
 

@@ -182,6 +182,61 @@ describe("market data reader", () => {
     expect(result.stocks[0]?.bars).toHaveLength(59);
   });
 
+  it("uses only the provided target trade-date window when a generation has extra history", () => {
+    useTempMarketStore();
+    const generation = createActiveGeneration();
+    const targetWindow = Array.from({ length: 60 }, (_, index) =>
+      `2026${String(index + 1).padStart(4, "0")}`,
+    );
+    const target = makeQuotes("000001.SZ", 60);
+    const extraTradeDate = "20269999";
+
+    upsertMarketGenerationDate(generation.id, {
+      tradeDate: extraTradeDate,
+      dailyStatus: "succeeded",
+      factorStatus: "succeeded",
+    });
+    upsertMarketStocks([
+      {
+        tsCode: "000001.SZ",
+        name: "Listed One",
+        market: "Main",
+        listStatus: "L",
+      },
+    ]);
+    upsertMarketDailyQuotes(generation.id, [
+      ...target.quotes,
+      {
+        tsCode: "000001.SZ",
+        tradeDate: extraTradeDate,
+        open: 999,
+        high: 1000,
+        low: 998,
+        close: 999,
+        vol: 999,
+      },
+    ]);
+    upsertMarketAdjustmentFactors(generation.id, [
+      ...target.factors,
+      {
+        tsCode: "000001.SZ",
+        tradeDate: extraTradeDate,
+        adjFactor: 999,
+      },
+    ]);
+
+    const result = readAdjustedMarketData({
+      generationId: generation.id,
+      tradeDates: targetWindow,
+    });
+    const bars = result.stocks[0]?.bars ?? [];
+
+    expect(bars).toHaveLength(60);
+    expect(bars[0]?.tradeDate).toBe("20260001");
+    expect(bars.at(-1)?.tradeDate).toBe("20260060");
+    expect(bars.some((bar) => bar.tradeDate === extraTradeDate)).toBe(false);
+  });
+
   it("reads an exact generation for chart provenance without filtering stock status", () => {
     useTempMarketStore();
     const generation = createActiveGeneration();

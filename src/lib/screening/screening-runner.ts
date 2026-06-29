@@ -22,6 +22,7 @@ import type {
 export type RunDowntrendScreeningOptions = {
   now?: Date;
   sourceRefreshJobId?: number;
+  targetTradeDates?: string[];
 };
 
 function groupBarsByTsCode(bars: ScreeningDailyBar[]) {
@@ -43,6 +44,7 @@ function groupBarsByTsCode(bars: ScreeningDailyBar[]) {
 export function runDowntrendScreeningFromCache({
   now = new Date(),
   sourceRefreshJobId,
+  targetTradeDates,
 }: RunDowntrendScreeningOptions = {}): ScreeningRunRecord {
   const activeGeneration = readActiveMarketCacheGeneration();
   let resolvedRefreshJobId: number;
@@ -66,6 +68,7 @@ export function runDowntrendScreeningFromCache({
 
     const marketData = readAdjustedMarketData({
       generationId: activeGeneration.id,
+      tradeDates: targetTradeDates,
     });
     resolvedRefreshJobId = refreshJob.id;
     sourceMarketGenerationId = marketData.generationId;

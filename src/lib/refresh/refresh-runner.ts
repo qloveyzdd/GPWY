@@ -7,7 +7,9 @@ import {
   type BootstrapMarketDataOptions,
 } from "@/lib/refresh/bootstrap-market-data";
 import {
+  completeRefreshOperation,
   completeRefreshJob,
+  failRefreshOperation,
   failRefreshJob,
   readActiveRefreshJob,
   readLatestCacheStats,
@@ -15,15 +17,20 @@ import {
   readLatestSuccessfulRefreshJob,
   readRefreshOperationSnapshot,
   startRefreshJob,
+  startRefreshOperation,
+  upsertRefreshStage,
 } from "@/lib/refresh/refresh-store";
+import {
+  refreshActiveMarketGeneration,
+} from "@/lib/refresh/incremental-market-data";
 import {
   readActiveMarketCacheGeneration,
   readActiveMarketCacheStats,
-  readMarketStocks,
 } from "@/lib/refresh/market-data-store";
 import {
   runChipPeakIntegrationFromLatestScreening,
 } from "@/lib/chip/chip-runner";
+import type { ChipPeakProgress } from "@/lib/chip/chip-runner";
 import type { ChipPeakRunRecord } from "@/lib/chip/chip-types";
 import { readLatestChipPeakRun } from "@/lib/chip/chip-store";
 import { readTushareTokenSecret } from "@/lib/config";
@@ -38,15 +45,18 @@ export type RefreshWorkerResult = {
   totalStocks: number;
   successCount: number;
   failedCount: number;
+  targetTradeDates?: string[];
 };
 
 export type RefreshWorker = (job: RefreshJob) => Promise<RefreshWorkerResult>;
 export type ScreeningWorkflowRunner = (options: {
   sourceRefreshJobId: number;
   now?: Date;
+  targetTradeDates?: string[];
 }) => ScreeningRunRecord;
 export type ChipPeakWorkflowRunner = (options: {
   now?: Date;
+  onProgress?: (progress: ChipPeakProgress) => void;
 }) => Promise<ChipPeakRunRecord>;
 
 export type StartManualRefreshOptions = {
@@ -60,7 +70,7 @@ export type StartManualRefreshOptions = {
 
 export type StartManualRefreshResult = {
   started: boolean;
-  job: RefreshJob;
+  job: RefreshJob | null;
   status: RefreshStatusSnapshot;
 };
 
@@ -118,16 +128,39 @@ export function createProviderRefreshWorker({
   };
 }
 
-function createActiveGenerationRefreshWorker(): RefreshWorker {
+function createActiveGenerationRefreshWorker({
+  generationId,
+  stageOperationId,
+  client,
+  now,
+  targetTradingDates,
+  maxLookbackDays,
+}: ProviderRefreshWorkerOptions & {
+  generationId: number;
+  stageOperationId: number;
+}): RefreshWorker {
   return async () => {
-    const tradableStockCount = readMarketStocks().filter(
-      (stock) => stock.listStatus === "L",
-    ).length;
+    const token = readTushareTokenSecret();
+    const tushareClient = client ?? (token ? createTushareClient(token) : null);
+
+    if (!tushareClient) {
+      throw new Error("missing_config:TUSHARE_TOKEN");
+    }
+
+    const data = await refreshActiveMarketGeneration({
+      client: tushareClient,
+      generationId,
+      now,
+      targetTradingDates,
+      maxLookbackDays,
+      stageOperationId,
+    });
 
     return {
-      totalStocks: tradableStockCount,
-      successCount: tradableStockCount,
-      failedCount: 0,
+      totalStocks: data.stockCount,
+      successCount: data.stockCount,
+      failedCount: data.failedCount,
+      targetTradeDates: data.targetTradeDates,
     };
   };
 }
@@ -143,6 +176,7 @@ function createChipVersion(run: ChipPeakRunRecord | null) {
 async function finishRefreshJob(
   job: RefreshJob,
   worker: RefreshWorker,
+  operationId: number,
   {
     now,
     screeningRunner = runDowntrendScreeningFromCache,
@@ -155,21 +189,159 @@ async function finishRefreshJob(
 ) {
   try {
     const result = await worker(job);
-    screeningRunner({ sourceRefreshJobId: job.id, now });
+    const screeningStartedAt = new Date();
 
-    try {
-      await chipPeakRunner({ now });
-    } catch {
-      // Chip peak enrichment is row-level best effort; screening results stay usable.
-    }
+    upsertRefreshStage(operationId, {
+      stage: "screening",
+      status: "running",
+      total: result.totalStocks,
+      completed: 0,
+      failed: 0,
+      startedAt: screeningStartedAt,
+    });
 
+    const screeningRun = screeningRunner({
+      sourceRefreshJobId: job.id,
+      now,
+      targetTradeDates: result.targetTradeDates,
+    });
+
+    upsertRefreshStage(operationId, {
+      stage: "screening",
+      status: "succeeded",
+      total: screeningRun.totalStocks,
+      completed: screeningRun.totalStocks,
+      failed: 0,
+      startedAt: screeningStartedAt,
+      finishedAt: new Date(),
+    });
     completeRefreshJob(job.id, result);
+    completeRefreshOperation(operationId);
+    startChipBackground({ chipPeakRunner, now });
   } catch (error) {
+    const errorSummary = sanitizeErrorSummary(error);
+
     failRefreshJob(job.id, {
-      errorSummary: sanitizeErrorSummary(error),
+      errorSummary,
       failedCount: 1,
     });
+    upsertRefreshStage(operationId, {
+      stage: "screening",
+      status: "failed",
+      failed: 1,
+      finishedAt: new Date(),
+      errorSummary,
+    });
+    failRefreshOperation(operationId, { errorSummary });
   }
+}
+
+function chipStageStatus(run: ChipPeakRunRecord) {
+  if (run.totalCandidates === 0) {
+    return "skipped" as const;
+  }
+
+  if (run.status === "succeeded") {
+    return "succeeded" as const;
+  }
+
+  if (run.status === "partial") {
+    return "partial" as const;
+  }
+
+  return "failed" as const;
+}
+
+function startChipBackground({
+  chipPeakRunner,
+  now,
+}: {
+  chipPeakRunner: ChipPeakWorkflowRunner;
+  now?: Date;
+}) {
+  const startedAt = new Date();
+  const startResult = startRefreshOperation("chip_background", {
+    now: now ?? startedAt,
+  });
+
+  if (!startResult.started) {
+    return;
+  }
+
+  const operationId = startResult.operation.id;
+
+  upsertRefreshStage(operationId, {
+    stage: "stock_list",
+    status: "succeeded",
+  });
+  upsertRefreshStage(operationId, {
+    stage: "market_data",
+    status: "succeeded",
+  });
+  upsertRefreshStage(operationId, {
+    stage: "screening",
+    status: "succeeded",
+  });
+  upsertRefreshStage(operationId, {
+    stage: "chip",
+    status: "running",
+    startedAt,
+  });
+
+  void (async () => {
+    try {
+      const run = await chipPeakRunner({
+        now,
+        onProgress: (progress) => {
+          upsertRefreshStage(operationId, {
+            stage: "chip",
+            status: "running",
+            total: progress.total,
+            completed: progress.completed,
+            failed: progress.failed + progress.blocked,
+            startedAt,
+          });
+        },
+      });
+      const terminalStatus = chipStageStatus(run);
+      const failedCount = run.failedCount + run.blockedCount;
+      const errorSummary =
+        terminalStatus === "partial" || terminalStatus === "failed"
+          ? `chip_${run.status}:${failedCount}`
+          : null;
+
+      upsertRefreshStage(operationId, {
+        stage: "chip",
+        status: terminalStatus,
+        total: run.totalCandidates,
+        completed: run.successCount + run.blockedCount + run.failedCount,
+        failed: failedCount,
+        startedAt,
+        finishedAt: new Date(),
+        errorSummary,
+      });
+
+      if (terminalStatus === "failed") {
+        failRefreshOperation(operationId, {
+          errorSummary: errorSummary ?? "chip_failed",
+        });
+      } else {
+        completeRefreshOperation(operationId);
+      }
+    } catch (error) {
+      const errorSummary = sanitizeErrorSummary(error);
+
+      upsertRefreshStage(operationId, {
+        stage: "chip",
+        status: "failed",
+        failed: 1,
+        startedAt,
+        finishedAt: new Date(),
+        errorSummary,
+      });
+      failRefreshOperation(operationId, { errorSummary });
+    }
+  })();
 }
 
 export function readRefreshStatus(): RefreshStatusSnapshot {
@@ -205,9 +377,24 @@ export async function startManualRefresh({
 }: StartManualRefreshOptions = {}): Promise<StartManualRefreshResult> {
   const activeGeneration = readActiveMarketCacheGeneration();
   const mode = worker ? "ordinary" : activeGeneration ? "ordinary" : "bootstrap";
+  const operationStart = startRefreshOperation("manual_refresh", { now });
+
+  if (!operationStart.started) {
+    return {
+      started: false,
+      job: readActiveRefreshJob() ?? readLatestRefreshJob(),
+      status: readRefreshStatus(),
+    };
+  }
+
   const startResult = startRefreshJob(now, mode);
 
   if (!startResult.started) {
+    failRefreshOperation(operationStart.operation.id, {
+      errorSummary: "refresh_job_already_running",
+      finishedAt: now,
+    });
+
     return {
       ...startResult,
       status: readRefreshStatus(),
@@ -217,7 +404,12 @@ export async function startManualRefresh({
   const selectedWorker =
     worker ??
     (activeGeneration
-      ? createActiveGenerationRefreshWorker()
+      ? createActiveGenerationRefreshWorker({
+          ...providerWorkerOptions,
+          generationId: activeGeneration.id,
+          stageOperationId: operationStart.operation.id,
+          now: providerWorkerOptions?.now ?? now,
+        })
       : createProviderRefreshWorker({
           ...providerWorkerOptions,
           now: providerWorkerOptions?.now ?? now,
@@ -225,6 +417,7 @@ export async function startManualRefresh({
   const refreshPromise = finishRefreshJob(
     startResult.job,
     selectedWorker,
+    operationStart.operation.id,
     {
       now,
       screeningRunner,

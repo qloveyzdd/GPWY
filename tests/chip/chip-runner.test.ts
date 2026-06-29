@@ -143,6 +143,48 @@ describe("chip runner", () => {
     ]);
   });
 
+  it("reports chip progress without letting progress callback failures change results", async () => {
+    useTempStore();
+    writeScreeningFixture(["000001.SZ", "000002.SZ"]);
+    const client = createMockClient(async (_endpoint, params) =>
+      table([[params.ts_code, "20260211", 10.2, 6]]),
+    );
+    const progressEvents: Array<{
+      total: number;
+      completed: number;
+      succeeded: number;
+      blocked: number;
+      failed: number;
+    }> = [];
+
+    const run = await runChipPeakIntegrationFromLatestScreening({
+      client,
+      onProgress: (progress) => {
+        progressEvents.push(progress);
+
+        if (progress.completed === 1) {
+          throw new Error("progress sink unavailable");
+        }
+      },
+    });
+
+    expect(run.status).toBe("succeeded");
+    expect(progressEvents[0]).toEqual({
+      total: 2,
+      completed: 0,
+      succeeded: 0,
+      blocked: 0,
+      failed: 0,
+    });
+    expect(progressEvents.at(-1)).toEqual({
+      total: 2,
+      completed: 2,
+      succeeded: 2,
+      blocked: 0,
+      failed: 0,
+    });
+  });
+
   it("runs candidates concurrently with bounded retries and isolated row failures", async () => {
     vi.useFakeTimers();
     useTempStore();

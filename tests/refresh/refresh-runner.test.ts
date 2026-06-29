@@ -14,16 +14,20 @@ import {
   createMarketCacheGeneration,
   readActiveMarketCacheGeneration,
   readMarketDailyQuotes,
+  readMarketGenerationDates,
   readMarketStocks,
+  updateMarketGenerationDateItemStatus,
   upsertMarketGenerationDate,
 } from "@/lib/refresh/market-data-store";
 import {
+  readRefreshOperationSnapshot,
   writeDailyBars,
   writeStockBasics,
 } from "@/lib/refresh/refresh-store";
 import {
   readLatestScreeningResults,
   readLatestScreeningRun,
+  writeScreeningRun,
 } from "@/lib/screening/screening-store";
 import type { ChipPeakRunRecord } from "@/lib/chip/chip-types";
 import type { DailyBarRecord } from "@/lib/refresh/refresh-types";
@@ -64,6 +68,82 @@ function createMockClient(
   };
 }
 
+function targetTradeDates(count = 60) {
+  return Array.from({ length: count }, (_, index) =>
+    `2026${String(index + 1).padStart(4, "0")}`,
+  );
+}
+
+function createMarketOnlyClient({
+  tradeDates = targetTradeDates(),
+  dailyFailureDate = null,
+  factorFailureDate = null,
+}: {
+  tradeDates?: string[];
+  dailyFailureDate?: string | null;
+  factorFailureDate?: string | null;
+} = {}) {
+  const calls = {
+    daily: 0,
+    factor: 0,
+  };
+  const client = createMockClient(async (endpoint, params) => {
+    if (endpoint.apiName === "stock_basic") {
+      const status = String(params.list_status);
+
+      return table(TUSHARE_ENDPOINTS.stockBasic.fields, [
+        [
+          status === "L" ? "000001.SZ" : `${status}.SZ`,
+          status === "L" ? "Listed" : status,
+          "Main",
+          status,
+        ],
+      ]);
+    }
+
+    if (endpoint.apiName === "trade_cal") {
+      return table(
+        TUSHARE_ENDPOINTS.tradeCalendar.fields,
+        tradeDates.map((tradeDate) => [tradeDate, 1]),
+      );
+    }
+
+    if (endpoint.apiName === "daily") {
+      calls.daily += 1;
+      const tradeDate = String(params.trade_date);
+
+      if (tradeDate === dailyFailureDate) {
+        throw new Error(
+          "token=very-secret-token failed at C:\\server\\private\\daily.ts",
+        );
+      }
+
+      return table(TUSHARE_ENDPOINTS.daily.fields, [
+        ["000001.SZ", tradeDate, 10, 11, 9, 10, 1000],
+      ]);
+    }
+
+    if (endpoint.apiName === "adj_factor") {
+      calls.factor += 1;
+      const tradeDate = String(params.trade_date);
+
+      if (tradeDate === factorFailureDate) {
+        throw new Error(
+          "headers=very-secret-token failed at C:\\server\\private\\factor.ts",
+        );
+      }
+
+      return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
+        ["000001.SZ", tradeDate, 1],
+      ]);
+    }
+
+    throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+  });
+
+  return { client, calls };
+}
+
 function makeBars(tsCode: string, count: number): DailyBarRecord[] {
   return Array.from({ length: count }, (_, index) => {
     const close = 100 - index;
@@ -97,9 +177,9 @@ function chipRunFixture(): ChipPeakRunRecord {
 function createEmptyActiveGeneration() {
   const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
 
-  for (let index = 1; index <= 60; index += 1) {
+  for (const tradeDate of targetTradeDates()) {
     upsertMarketGenerationDate(generation.id, {
-      tradeDate: `2026${String(index).padStart(4, "0")}`,
+      tradeDate,
       dailyStatus: "succeeded",
       factorStatus: "succeeded",
     });
@@ -124,7 +204,7 @@ describe("refresh runner", () => {
     const status = readRefreshStatus();
 
     expect(result.started).toBe(true);
-    expect(result.job.status).toBe("succeeded");
+    expect(result.job!.status).toBe("succeeded");
     expect(status.activeJob).toBeNull();
     expect(status.latestJob?.status).toBe("succeeded");
     expect(status.latestSuccessfulJob?.successCount).toBe(2);
@@ -158,7 +238,7 @@ describe("refresh runner", () => {
 
     expect(first.started).toBe(true);
     expect(second.started).toBe(false);
-    expect(second.job.id).toBe(first.job.id);
+    expect(second.job!.id).toBe(first.job!.id);
     expect(worker).toHaveBeenCalledTimes(1);
 
     finishWorker?.({ totalStocks: 1, successCount: 1, failedCount: 0 });
@@ -182,7 +262,7 @@ describe("refresh runner", () => {
     const serialized = JSON.stringify(latestJob);
 
     expect(result.started).toBe(true);
-    expect(result.job.status).toBe("failed");
+    expect(result.job!.status).toBe("failed");
     expect(latestJob?.status).toBe("failed");
     expect(serialized).not.toContain("very-secret-token");
     expect(serialized).not.toContain("C:\\server\\private");
@@ -216,8 +296,8 @@ describe("refresh runner", () => {
     });
     const screeningRun = readLatestScreeningRun();
 
-    expect(result.job.status).toBe("succeeded");
-    expect(screeningRun?.sourceRefreshJobId).toBe(result.job.id);
+    expect(result.job!.status).toBe("succeeded");
+    expect(screeningRun?.sourceRefreshJobId).toBe(result.job!.id);
     expect(readLatestScreeningResults()).toMatchObject([
       {
         tsCode: "000001.SZ",
@@ -228,7 +308,7 @@ describe("refresh runner", () => {
     expect(chipPeakRunner).toHaveBeenCalledOnce();
   });
 
-  it("keeps the refresh job running until chip peak enrichment finishes", async () => {
+  it("marks refresh succeeded while chip peak enrichment continues in background", async () => {
     useTempRefreshStore();
     let finishChipPeak:
       | ((value: ChipPeakRunRecord) => void)
@@ -240,7 +320,7 @@ describe("refresh runner", () => {
         }),
     );
 
-    const refreshPromise = startManualRefresh({
+    const result = await startManualRefresh({
       waitForCompletion: true,
       chipPeakRunner,
       worker: async () => ({
@@ -251,14 +331,70 @@ describe("refresh runner", () => {
     });
 
     await vi.waitFor(() => {
-      expect(readRefreshStatus().isRunning).toBe(true);
+      expect(chipPeakRunner).toHaveBeenCalledOnce();
     });
 
-    finishChipPeak?.(chipRunFixture());
-    const result = await refreshPromise;
+    let status = readRefreshStatus();
+    expect(result.job!.status).toBe("succeeded");
+    expect(status.isRunning).toBe(false);
+    expect(status.hasActiveWork).toBe(true);
+    expect(status.activeOperation?.kind).toBe("chip_background");
+    expect(
+      status.stages.find((stage) => stage.stage === "chip")?.status,
+    ).toBe("running");
 
-    expect(result.job.status).toBe("succeeded");
-    expect(readRefreshStatus().isRunning).toBe(false);
+    finishChipPeak?.(chipRunFixture());
+
+    await vi.waitFor(() => {
+      status = readRefreshStatus();
+      expect(status.hasActiveWork).toBe(false);
+    });
+  });
+
+  it("rejects a new manual refresh while chip background work owns the operation lock", async () => {
+    useTempRefreshStore();
+    let finishChipPeak:
+      | ((value: ChipPeakRunRecord) => void)
+      | undefined;
+    const chipPeakRunner = vi.fn(
+      () =>
+        new Promise<ChipPeakRunRecord>((resolve) => {
+          finishChipPeak = resolve;
+        }),
+    );
+
+    const first = await startManualRefresh({
+      waitForCompletion: true,
+      chipPeakRunner,
+      worker: async () => ({
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+      }),
+    });
+
+    await vi.waitFor(() => {
+      expect(readRefreshStatus().activeOperation?.kind).toBe("chip_background");
+    });
+
+    const second = await startManualRefresh({
+      waitForCompletion: true,
+      worker: async () => ({
+        totalStocks: 1,
+        successCount: 1,
+        failedCount: 0,
+      }),
+    });
+
+    expect(first.job!.status).toBe("succeeded");
+    expect(second.started).toBe(false);
+    expect(second.job?.id).toBe(first.job!.id);
+    expect(second.status.activeOperation?.kind).toBe("chip_background");
+
+    finishChipPeak?.(chipRunFixture());
+    await vi.waitFor(() => {
+      expect(readRefreshStatus().hasActiveWork).toBe(false);
+    });
   });
 
   it("marks screening failures as refresh workflow failures", async () => {
@@ -282,7 +418,7 @@ describe("refresh runner", () => {
     const latestJob = readRefreshStatus().latestJob;
     const serialized = JSON.stringify(latestJob);
 
-    expect(result.job.status).toBe("failed");
+    expect(result.job!.status).toBe("failed");
     expect(latestJob?.status).toBe("failed");
     expect(serialized).not.toContain("very-secret-token");
     expect(serialized).not.toContain("C:\\server\\private");
@@ -316,8 +452,17 @@ describe("refresh runner", () => {
       },
     });
 
-    expect(result.job.status).toBe("succeeded");
+    expect(result.job!.status).toBe("succeeded");
     expect(readLatestScreeningResults()).toHaveLength(1);
+
+    await vi.waitFor(() => {
+      const status = readRefreshStatus();
+      expect(status.hasActiveWork).toBe(false);
+      expect(status.latestOperation?.kind).toBe("chip_background");
+      expect(status.latestOperation?.status).toBe("failed");
+      expect(status.latestSuccessfulJob?.id).toBe(result.job!.id);
+      expect(status.latestJob?.status).toBe("succeeded");
+    });
   });
 
   it("automatically bootstraps normalized market data and immediately screens it", async () => {
@@ -382,8 +527,8 @@ describe("refresh runner", () => {
     const generation = readActiveMarketCacheGeneration();
     const screeningRun = readLatestScreeningRun();
 
-    expect(result.job.status).toBe("succeeded");
-    expect(result.job.mode).toBe("bootstrap");
+    expect(result.job!.status).toBe("succeeded");
+    expect(result.job!.mode).toBe("bootstrap");
     expect(generation).not.toBeNull();
     expect(readMarketStocks()).toHaveLength(3);
     expect(readMarketDailyQuotes(generation?.id ?? 0)).toHaveLength(60);
@@ -391,26 +536,117 @@ describe("refresh runner", () => {
       stockCount: 3,
       dailyBarCount: 60,
     });
-    expect(screeningRun?.sourceRefreshJobId).toBe(result.job.id);
+    expect(screeningRun?.sourceRefreshJobId).toBe(result.job!.id);
     expect(screeningRun?.sourceMarketGenerationId).toBe(generation?.id);
     expect(readLatestScreeningResults()).toHaveLength(1);
   });
 
-  it("reuses an active generation without downloading market data again", async () => {
+  it("refreshes stock list and trade calendar but skips daily/factor when the active target window is complete", async () => {
     useTempRefreshStore();
     const generation = createEmptyActiveGeneration();
+    const { client, calls } = createMarketOnlyClient();
 
     const result = await startManualRefresh({
       waitForCompletion: true,
+      providerWorkerOptions: {
+        client,
+        now: new Date("2026-06-23T00:00:00.000Z"),
+      },
       chipPeakRunner: async () => chipRunFixture(),
     });
 
-    expect(result.job.status).toBe("succeeded");
-    expect(result.job.mode).toBe("ordinary");
+    expect(result.job!.status).toBe("succeeded");
+    expect(result.job!.mode).toBe("ordinary");
+    expect(calls.daily).toBe(0);
+    expect(calls.factor).toBe(0);
     expect(readActiveMarketCacheGeneration()?.id).toBe(generation.id);
     expect(readLatestScreeningRun()?.sourceMarketGenerationId).toBe(
       generation.id,
     );
+  });
+
+  it("resumes only failed factor items without re-fetching succeeded daily data", async () => {
+    useTempRefreshStore();
+    const generation = createEmptyActiveGeneration();
+    const failedTradeDate = "20260060";
+    const { client, calls } = createMarketOnlyClient();
+
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      failedTradeDate,
+      "factor",
+      "failed",
+    );
+
+    const result = await startManualRefresh({
+      waitForCompletion: true,
+      providerWorkerOptions: {
+        client,
+        now: new Date("2026-06-23T00:00:00.000Z"),
+      },
+      chipPeakRunner: async () => chipRunFixture(),
+    });
+    const updatedManifest = readMarketGenerationDates(generation.id).find(
+      (record) => record.tradeDate === failedTradeDate,
+    );
+
+    expect(result.job!.status).toBe("succeeded");
+    expect(calls.daily).toBe(0);
+    expect(calls.factor).toBe(1);
+    expect(updatedManifest).toMatchObject({
+      dailyStatus: "succeeded",
+      factorStatus: "succeeded",
+    });
+  });
+
+  it("keeps previous screening results when incremental market items partially fail", async () => {
+    useTempRefreshStore();
+    const generation = createEmptyActiveGeneration();
+    const failedTradeDate = "20260060";
+    const { client, calls } = createMarketOnlyClient({
+      factorFailureDate: failedTradeDate,
+    });
+    const previousRun = writeScreeningRun({
+      sourceRefreshJobId: 1,
+      sourceMarketGenerationId: generation.id,
+      totalStocks: 0,
+      matchedCount: 0,
+      skippedCount: 0,
+      results: [],
+    });
+    const chipPeakRunner = vi.fn(async () => chipRunFixture());
+
+    updateMarketGenerationDateItemStatus(
+      generation.id,
+      failedTradeDate,
+      "factor",
+      "failed",
+    );
+
+    const result = await startManualRefresh({
+      waitForCompletion: true,
+      providerWorkerOptions: {
+        client,
+        now: new Date("2026-06-23T00:00:00.000Z"),
+      },
+      chipPeakRunner,
+    });
+    const marketStage = readRefreshOperationSnapshot().stages.find(
+      (stage) => stage.stage === "market_data",
+    );
+    const serializedStage = JSON.stringify(marketStage);
+
+    expect(result.job!.status).toBe("failed");
+    expect(calls.daily).toBe(0);
+    expect(calls.factor).toBe(1);
+    expect(readLatestScreeningRun()?.id).toBe(previousRun.id);
+    expect(chipPeakRunner).not.toHaveBeenCalled();
+    expect(marketStage).toMatchObject({
+      status: "failed",
+      failed: 1,
+    });
+    expect(serializedStage).not.toContain("very-secret-token");
+    expect(serializedStage).not.toContain("C:\\server\\private");
   });
 
   it("stores a sanitized missing-config failure for the default worker", async () => {
@@ -422,7 +658,7 @@ describe("refresh runner", () => {
     });
     const latestJob = readRefreshStatus().latestJob;
 
-    expect(result.job.status).toBe("failed");
+    expect(result.job!.status).toBe("failed");
     expect(latestJob?.errorSummary).toContain("missing_config");
     expect(latestJob?.errorSummary).not.toContain("TUSHARE_TOKEN=");
   });

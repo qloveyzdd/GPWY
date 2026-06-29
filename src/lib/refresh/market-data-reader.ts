@@ -60,10 +60,12 @@ function adjustBarsForStock(
   tsCode: string,
   sourceQuotes: RawDailyQuoteRecord[],
   factors: Map<string, number>,
+  { limitToLatest60 = true }: { limitToLatest60?: boolean } = {},
 ) {
-  const quotes = sourceQuotes
-    .sort((left, right) => left.tradeDate.localeCompare(right.tradeDate))
-    .slice(-60);
+  const sortedQuotes = sourceQuotes.sort((left, right) =>
+    left.tradeDate.localeCompare(right.tradeDate),
+  );
+  const quotes = limitToLatest60 ? sortedQuotes.slice(-60) : sortedQuotes;
   const latestQuote = quotes.at(-1);
   const latestFactor = latestQuote
     ? factors.get(adjustmentFactorKey(tsCode, latestQuote.tradeDate))
@@ -135,18 +137,29 @@ export function readAdjustedMarketBarsForStock(
 
 export function readAdjustedMarketData({
   generationId,
+  tradeDates,
 }: {
   generationId?: number;
+  tradeDates?: string[];
 } = {}): AdjustedMarketData {
   const resolvedGenerationId = resolveGenerationId(generationId);
+  const targetTradeDates =
+    tradeDates === undefined ? null : new Set(tradeDates);
   const quotesByTsCode = new Map<string, RawDailyQuoteRecord[]>();
   const factors = factorMap(
-    readMarketAdjustmentFactors(resolvedGenerationId),
+    readMarketAdjustmentFactors(resolvedGenerationId).filter(
+      (factor) =>
+        targetTradeDates === null || targetTradeDates.has(factor.tradeDate),
+    ),
   );
   const stocks: AdjustedMarketStock[] = [];
   const skips: AdjustedMarketDataSkip[] = [];
 
   for (const quote of readMarketDailyQuotes(resolvedGenerationId)) {
+    if (targetTradeDates !== null && !targetTradeDates.has(quote.tradeDate)) {
+      continue;
+    }
+
     const existing = quotesByTsCode.get(quote.tsCode);
 
     if (existing) {
@@ -165,6 +178,7 @@ export function readAdjustedMarketData({
       stock.tsCode,
       quotesByTsCode.get(stock.tsCode) ?? [],
       factors,
+      { limitToLatest60: targetTradeDates === null },
     );
 
     if (adjusted.status === "skipped") {
