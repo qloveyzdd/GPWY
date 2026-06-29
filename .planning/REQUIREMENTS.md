@@ -28,10 +28,10 @@
 
 - [ ] **CHIP-05**: 系统为每只入选股票确定最新有效交易日和前一有效交易日，并获取这两个交易日的筹码分布。
 - [ ] **CHIP-06**: 数据源支持时，系统使用一次日期区间请求获取同一股票两个目标交易日的筹码数据。
-- [ ] **CHIP-07**: 系统保存两个目标交易日的全部筹码价格档位和占比，不再将前三筹码峰作为源数据。
-- [ ] **CHIP-08**: 系统在单个事务内完整替换同一股票同一交易日的筹码价格档位，避免残留旧数据。
-- [ ] **CHIP-09**: 系统复用已完整缓存的筹码分布，只请求缺失或失败的股票交易日。
-- [ ] **CHIP-10**: 系统分别记录两个目标交易日筹码分布的成功、阻塞或失败状态及脱敏原因。
+- [x] **CHIP-07**: 系统保存两个目标交易日的全部筹码价格档位和占比，不再将前三筹码峰作为源数据。
+- [x] **CHIP-08**: 系统在单个事务内完整替换同一股票同一交易日的筹码价格档位，避免残留旧数据。
+- [x] **CHIP-09**: 系统复用已完整缓存的筹码分布，只请求缺失或失败的股票交易日。
+- [x] **CHIP-10**: 系统分别记录两个目标交易日筹码分布的成功、阻塞或失败状态及脱敏原因。
 
 ### Results Experience
 
@@ -104,10 +104,10 @@
 | REFR-13 | Phase 9 | Complete |
 | CHIP-05 | Phase 10 | Pending |
 | CHIP-06 | Phase 10 | Pending |
-| CHIP-07 | Phase 10 | Pending |
-| CHIP-08 | Phase 10 | Pending |
-| CHIP-09 | Phase 10 | Pending |
-| CHIP-10 | Phase 10 | Pending |
+| CHIP-07 | Phase 10 | Complete |
+| CHIP-08 | Phase 10 | Complete |
+| CHIP-09 | Phase 10 | Complete |
+| CHIP-10 | Phase 10 | Complete |
 | UI-05 | Phase 11 | Pending |
 | UI-06 | Phase 9 | Complete |
 | UI-07 | Phase 9 | Complete |
