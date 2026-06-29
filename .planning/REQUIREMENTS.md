@@ -35,7 +35,7 @@
 
 ### Results Experience
 
-- [ ] **UI-05**: 结果表格删除筹码峰字段和筹码峰排序能力。
+- [x] **UI-05**: 结果表格删除筹码峰字段和筹码峰排序能力。
 - [x] **UI-06**: 筹码分布尚未完成或部分失败时，用户仍可查看已发布的筛选结果。
 - [x] **UI-07**: 页面展示当前刷新阶段、阶段进度和失败数量。
 
@@ -108,7 +108,7 @@
 | CHIP-08 | Phase 10 | Complete |
 | CHIP-09 | Phase 10 | Complete |
 | CHIP-10 | Phase 10 | Complete |
-| UI-05 | Phase 11 | Pending |
+| UI-05 | Phase 11 | Complete |
 | UI-06 | Phase 9 | Complete |
 | UI-07 | Phase 9 | Complete |
 | CHRT-07 | Phase 11 | Complete |

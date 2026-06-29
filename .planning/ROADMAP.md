@@ -15,7 +15,7 @@ v2.0 先修正行情数据模型和复权口径，再建立统一的受控请求
 - [x] **Phase 8: Controlled Provider Concurrency** — 建立统一限流调度器和可复用 tinyshare worker。 (completed 2026-06-26)
 - [x] **Phase 9: Incremental Refresh Workflow** — 交付可恢复的增量刷新、阶段进度和运维全量重建。 (completed 2026-06-29)
 - [x] **Phase 10: Dual-Day Chip Distribution** — 保存并增量补齐最新交易日与前一交易日的完整筹码分布。 (completed 2026-06-29)
-- [ ] **Phase 11: Distribution Comparison Experience** — 删除表格筹码峰并交付两个独立筹码分布图。
+- [x] **Phase 11: Distribution Comparison Experience** — 删除表格筹码峰并交付两个独立筹码分布图。 (completed 2026-06-29)
 
 ## Phase Details
 
@@ -123,6 +123,6 @@ Plans:
 | 8. Controlled Provider Concurrency | 3/3 | Complete   | 2026-06-26 |
 | 9. Incremental Refresh Workflow | 4/4 | Complete   | 2026-06-29 |
 | 10. Dual-Day Chip Distribution | 4/4 | Complete    | 2026-06-29 |
-| 11. Distribution Comparison Experience | 3/4 | In Progress|  |
+| 11. Distribution Comparison Experience | 4/4 | Complete   | 2026-06-29 |
 
 **Coverage:** 27/27 v2.0 requirements mapped exactly once.
