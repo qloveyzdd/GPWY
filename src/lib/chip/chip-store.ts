@@ -902,6 +902,18 @@ export function readChipDistributionStatusesForRun(
   }
 }
 
+export function readLatestChipDistributionStatusForTarget(
+  target: Pick<ChipDistributionTarget, "tsCode" | "tradeDate">,
+): ChipDistributionStatusRecord | null {
+  const db = openDatabase();
+
+  try {
+    return readLatestDistributionStatusInDatabase(db, target);
+  } finally {
+    db.close();
+  }
+}
+
 export function planChipDistributionWork(
   targets: ChipDistributionTarget[],
 ): ChipDistributionWorkPlan {

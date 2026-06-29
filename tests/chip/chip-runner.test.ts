@@ -5,15 +5,30 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { runChipPeakIntegrationFromLatestScreening } from "@/lib/chip/chip-runner";
-import { readLatestChipPeakResults } from "@/lib/chip/chip-store";
+import {
+  resolveChipDistributionTargetsForLatestScreening,
+  runChipDistributionIntegrationFromLatestScreening,
+  type ChipDistributionProgress,
+} from "@/lib/chip/chip-runner";
+import {
+  planChipDistributionWork,
+  readChipDistributionForDate,
+  readChipDistributionStatusesForRun,
+  replaceChipDistribution,
+  writeChipDistributionRun,
+} from "@/lib/chip/chip-store";
+import {
+  activateMarketCacheGeneration,
+  createMarketCacheGeneration,
+  upsertMarketAdjustmentFactors,
+  upsertMarketDailyQuotes,
+  upsertMarketGenerationDate,
+} from "@/lib/refresh/market-data-store";
 import {
   writeScreeningRun,
 } from "@/lib/screening/screening-store";
 import { TushareApiError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
-import { ProviderRequestScheduler } from "@/lib/tushare/request-scheduler";
-import { ScheduledTushareClient } from "@/lib/tushare/scheduled-client";
 import type {
   TushareClientLike,
   TushareDataTable,
@@ -23,7 +38,6 @@ import type {
 const tempRoots: string[] = [];
 
 afterEach(() => {
-  vi.useRealTimers();
   vi.unstubAllEnvs();
   for (const root of tempRoots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
@@ -54,200 +68,422 @@ function createMockClient(
   };
 }
 
-function writeScreeningFixture(tsCodes = ["000001.SZ"]) {
+function createReadableGeneration() {
+  const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
+
+  for (let index = 1; index <= 60; index += 1) {
+    upsertMarketGenerationDate(generation.id, {
+      tradeDate: `202606${String(index).padStart(2, "0")}`,
+      dailyStatus: "succeeded",
+      factorStatus: "succeeded",
+    });
+  }
+
+  return activateMarketCacheGeneration(generation.id);
+}
+
+function writeMarketBars(
+  generationId: number,
+  tsCode: string,
+  tradeDates: string[],
+) {
+  upsertMarketDailyQuotes(
+    generationId,
+    tradeDates.map((tradeDate, index) => ({
+      tsCode,
+      tradeDate,
+      open: 10 + index,
+      high: 11 + index,
+      low: 9 + index,
+      close: 10.5 + index,
+      vol: 1000 + index,
+    })),
+  );
+  upsertMarketAdjustmentFactors(
+    generationId,
+    tradeDates.map((tradeDate) => ({
+      tsCode,
+      tradeDate,
+      adjFactor: 1,
+    })),
+  );
+}
+
+function writeScreeningFixture({
+  tsCode = "000001.SZ",
+  latestTradeDate = "20260623",
+  generationId,
+}: {
+  tsCode?: string;
+  latestTradeDate?: string;
+  generationId: number;
+}) {
   return writeScreeningRun({
     sourceRefreshJobId: 7,
-    totalStocks: tsCodes.length,
-    matchedCount: tsCodes.length,
+    sourceMarketGenerationId: generationId,
+    totalStocks: 1,
+    matchedCount: 1,
     skippedCount: 0,
     now: new Date("2026-06-23T00:00:00.000Z"),
-    results: tsCodes.map((tsCode, index) => ({
+    results: [
+      {
         tsCode,
-        name: `股票${index + 1}`,
-        latestTradeDate: "20260211",
+        name: "股票1",
+        latestTradeDate,
         currentPrice: 8.5,
         intervalHigh: 10,
-        intervalHighTradeDate: "20260201",
+        intervalHighTradeDate: "20260601",
         intervalHighSource: "swing_high",
-        currentHighRatio: 0.8 + index / 100,
+        currentHighRatio: 0.8,
         drawdownPct: 0.15,
         ma20: 9,
         ma60: 11,
         ma20Slope: -0.1,
-      })),
+      },
+    ],
   });
 }
 
-describe("chip runner", () => {
-  it("queries cyq_chips by screening trade date and persists chip peak", async () => {
+function statusSummary(runId: number) {
+  return readChipDistributionStatusesForRun(runId).map((record) => ({
+    tsCode: record.tsCode,
+    targetKind: record.targetKind,
+    tradeDate: record.tradeDate,
+    status: record.status,
+    errorCategory: record.errorCategory,
+  }));
+}
+
+describe("chip distribution runner", () => {
+  it("resolves latest and previous dates from same-source bars and requests one cyq_chips range", async () => {
     useTempStore();
-    const screeningRun = writeScreeningFixture();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260622", "20260623"]);
+    const screeningRun = writeScreeningFixture({ generationId: generation.id });
+    const progressEvents: ChipDistributionProgress[] = [];
     const client = createMockClient(async () =>
       table([
-        ["000001.SZ", "20260211", 9.8, 2],
-        ["000001.SZ", "20260211", 10.2, 6],
+        ["000001.SZ", "20260621", 8.8, 9],
+        ["000001.SZ", "20260622", 9.8, 2],
+        ["000001.SZ", "20260623", 10.2, 6],
       ]),
     );
 
-    const run = await runChipPeakIntegrationFromLatestScreening({
+    const run = await runChipDistributionIntegrationFromLatestScreening({
       client,
       now: new Date("2026-06-23T00:01:00.000Z"),
+      onProgress: (progress) => progressEvents.push(progress),
     });
 
     expect(client.query).toHaveBeenCalledWith(
       TUSHARE_ENDPOINTS.chipChips,
       {
         ts_code: "000001.SZ",
-        trade_date: "20260211",
+        start_date: "20260622",
+        end_date: "20260623",
       },
       { priority: "chip" },
     );
-    expect(run.screeningRunId).toBe(screeningRun.id);
-    expect(run.status).toBe("succeeded");
-    expect(readLatestChipPeakResults()).toMatchObject([
+    expect(run).toMatchObject({
+      screeningRunId: screeningRun.id,
+      status: "succeeded",
+      totalTargets: 2,
+      successCount: 2,
+      blockedCount: 0,
+      failedCount: 0,
+      missingCount: 0,
+    });
+    expect(statusSummary(run.id)).toEqual([
       {
         tsCode: "000001.SZ",
+        targetKind: "latest",
+        tradeDate: "20260623",
         status: "succeeded",
-        tradeDate: "20260211",
-        chipPeakPrice: 10.2,
-        peakPercent: 6,
-        source: "cyq_chips_highest_percent",
-        peaks: [
-          { rank: 1, tradeDate: "20260211", price: 10.2, percent: 6 },
-          { rank: 2, tradeDate: "20260211", price: 9.8, percent: 2 },
-        ],
+        errorCategory: null,
+      },
+      {
+        tsCode: "000001.SZ",
+        targetKind: "previous",
+        tradeDate: "20260622",
+        status: "succeeded",
+        errorCategory: null,
+      },
+    ]);
+    expect(readChipDistributionForDate("000001.SZ", "20260622")).toHaveLength(1);
+    expect(readChipDistributionForDate("000001.SZ", "20260623")).toHaveLength(1);
+    expect(readChipDistributionForDate("000001.SZ", "20260621")).toEqual([]);
+    expect(progressEvents.at(-1)).toMatchObject({
+      totalTargets: 2,
+      completedTargets: 2,
+      succeeded: 2,
+    });
+  });
+
+  it("marks previous as missing when only one same-source bar exists while latest remains requestable", async () => {
+    useTempStore();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260623"]);
+    writeScreeningFixture({ generationId: generation.id });
+    const client = createMockClient(async () =>
+      table([["000001.SZ", "20260623", 10.2, 6]]),
+    );
+
+    const run = await runChipDistributionIntegrationFromLatestScreening({
+      client,
+    });
+
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.chipChips,
+      {
+        ts_code: "000001.SZ",
+        start_date: "20260623",
+        end_date: "20260623",
+      },
+      { priority: "chip" },
+    );
+    expect(run).toMatchObject({
+      status: "partial",
+      totalTargets: 2,
+      successCount: 1,
+      missingCount: 1,
+    });
+    expect(statusSummary(run.id)).toEqual([
+      {
+        tsCode: "000001.SZ",
+        targetKind: "latest",
+        tradeDate: "20260623",
+        status: "succeeded",
+        errorCategory: null,
+      },
+      {
+        tsCode: "000001.SZ",
+        targetKind: "previous",
+        tradeDate: null,
+        status: "missing",
+        errorCategory: null,
       },
     ]);
   });
 
-  it("persists permission failures as blocked without estimating", async () => {
+  it("reuses complete latest cache and retries only failed previous target", async () => {
     useTempStore();
-    writeScreeningFixture();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260622", "20260623"]);
+    writeScreeningFixture({ generationId: generation.id });
+    replaceChipDistribution({
+      tsCode: "000001.SZ",
+      tradeDate: "20260623",
+      levels: [{ price: 10.2, percent: 6 }],
+    });
+    writeChipDistributionRun({
+      screeningRunId: 1,
+      status: "partial",
+      totalTargets: 2,
+      successCount: 1,
+      blockedCount: 0,
+      failedCount: 1,
+      missingCount: 0,
+      statuses: [
+        {
+          screeningRunId: 1,
+          tsCode: "000001.SZ",
+          targetKind: "latest",
+          tradeDate: "20260623",
+          status: "succeeded",
+          source: "cyq_chips_highest_percent",
+          errorCategory: null,
+          errorSummary: null,
+        },
+        {
+          screeningRunId: 1,
+          tsCode: "000001.SZ",
+          targetKind: "previous",
+          tradeDate: "20260622",
+          status: "failed",
+          source: null,
+          errorCategory: "network_or_service",
+          errorSummary: "temporary failure",
+        },
+      ],
+    });
+    const client = createMockClient(async () =>
+      table([["000001.SZ", "20260622", 9.8, 2]]),
+    );
+
+    const run = await runChipDistributionIntegrationFromLatestScreening({
+      client,
+    });
+
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.chipChips,
+      {
+        ts_code: "000001.SZ",
+        start_date: "20260622",
+        end_date: "20260622",
+      },
+      { priority: "chip" },
+    );
+    expect(run).toMatchObject({
+      status: "succeeded",
+      successCount: 2,
+      skippedCompleteCount: 1,
+    });
+  });
+
+  it("does not call provider for blocked latest and records previous missing", async () => {
+    useTempStore();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260623"]);
+    writeScreeningFixture({ generationId: generation.id });
+    writeChipDistributionRun({
+      screeningRunId: 1,
+      status: "blocked",
+      totalTargets: 1,
+      successCount: 0,
+      blockedCount: 1,
+      failedCount: 0,
+      missingCount: 0,
+      statuses: [
+        {
+          screeningRunId: 1,
+          tsCode: "000001.SZ",
+          targetKind: "latest",
+          tradeDate: "20260623",
+          status: "blocked",
+          source: null,
+          errorCategory: "permission_denied",
+          errorSummary: "permission denied",
+        },
+      ],
+    });
+    const client = createMockClient(async () => table([]));
+
+    const run = await runChipDistributionIntegrationFromLatestScreening({
+      client,
+    });
+
+    expect(client.query).not.toHaveBeenCalled();
+    expect(run).toMatchObject({
+      status: "blocked",
+      blockedCount: 1,
+      missingCount: 1,
+    });
+  });
+
+  it("handles partial provider returns independently and ignores non-target dates", async () => {
+    useTempStore();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260622", "20260623"]);
+    writeScreeningFixture({ generationId: generation.id });
+    const client = createMockClient(async () =>
+      table([
+        ["000001.SZ", "20260621", 8.8, 9],
+        ["000001.SZ", "20260623", 10.2, 6],
+      ]),
+    );
+
+    const run = await runChipDistributionIntegrationFromLatestScreening({
+      client,
+    });
+
+    expect(statusSummary(run.id)).toEqual([
+      {
+        tsCode: "000001.SZ",
+        targetKind: "latest",
+        tradeDate: "20260623",
+        status: "succeeded",
+        errorCategory: null,
+      },
+      {
+        tsCode: "000001.SZ",
+        targetKind: "previous",
+        tradeDate: "20260622",
+        status: "blocked",
+        errorCategory: "empty_data",
+      },
+    ]);
+    expect(readChipDistributionForDate("000001.SZ", "20260623")).toHaveLength(1);
+    expect(readChipDistributionForDate("000001.SZ", "20260622")).toEqual([]);
+    expect(readChipDistributionForDate("000001.SZ", "20260621")).toEqual([]);
+  });
+
+  it("marks temporary provider failures as failed so the next planner retries them", async () => {
+    useTempStore();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260622", "20260623"]);
+    writeScreeningFixture({ generationId: generation.id });
+    const client = createMockClient(async () => {
+      throw new TypeError("fetch failed");
+    });
+
+    const run = await runChipDistributionIntegrationFromLatestScreening({
+      client,
+    });
+    const retryPlan = planChipDistributionWork(
+      resolveChipDistributionTargetsForLatestScreening(),
+    );
+
+    expect(run).toMatchObject({
+      status: "failed",
+      failedCount: 2,
+      blockedCount: 0,
+    });
+    expect(statusSummary(run.id).map((record) => record.status)).toEqual([
+      "failed",
+      "failed",
+    ]);
+    expect(retryPlan.items).toHaveLength(2);
+    expect(retryPlan.failedRetryCount).toBe(2);
+  });
+
+  it("marks permission failures as blocked so the next planner does not retry them", async () => {
+    useTempStore();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260622", "20260623"]);
+    writeScreeningFixture({ generationId: generation.id });
     const client = createMockClient(async () => {
       throw new TushareApiError("cyq_chips", -2002, "没有访问该接口的权限");
     });
 
-    const run = await runChipPeakIntegrationFromLatestScreening({ client });
-
-    expect(run.status).toBe("blocked");
-    expect(run.blockedCount).toBe(1);
-    expect(readLatestChipPeakResults()).toMatchObject([
-      {
-        tsCode: "000001.SZ",
-        status: "blocked",
-        chipPeakPrice: null,
-        source: null,
-        peaks: [],
-        errorCategory: "permission_denied",
-      },
-    ]);
-  });
-
-  it("reports chip progress without letting progress callback failures change results", async () => {
-    useTempStore();
-    writeScreeningFixture(["000001.SZ", "000002.SZ"]);
-    const client = createMockClient(async (_endpoint, params) =>
-      table([[params.ts_code, "20260211", 10.2, 6]]),
-    );
-    const progressEvents: Array<{
-      total: number;
-      completed: number;
-      succeeded: number;
-      blocked: number;
-      failed: number;
-    }> = [];
-
-    const run = await runChipPeakIntegrationFromLatestScreening({
+    const run = await runChipDistributionIntegrationFromLatestScreening({
       client,
-      onProgress: (progress) => {
-        progressEvents.push(progress);
+    });
+    const retryPlan = planChipDistributionWork(
+      resolveChipDistributionTargetsForLatestScreening(),
+    );
 
-        if (progress.completed === 1) {
-          throw new Error("progress sink unavailable");
-        }
-      },
+    expect(run).toMatchObject({
+      status: "blocked",
+      blockedCount: 2,
+      failedCount: 0,
     });
-
-    expect(run.status).toBe("succeeded");
-    expect(progressEvents[0]).toEqual({
-      total: 2,
-      completed: 0,
-      succeeded: 0,
-      blocked: 0,
-      failed: 0,
-    });
-    expect(progressEvents.at(-1)).toEqual({
-      total: 2,
-      completed: 2,
-      succeeded: 2,
-      blocked: 0,
-      failed: 0,
-    });
+    expect(statusSummary(run.id).map((record) => record.status)).toEqual([
+      "blocked",
+      "blocked",
+    ]);
+    expect(retryPlan.items).toEqual([]);
+    expect(retryPlan.blockedCount).toBe(2);
   });
 
-  it("runs candidates concurrently with bounded retries and isolated row failures", async () => {
-    vi.useFakeTimers();
+  it("classifies missing token as blocked without leaking an exception stack", async () => {
     useTempStore();
-    const codes = [
-      "000001.SZ",
-      "000002.SZ",
-      "000003.SZ",
-      "000004.SZ",
-      "000005.SZ",
-      "000006.SZ",
-    ];
-    writeScreeningFixture(codes);
-    const attempts = new Map<string, number>();
-    let active = 0;
-    let peak = 0;
-    const rawClient = createMockClient(async (_endpoint, params) => {
-      const tsCode = String(params.ts_code);
-      attempts.set(tsCode, (attempts.get(tsCode) ?? 0) + 1);
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260622", "20260623"]);
+    writeScreeningFixture({ generationId: generation.id });
 
-      if (tsCode === "000005.SZ") {
-        throw new TushareApiError(
-          "cyq_chips",
-          -2002,
-          "没有访问该接口的权限",
-        );
-      }
-      if (tsCode === "000006.SZ") {
-        throw new TypeError("fetch failed");
-      }
+    const run = await runChipDistributionIntegrationFromLatestScreening();
+    const summaries = readChipDistributionStatusesForRun(run.id).map(
+      (record) => record.errorSummary ?? "",
+    );
 
-      active += 1;
-      peak = Math.max(peak, active);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      active -= 1;
-      return table([[tsCode, "20260211", 10.2, 6]]);
-    });
-    const scheduler = new ProviderRequestScheduler({
-      maxConcurrency: 2,
-      requestTimeoutMs: 60_000,
-      random: () => 0.5,
-    });
-    const client = new ScheduledTushareClient(rawClient, scheduler);
-
-    const runPromise = runChipPeakIntegrationFromLatestScreening({ client });
-    await vi.runAllTimersAsync();
-    const run = await runPromise;
-    const results = readLatestChipPeakResults();
-
-    expect(peak).toBe(2);
-    expect(attempts.get("000005.SZ")).toBe(1);
-    expect(attempts.get("000006.SZ")).toBe(3);
-    expect(run.status).toBe("partial");
-    expect(run.successCount).toBe(4);
-    expect(run.blockedCount).toBe(1);
-    expect(run.failedCount).toBe(1);
-    expect(results.map((result) => result.tsCode)).toEqual(codes);
-    expect(results.find((result) => result.tsCode === "000005.SZ")).toMatchObject({
+    expect(run).toMatchObject({
       status: "blocked",
-      errorCategory: "permission_denied",
+      blockedCount: 2,
     });
-    expect(results.find((result) => result.tsCode === "000006.SZ")).toMatchObject({
-      status: "failed",
-      errorCategory: "network_or_service",
-    });
+    expect(statusSummary(run.id).map((record) => record.errorCategory)).toEqual([
+      "missing_config",
+      "missing_config",
+    ]);
+    expect(summaries.join("\n")).not.toContain("Error:");
   });
 });
