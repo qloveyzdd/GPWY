@@ -1,3 +1,4 @@
+import type { TushareErrorCategory } from "@/lib/tushare/types";
 import type { ResultRow, ResultsUnavailableReason } from "@/lib/results/results-types";
 
 export type ChartSnapshotStatus = "ready" | "not_found" | "unavailable";
@@ -20,12 +21,45 @@ export type ChartMovingAveragePoint = {
   value: number;
 };
 
+export type ChartChipDistributionTargetKind = "previous" | "latest";
+
+export type ChartChipDistributionStatus =
+  | "succeeded"
+  | "blocked"
+  | "failed"
+  | "missing";
+
+export type ChartChipDistributionLevel = {
+  price: number;
+  percent: number;
+};
+
+export type ChartChipDistributionPanel = {
+  targetKind: ChartChipDistributionTargetKind;
+  label: string;
+  tradeDate: string | null;
+  status: ChartChipDistributionStatus;
+  levels: ChartChipDistributionLevel[];
+  maxLevel: ChartChipDistributionLevel | null;
+  errorCategory: TushareErrorCategory | null;
+  errorSummary: string | null;
+};
+
+export type ChartChipDistributionScale = {
+  priceLevels: number[];
+  maxPercent: number;
+};
+
+export type ChartChipDistributions = {
+  previous: ChartChipDistributionPanel;
+  latest: ChartChipDistributionPanel;
+  scale: ChartChipDistributionScale;
+};
+
 export type ChartOverlays = {
   intervalHighPrice: number;
   intervalHighTradeDate: string;
   threshold85Price: number;
-  chipPeaks: ResultRow["chipPeaks"];
-  chipPeakState: ResultRow["chipPeakState"];
 };
 
 export type ReadyChartSnapshot = {
@@ -36,6 +70,7 @@ export type ReadyChartSnapshot = {
   ma20Series: ChartMovingAveragePoint[];
   ma60Series: ChartMovingAveragePoint[];
   overlays: ChartOverlays;
+  chipDistributions: ChartChipDistributions;
 };
 
 export type UnavailableChartSnapshot = {

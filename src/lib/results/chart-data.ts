@@ -1,7 +1,20 @@
+import {
+  readChipDistributionForDate,
+  readChipDistributionStatusesForRun,
+  readLatestChipDistributionRun,
+} from "@/lib/chip/chip-store";
+import type {
+  ChipDistributionLevel,
+  ChipDistributionStatusRecord,
+  ChipDistributionTargetKind,
+} from "@/lib/chip/chip-types";
 import { readDailyBarsForRefreshJob } from "@/lib/refresh/refresh-store";
 import { readAdjustedMarketBarsForStock } from "@/lib/refresh/market-data-reader";
 import { readLatestResultsSnapshot } from "@/lib/results/results-snapshot";
 import type {
+  ChartChipDistributionLevel,
+  ChartChipDistributionPanel,
+  ChartChipDistributions,
   ChartDailyBar,
   ChartUnavailableReason,
   ChartMovingAveragePoint,
@@ -10,6 +23,12 @@ import type {
 import { calculateMovingAverageSeries } from "@/lib/screening/indicators";
 import { readScreeningRunById } from "@/lib/screening/screening-store";
 import type { ScreeningDailyBar } from "@/lib/screening/screening-types";
+
+const tokenAssignmentPattern =
+  /\b([A-Z_]*(?:TOKEN|SECRET|PASSWORD|KEY)[A-Z_]*)\s*=\s*[^\s,;]+/gi;
+const localPathPattern = /[A-Za-z]:\\[^\s,;]+/g;
+const headerPattern = /\b(?:authorization|cookie|set-cookie)\s*:\s*[^\s,;]+/gi;
+const secretLikePattern = /\b(?:Bearer|Token)\s+[A-Za-z0-9._~+/=-]+/gi;
 
 function toChartBar(bar: ScreeningDailyBar): ChartDailyBar {
   return {
@@ -22,6 +41,15 @@ function toChartBar(bar: ScreeningDailyBar): ChartDailyBar {
   };
 }
 
+function toDistributionLevel(
+  level: ChipDistributionLevel,
+): ChartChipDistributionLevel {
+  return {
+    price: level.price,
+    percent: level.percent,
+  };
+}
+
 function toChartMaPoint(point: {
   tradeDate: string;
   value: number;
@@ -30,6 +58,178 @@ function toChartMaPoint(point: {
     tradeDate: point.tradeDate,
     value: point.value,
   };
+}
+
+function sanitizeErrorSummary(summary: string | null) {
+  if (summary === null) {
+    return null;
+  }
+
+  return summary
+    .replace(tokenAssignmentPattern, "$1=[redacted]")
+    .replace(localPathPattern, "[redacted-path]")
+    .replace(headerPattern, "[redacted-header]")
+    .replace(secretLikePattern, "[redacted]");
+}
+
+function targetLabel(targetKind: ChipDistributionTargetKind) {
+  return targetKind === "previous" ? "前一有效交易日" : "最新有效交易日";
+}
+
+function findPreviousTradeDate(
+  bars: ScreeningDailyBar[],
+  latestTradeDate: string,
+) {
+  const latestIndex = bars.findIndex((bar) => bar.tradeDate === latestTradeDate);
+
+  if (latestIndex <= 0) {
+    return null;
+  }
+
+  return bars[latestIndex - 1].tradeDate;
+}
+
+function findStatus(
+  statuses: ChipDistributionStatusRecord[],
+  targetKind: ChipDistributionTargetKind,
+) {
+  return statuses.find((status) => status.targetKind === targetKind);
+}
+
+function maxDistributionLevel(levels: ChartChipDistributionLevel[]) {
+  return [...levels].sort((left, right) => {
+    const percentDiff = right.percent - left.percent;
+
+    if (percentDiff !== 0) {
+      return percentDiff;
+    }
+
+    return left.price - right.price;
+  })[0] ?? null;
+}
+
+function buildMissingPanel(
+  targetKind: ChipDistributionTargetKind,
+  tradeDate: string | null,
+): ChartChipDistributionPanel {
+  return {
+    targetKind,
+    label: targetLabel(targetKind),
+    tradeDate,
+    status: "missing",
+    levels: [],
+    maxLevel: null,
+    errorCategory: null,
+    errorSummary:
+      targetKind === "previous" && tradeDate === null
+        ? "previous_trade_date_missing"
+        : null,
+  };
+}
+
+function buildDistributionPanel(
+  targetKind: ChipDistributionTargetKind,
+  status: ChipDistributionStatusRecord | undefined,
+  fallbackTradeDate: string | null,
+): ChartChipDistributionPanel {
+  if (!status) {
+    return buildMissingPanel(targetKind, fallbackTradeDate);
+  }
+
+  if (status.status !== "succeeded" || status.tradeDate === null) {
+    return {
+      targetKind,
+      label: targetLabel(targetKind),
+      tradeDate: status.tradeDate ?? fallbackTradeDate,
+      status: status.status,
+      levels: [],
+      maxLevel: null,
+      errorCategory: status.errorCategory,
+      errorSummary: sanitizeErrorSummary(status.errorSummary),
+    };
+  }
+
+  const levels = readChipDistributionForDate(
+    status.tsCode,
+    status.tradeDate,
+  ).map(toDistributionLevel);
+
+  if (levels.length === 0) {
+    return {
+      targetKind,
+      label: targetLabel(targetKind),
+      tradeDate: status.tradeDate,
+      status: "blocked",
+      levels: [],
+      maxLevel: null,
+      errorCategory: "empty_data",
+      errorSummary: "chip distribution cache has no levels for target date",
+    };
+  }
+
+  return {
+    targetKind,
+    label: targetLabel(targetKind),
+    tradeDate: status.tradeDate,
+    status: "succeeded",
+    levels,
+    maxLevel: maxDistributionLevel(levels),
+    errorCategory: null,
+    errorSummary: null,
+  };
+}
+
+function withSharedScale(
+  previous: ChartChipDistributionPanel,
+  latest: ChartChipDistributionPanel,
+): ChartChipDistributions {
+  const successfulLevels = [previous, latest]
+    .filter((panel) => panel.status === "succeeded")
+    .flatMap((panel) => panel.levels);
+  const priceLevels = Array.from(
+    new Set(successfulLevels.map((level) => level.price)),
+  ).sort((left, right) => left - right);
+  const maxPercent = successfulLevels.reduce(
+    (max, level) => Math.max(max, level.percent),
+    0,
+  );
+
+  return {
+    previous,
+    latest,
+    scale: {
+      priceLevels,
+      maxPercent,
+    },
+  };
+}
+
+function buildChipDistributions(
+  screeningRunId: number,
+  tsCode: string,
+  latestTradeDate: string,
+  bars: ScreeningDailyBar[],
+): ChartChipDistributions {
+  const distributionRun = readLatestChipDistributionRun(screeningRunId);
+  const statuses =
+    distributionRun?.screeningRunId === screeningRunId
+      ? readChipDistributionStatusesForRun(distributionRun.id).filter(
+          (status) => status.tsCode === tsCode,
+        )
+      : [];
+  const previousTradeDate = findPreviousTradeDate(bars, latestTradeDate);
+  const previous = buildDistributionPanel(
+    "previous",
+    findStatus(statuses, "previous"),
+    previousTradeDate,
+  );
+  const latest = buildDistributionPanel(
+    "latest",
+    findStatus(statuses, "latest"),
+    latestTradeDate,
+  );
+
+  return withSharedScale(previous, latest);
 }
 
 function unavailable(unavailableReason: ChartUnavailableReason): ChartSnapshot {
@@ -111,8 +311,12 @@ export function readLatestChartSnapshot(tsCode: string): ChartSnapshot {
       intervalHighPrice: row.intervalHigh,
       intervalHighTradeDate: row.intervalHighTradeDate,
       threshold85Price: row.intervalHigh * 0.85,
-      chipPeaks: row.chipPeakState === "available" ? row.chipPeaks : [],
-      chipPeakState: row.chipPeakState,
     },
+    chipDistributions: buildChipDistributions(
+      screeningRunId,
+      row.tsCode,
+      row.latestTradeDate,
+      bars,
+    ),
   };
 }

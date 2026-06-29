@@ -85,7 +85,7 @@ function createActiveGeneration() {
   return activateMarketCacheGeneration(generation.id);
 }
 
-function writeLatestChipDistribution(screeningRunId: number) {
+function writeDualChipDistribution(screeningRunId: number) {
   replaceChipDistribution({
     tsCode: "000001.SZ",
     tradeDate: "20260623",
@@ -95,11 +95,19 @@ function writeLatestChipDistribution(screeningRunId: number) {
       { price: 37.1, percent: 3.1 },
     ],
   });
+  replaceChipDistribution({
+    tsCode: "000001.SZ",
+    tradeDate: "20260622",
+    levels: [
+      { price: 35.9, percent: 5.5 },
+      { price: 36.4, percent: 4.4 },
+    ],
+  });
   writeChipDistributionRun({
     screeningRunId,
     status: "succeeded",
-    totalTargets: 1,
-    successCount: 1,
+    totalTargets: 2,
+    successCount: 2,
     blockedCount: 0,
     failedCount: 0,
     missingCount: 0,
@@ -109,6 +117,59 @@ function writeLatestChipDistribution(screeningRunId: number) {
         tsCode: "000001.SZ",
         targetKind: "latest",
         tradeDate: "20260623",
+        status: "succeeded",
+        source: "cyq_chips_highest_percent",
+        errorCategory: null,
+        errorSummary: null,
+      },
+      {
+        screeningRunId,
+        tsCode: "000001.SZ",
+        targetKind: "previous",
+        tradeDate: "20260622",
+        status: "succeeded",
+        source: "cyq_chips_highest_percent",
+        errorCategory: null,
+        errorSummary: null,
+      },
+    ],
+  });
+}
+
+function writeBlockedLatestAndSuccessfulPrevious(screeningRunId: number) {
+  replaceChipDistribution({
+    tsCode: "000001.SZ",
+    tradeDate: "20260622",
+    levels: [
+      { price: 35.9, percent: 5.5 },
+      { price: 36.4, percent: 4.4 },
+    ],
+  });
+  writeChipDistributionRun({
+    screeningRunId,
+    status: "partial",
+    totalTargets: 2,
+    successCount: 1,
+    blockedCount: 1,
+    failedCount: 0,
+    missingCount: 0,
+    statuses: [
+      {
+        screeningRunId,
+        tsCode: "000001.SZ",
+        targetKind: "latest",
+        tradeDate: "20260623",
+        status: "blocked",
+        source: null,
+        errorCategory: "permission_denied",
+        errorSummary:
+          "Authorization: Bearer secret TUSHARE_TOKEN=secret C:\\Users\\secret\\token.txt",
+      },
+      {
+        screeningRunId,
+        tsCode: "000001.SZ",
+        targetKind: "previous",
+        tradeDate: "20260622",
         status: "succeeded",
         source: "cyq_chips_highest_percent",
         errorCategory: null,
@@ -144,7 +205,7 @@ describe("chart data snapshot", () => {
     expect(snapshot.unavailableReason).toBe("stock_not_in_latest_results");
   });
 
-  it("returns persisted row values, matching job bars, moving averages, and overlays", () => {
+  it("returns persisted row values, matching job bars, moving averages, overlays, and dual distributions", () => {
     useTempStore();
     const staleRefreshJob = writeRefreshWithBars(
       "000001.SZ",
@@ -176,7 +237,7 @@ describe("chart data snapshot", () => {
         },
       ],
     });
-    writeLatestChipDistribution(screeningRun.id);
+    writeDualChipDistribution(screeningRun.id);
 
     const snapshot = readLatestChartSnapshot("000001.sz");
 
@@ -194,17 +255,42 @@ describe("chart data snapshot", () => {
       intervalHighPrice: 90,
       intervalHighTradeDate: "20260214",
       threshold85Price: 76.5,
-      chipPeaks: [
-        { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
-        { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
-        { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
+    });
+    expect(snapshot.chipDistributions.latest).toMatchObject({
+      targetKind: "latest",
+      label: "最新有效交易日",
+      tradeDate: "20260623",
+      status: "succeeded",
+      levels: [
+        { price: 35.8, percent: 4.2 },
+        { price: 36.2, percent: 6.5 },
+        { price: 37.1, percent: 3.1 },
       ],
-      chipPeakState: "available",
+      maxLevel: { price: 36.2, percent: 6.5 },
+      errorCategory: null,
+      errorSummary: null,
+    });
+    expect(snapshot.chipDistributions.previous).toMatchObject({
+      targetKind: "previous",
+      label: "前一有效交易日",
+      tradeDate: "20260622",
+      status: "succeeded",
+      levels: [
+        { price: 35.9, percent: 5.5 },
+        { price: 36.4, percent: 4.4 },
+      ],
+      maxLevel: { price: 35.9, percent: 5.5 },
+      errorCategory: null,
+      errorSummary: null,
+    });
+    expect(snapshot.chipDistributions.scale).toEqual({
+      priceLevels: [35.8, 35.9, 36.2, 36.4, 37.1],
+      maxPercent: 6.5,
     });
     expect(staleRefreshJob.id).not.toBe(sourceRefreshJob.id);
   });
 
-  it("does not draw a fake chip peak overlay when chip peak is unavailable", () => {
+  it("returns ready chart data with missing distribution panels when chip distribution is unavailable", () => {
     useTempStore();
     const sourceRefreshJob = writeRefreshWithBars(
       "000001.SZ",
@@ -239,8 +325,99 @@ describe("chart data snapshot", () => {
     if (snapshot.status !== "ready") {
       throw new Error("expected ready chart snapshot");
     }
-    expect(snapshot.overlays.chipPeakState).toBe("missing");
-    expect(snapshot.overlays.chipPeaks).toEqual([]);
+    expect(snapshot.overlays).toEqual({
+      intervalHighPrice: 90,
+      intervalHighTradeDate: "20260214",
+      threshold85Price: 76.5,
+    });
+    expect(snapshot.chipDistributions.latest).toMatchObject({
+      targetKind: "latest",
+      tradeDate: "20260623",
+      status: "missing",
+      levels: [],
+      maxLevel: null,
+    });
+    expect(snapshot.chipDistributions.previous).toMatchObject({
+      targetKind: "previous",
+      tradeDate: null,
+      status: "missing",
+      levels: [],
+      maxLevel: null,
+      errorSummary: "previous_trade_date_missing",
+    });
+    expect(snapshot.chipDistributions.scale).toEqual({
+      priceLevels: [],
+      maxPercent: 0,
+    });
+  });
+
+  it("keeps previous distribution available when latest distribution is blocked and sanitizes errors", () => {
+    useTempStore();
+    const sourceRefreshJob = writeRefreshWithBars(
+      "000001.SZ",
+      makeBars("000001.SZ", 60),
+    );
+    const screeningRun = writeScreeningRun({
+      sourceRefreshJobId: sourceRefreshJob.id,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [
+        {
+          tsCode: "000001.SZ",
+          name: "平安银行",
+          latestTradeDate: "20260623",
+          currentPrice: 41,
+          intervalHigh: 90,
+          intervalHighTradeDate: "20260214",
+          intervalHighSource: "swing_high",
+          currentHighRatio: 41 / 90,
+          drawdownPct: 1 - 41 / 90,
+          ma20: 50.5,
+          ma60: 70.5,
+          ma20Slope: -1,
+        },
+      ],
+    });
+    writeBlockedLatestAndSuccessfulPrevious(screeningRun.id);
+
+    const snapshot = readLatestChartSnapshot("000001.SZ");
+
+    expect(snapshot.status).toBe("ready");
+    if (snapshot.status !== "ready") {
+      throw new Error("expected ready chart snapshot");
+    }
+    expect(snapshot.chipDistributions.latest).toMatchObject({
+      targetKind: "latest",
+      tradeDate: "20260623",
+      status: "blocked",
+      levels: [],
+      maxLevel: null,
+      errorCategory: "permission_denied",
+    });
+    expect(snapshot.chipDistributions.latest.errorSummary).not.toContain(
+      "TUSHARE_TOKEN=secret",
+    );
+    expect(snapshot.chipDistributions.latest.errorSummary).not.toContain(
+      "Authorization",
+    );
+    expect(snapshot.chipDistributions.latest.errorSummary).not.toContain(
+      "C:\\Users",
+    );
+    expect(snapshot.chipDistributions.previous).toMatchObject({
+      targetKind: "previous",
+      tradeDate: "20260622",
+      status: "succeeded",
+      levels: [
+        { price: 35.9, percent: 5.5 },
+        { price: 36.4, percent: 4.4 },
+      ],
+      maxLevel: { price: 35.9, percent: 5.5 },
+    });
+    expect(snapshot.chipDistributions.scale).toEqual({
+      priceLevels: [35.9, 36.4],
+      maxPercent: 5.5,
+    });
   });
 
   it("reads chart bars from the screening generation instead of legacy bars", () => {

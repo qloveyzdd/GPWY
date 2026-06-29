@@ -74,12 +74,39 @@ function readySnapshot(
       intervalHighPrice: 90,
       intervalHighTradeDate: "20260214",
       threshold85Price: 76.5,
-      chipPeaks: [
-        { rank: 1, tradeDate: "20260623", price: 36.2, percent: 6.5 },
-        { rank: 2, tradeDate: "20260623", price: 35.8, percent: 4.2 },
-        { rank: 3, tradeDate: "20260623", price: 37.1, percent: 3.1 },
-      ],
-      chipPeakState: "available",
+    },
+    chipDistributions: {
+      previous: {
+        targetKind: "previous",
+        label: "前一有效交易日",
+        tradeDate: "20260622",
+        status: "succeeded",
+        levels: [
+          { price: 35.9, percent: 5.5 },
+          { price: 36.4, percent: 4.4 },
+        ],
+        maxLevel: { price: 35.9, percent: 5.5 },
+        errorCategory: null,
+        errorSummary: null,
+      },
+      latest: {
+        targetKind: "latest",
+        label: "最新有效交易日",
+        tradeDate: "20260623",
+        status: "succeeded",
+        levels: [
+          { price: 35.8, percent: 4.2 },
+          { price: 36.2, percent: 6.5 },
+          { price: 37.1, percent: 3.1 },
+        ],
+        maxLevel: { price: 36.2, percent: 6.5 },
+        errorCategory: null,
+        errorSummary: null,
+      },
+      scale: {
+        priceLevels: [35.8, 35.9, 36.2, 36.4, 37.1],
+        maxPercent: 6.5,
+      },
     },
   };
 
@@ -165,15 +192,9 @@ describe("StockKlineChart", () => {
     const snapshot = readySnapshot({
       row: {
         ...readySnapshot().row,
-        chipPeakState: "missing",
-        chipPeakPrice: null,
-        chipPeakTradeDate: null,
-        chipPeaks: [],
       },
       overlays: {
         ...readySnapshot().overlays,
-        chipPeakState: "missing",
-        chipPeaks: [],
       },
     });
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
