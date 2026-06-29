@@ -122,7 +122,7 @@ Plans:
 | 7. Standardized Market Data Cache | 4/4 | Complete    | 2026-06-26 |
 | 8. Controlled Provider Concurrency | 3/3 | Complete   | 2026-06-26 |
 | 9. Incremental Refresh Workflow | 4/4 | Complete   | 2026-06-29 |
-| 10. Dual-Day Chip Distribution | 1/4 | In Progress|  |
+| 10. Dual-Day Chip Distribution | 2/4 | In Progress|  |
 | 11. Distribution Comparison Experience | 6 | Not started | — |
 
 **Coverage:** 27/27 v2.0 requirements mapped exactly once.
