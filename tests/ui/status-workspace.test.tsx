@@ -113,6 +113,7 @@ describe("StatusWorkspace", () => {
 
   it("starts manual refresh and renders returned running status", async () => {
     const runningStatus = {
+      ...EMPTY_REFRESH_STATUS,
       activeJob: {
         id: 7,
         mode: "ordinary" as const,
@@ -172,6 +173,7 @@ describe("StatusWorkspace", () => {
 
   it("renders the exact bootstrap state without exposing internal details", () => {
     const bootstrapStatus = {
+      ...EMPTY_REFRESH_STATUS,
       activeJob: {
         id: 8,
         mode: "bootstrap" as const,
@@ -226,6 +228,7 @@ describe("StatusWorkspace", () => {
   it("refreshes server-rendered snapshots when a running refresh finishes", async () => {
     vi.useFakeTimers();
     const runningStatus = {
+      ...EMPTY_REFRESH_STATUS,
       activeJob: {
         id: 7,
         mode: "ordinary" as const,

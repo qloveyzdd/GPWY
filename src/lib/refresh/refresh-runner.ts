@@ -13,6 +13,7 @@ import {
   readLatestCacheStats,
   readLatestRefreshJob,
   readLatestSuccessfulRefreshJob,
+  readRefreshOperationSnapshot,
   startRefreshJob,
 } from "@/lib/refresh/refresh-store";
 import {
@@ -24,8 +25,10 @@ import {
   runChipPeakIntegrationFromLatestScreening,
 } from "@/lib/chip/chip-runner";
 import type { ChipPeakRunRecord } from "@/lib/chip/chip-types";
+import { readLatestChipPeakRun } from "@/lib/chip/chip-store";
 import { readTushareTokenSecret } from "@/lib/config";
 import { runDowntrendScreeningFromCache } from "@/lib/screening/screening-runner";
+import { readLatestScreeningRun } from "@/lib/screening/screening-store";
 import type { ScreeningRunRecord } from "@/lib/screening/screening-types";
 import { classifyTushareError } from "@/lib/tushare/client";
 import { createTushareClient } from "@/lib/tushare/provider";
@@ -129,6 +132,14 @@ function createActiveGenerationRefreshWorker(): RefreshWorker {
   };
 }
 
+function createResultVersion(run: ScreeningRunRecord | null) {
+  return run ? `${run.id}:${run.createdAt}` : null;
+}
+
+function createChipVersion(run: ChipPeakRunRecord | null) {
+  return run ? `${run.id}:${run.createdAt}:${run.status}` : null;
+}
+
 async function finishRefreshJob(
   job: RefreshJob,
   worker: RefreshWorker,
@@ -165,12 +176,19 @@ export function readRefreshStatus(): RefreshStatusSnapshot {
   const activeJob = readActiveRefreshJob();
   const latestSuccessfulJob = readLatestSuccessfulRefreshJob();
   const normalizedCacheStats = readActiveMarketCacheStats();
+  const operationSnapshot = readRefreshOperationSnapshot();
 
   return {
     activeJob,
     latestJob: readLatestRefreshJob(),
     latestSuccessfulJob,
     latestCacheStats: normalizedCacheStats ?? readLatestCacheStats(),
+    activeOperation: operationSnapshot.activeOperation,
+    latestOperation: operationSnapshot.latestOperation,
+    stages: operationSnapshot.stages,
+    hasActiveWork: operationSnapshot.hasActiveWork || Boolean(activeJob),
+    resultVersion: createResultVersion(readLatestScreeningRun()),
+    chipVersion: createChipVersion(readLatestChipPeakRun()),
     isRunning: Boolean(activeJob),
     mode: activeJob?.mode ?? null,
     lastSuccessfulFinishedAt: latestSuccessfulJob?.finishedAt ?? null,

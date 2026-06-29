@@ -2,10 +2,22 @@ import { existsSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import {
+  REFRESH_STAGE_LABELS,
+  REFRESH_STAGE_ORDER,
+} from "@/lib/refresh/refresh-types";
 import type {
   DailyBarRecord,
   RefreshCacheStats,
   RefreshJob,
+  RefreshOperation,
+  RefreshOperationKind,
+  RefreshOperationSnapshot,
+  RefreshOperationStartResult,
+  RefreshOperationStatus,
+  RefreshStageKey,
+  RefreshStageSnapshot,
+  RefreshStageStatus,
   RefreshStartResult,
   StockBasicRecord,
 } from "@/lib/refresh/refresh-types";
@@ -33,6 +45,29 @@ type RefreshJobRow = {
   total_stocks: number;
   success_count: number;
   failed_count: number;
+  error_summary: string | null;
+};
+
+type RefreshOperationRow = {
+  id: number;
+  kind: RefreshOperationKind;
+  status: RefreshOperationStatus;
+  started_at: string;
+  finished_at: string | null;
+  owner_refresh_job_id: number | null;
+  error_summary: string | null;
+};
+
+type RefreshStageRow = {
+  operation_id: number;
+  stage_key: RefreshStageKey;
+  status: RefreshStageStatus;
+  total_count: number;
+  completed_count: number;
+  failed_count: number;
+  retry_count: number;
+  started_at: string | null;
+  finished_at: string | null;
   error_summary: string | null;
 };
 
@@ -89,6 +124,71 @@ function mapJob(row: RefreshJobRow): RefreshJob {
   };
 }
 
+function mapOperation(row: RefreshOperationRow): RefreshOperation {
+  return {
+    id: row.id,
+    kind: row.kind,
+    status: row.status,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    ownerRefreshJobId: row.owner_refresh_job_id,
+    errorSummary: row.error_summary,
+  };
+}
+
+function getDurationMs(
+  startedAt: string | null,
+  finishedAt: string | null,
+  now: Date,
+) {
+  if (!startedAt) {
+    return null;
+  }
+
+  const startedMs = Date.parse(startedAt);
+  const finishedMs = finishedAt ? Date.parse(finishedAt) : now.getTime();
+
+  if (Number.isNaN(startedMs) || Number.isNaN(finishedMs)) {
+    return null;
+  }
+
+  return Math.max(0, finishedMs - startedMs);
+}
+
+function createDefaultStageSnapshot(
+  stage: RefreshStageKey,
+): RefreshStageSnapshot {
+  return {
+    stage,
+    label: REFRESH_STAGE_LABELS[stage],
+    status: "pending",
+    total: 0,
+    completed: 0,
+    failed: 0,
+    retryCount: 0,
+    startedAt: null,
+    finishedAt: null,
+    durationMs: null,
+    errorSummary: null,
+  };
+}
+
+function mapStage(row: RefreshStageRow, now: Date): RefreshStageSnapshot {
+  return {
+    stage: row.stage_key,
+    label: REFRESH_STAGE_LABELS[row.stage_key],
+    status: row.status,
+    total: row.total_count,
+    completed: row.completed_count,
+    failed: row.failed_count,
+    retryCount: row.retry_count,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    durationMs: getDurationMs(row.started_at, row.finished_at, now),
+    errorSummary: row.error_summary,
+  };
+}
+
 function mapStockBasic(row: StockBasicRow): StockBasicRecord {
   return {
     tsCode: row.ts_code,
@@ -135,6 +235,42 @@ function openDatabase() {
     create unique index if not exists refresh_jobs_one_running
       on refresh_jobs(status)
       where status = 'running';
+
+    create table if not exists refresh_operations (
+      id integer primary key autoincrement,
+      kind text not null check (
+        kind in ('manual_refresh', 'chip_background', 'full_rebuild')
+      ),
+      status text not null check (status in ('running', 'succeeded', 'failed')),
+      started_at text not null,
+      finished_at text,
+      owner_refresh_job_id integer,
+      error_summary text,
+      foreign key (owner_refresh_job_id) references refresh_jobs(id)
+    );
+
+    create unique index if not exists refresh_operations_one_running
+      on refresh_operations(status)
+      where status = 'running';
+
+    create table if not exists refresh_operation_stages (
+      operation_id integer not null,
+      stage_key text not null check (
+        stage_key in ('stock_list', 'market_data', 'screening', 'chip')
+      ),
+      status text not null check (
+        status in ('pending', 'running', 'succeeded', 'partial', 'failed', 'skipped')
+      ),
+      total_count integer not null default 0,
+      completed_count integer not null default 0,
+      failed_count integer not null default 0,
+      retry_count integer not null default 0,
+      started_at text,
+      finished_at text,
+      error_summary text,
+      primary key (operation_id, stage_key),
+      foreign key (operation_id) references refresh_operations(id)
+    );
 
     create table if not exists stock_basics (
       refresh_job_id integer not null,
@@ -237,6 +373,254 @@ export function startRefreshJob(
 
       return { started: false, job: mapJob(row) };
     }
+  } finally {
+    db.close();
+  }
+}
+
+function readOperationFromDatabase(
+  db: DatabaseConnection,
+  operationId: number,
+) {
+  const row = db
+    .prepare("select * from refresh_operations where id = ?")
+    .get(operationId) as RefreshOperationRow | undefined;
+
+  return row ? mapOperation(row) : null;
+}
+
+export function startRefreshOperation(
+  kind: RefreshOperationKind,
+  {
+    ownerRefreshJobId = null,
+    now = new Date(),
+  }: {
+    ownerRefreshJobId?: number | null;
+    now?: Date;
+  } = {},
+): RefreshOperationStartResult {
+  const db = openDatabase();
+
+  try {
+    try {
+      const result = db
+        .prepare(
+          `
+          insert into refresh_operations
+            (kind, status, started_at, owner_refresh_job_id)
+          values (?, 'running', ?, ?)
+          `,
+        )
+        .run(kind, toIsoString(now), ownerRefreshJobId);
+      const operation = readOperationFromDatabase(
+        db,
+        Number(result.lastInsertRowid),
+      );
+
+      if (!operation) {
+        throw new Error("refresh_operation_create_failed");
+      }
+
+      return { started: true, operation };
+    } catch {
+      const row = db
+        .prepare(
+          `
+          select *
+          from refresh_operations
+          where status = 'running'
+          order by id desc
+          limit 1
+          `,
+        )
+        .get() as RefreshOperationRow | undefined;
+
+      if (!row) {
+        throw new Error("refresh operation lock conflict without active operation");
+      }
+
+      return { started: false, operation: mapOperation(row) };
+    }
+  } finally {
+    db.close();
+  }
+}
+
+export function completeRefreshOperation(
+  operationId: number,
+  { finishedAt = new Date() }: { finishedAt?: Date } = {},
+) {
+  const db = openDatabase();
+
+  try {
+    db.prepare(
+      `
+      update refresh_operations
+      set status = 'succeeded',
+        finished_at = ?,
+        error_summary = null
+      where id = ?
+      `,
+    ).run(toIsoString(finishedAt), operationId);
+  } finally {
+    db.close();
+  }
+}
+
+export function failRefreshOperation(
+  operationId: number,
+  {
+    errorSummary,
+    finishedAt = new Date(),
+  }: {
+    errorSummary: string;
+    finishedAt?: Date;
+  },
+) {
+  const db = openDatabase();
+
+  try {
+    db.prepare(
+      `
+      update refresh_operations
+      set status = 'failed',
+        finished_at = ?,
+        error_summary = ?
+      where id = ?
+      `,
+    ).run(toIsoString(finishedAt), errorSummary, operationId);
+  } finally {
+    db.close();
+  }
+}
+
+function optionalDateToIso(value: Date | string | null | undefined) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  return value instanceof Date ? toIsoString(value) : value;
+}
+
+export function upsertRefreshStage(
+  operationId: number,
+  {
+    stage,
+    status,
+    total = 0,
+    completed = 0,
+    failed = 0,
+    retryCount = 0,
+    startedAt,
+    finishedAt,
+    errorSummary = null,
+  }: {
+    stage: RefreshStageKey;
+    status: RefreshStageStatus;
+    total?: number;
+    completed?: number;
+    failed?: number;
+    retryCount?: number;
+    startedAt?: Date | string | null;
+    finishedAt?: Date | string | null;
+    errorSummary?: string | null;
+  },
+) {
+  const db = openDatabase();
+
+  try {
+    db.prepare(
+      `
+      insert into refresh_operation_stages
+        (
+          operation_id,
+          stage_key,
+          status,
+          total_count,
+          completed_count,
+          failed_count,
+          retry_count,
+          started_at,
+          finished_at,
+          error_summary
+        )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      on conflict(operation_id, stage_key) do update set
+        status = excluded.status,
+        total_count = excluded.total_count,
+        completed_count = excluded.completed_count,
+        failed_count = excluded.failed_count,
+        retry_count = excluded.retry_count,
+        started_at = excluded.started_at,
+        finished_at = excluded.finished_at,
+        error_summary = excluded.error_summary
+      `,
+    ).run(
+      operationId,
+      stage,
+      status,
+      total,
+      completed,
+      failed,
+      retryCount,
+      optionalDateToIso(startedAt),
+      optionalDateToIso(finishedAt),
+      errorSummary,
+    );
+  } finally {
+    db.close();
+  }
+}
+
+export function readRefreshOperationSnapshot(
+  now = new Date(),
+): RefreshOperationSnapshot {
+  const db = openDatabase();
+
+  try {
+    const activeRow = db
+      .prepare(
+        `
+        select *
+        from refresh_operations
+        where status = 'running'
+        order by id desc
+        limit 1
+        `,
+      )
+      .get() as RefreshOperationRow | undefined;
+    const latestRow = db
+      .prepare("select * from refresh_operations order by id desc limit 1")
+      .get() as RefreshOperationRow | undefined;
+    const activeOperation = activeRow ? mapOperation(activeRow) : null;
+    const latestOperation = latestRow ? mapOperation(latestRow) : null;
+    const visibleOperation = activeOperation ?? latestOperation;
+    const stagesByKey = new Map<RefreshStageKey, RefreshStageSnapshot>();
+
+    if (visibleOperation) {
+      const rows = db
+        .prepare(
+          `
+          select *
+          from refresh_operation_stages
+          where operation_id = ?
+          `,
+        )
+        .all(visibleOperation.id) as RefreshStageRow[];
+
+      for (const row of rows) {
+        stagesByKey.set(row.stage_key, mapStage(row, now));
+      }
+    }
+
+    return {
+      activeOperation,
+      latestOperation,
+      stages: REFRESH_STAGE_ORDER.map(
+        (stage) => stagesByKey.get(stage) ?? createDefaultStageSnapshot(stage),
+      ),
+      hasActiveWork: Boolean(activeOperation),
+    };
   } finally {
     db.close();
   }

@@ -3,8 +3,10 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 import type {
+  ActiveGenerationMarketWorkPlan,
   AdjustmentFactorRecord,
   MarketCacheGeneration,
+  MarketDataItemKind,
   MarketGenerationDateRecord,
   MarketGenerationItemStatus,
   MarketGenerationValidation,
@@ -638,6 +640,242 @@ export function readMarketGenerationDates(
     ).map(mapGenerationDate);
   } finally {
     db.close();
+  }
+}
+
+function uniqueTradeDates(tradeDates: string[]) {
+  return Array.from(new Set(tradeDates));
+}
+
+export function ensureMarketGenerationDates(
+  generationId: number,
+  tradeDates: string[],
+  now = new Date(),
+) {
+  const db = openDatabase();
+  let transactionStarted = false;
+
+  try {
+    const generation = readGenerationFromDatabase(db, generationId);
+
+    if (!generation) {
+      throw new Error("market_generation_not_found");
+    }
+
+    db.exec("begin");
+    transactionStarted = true;
+    const statement = db.prepare(
+      `
+      insert or ignore into market_generation_dates
+        (generation_id, trade_date, daily_status, factor_status, updated_at)
+      values (?, ?, 'pending', 'pending', ?)
+      `,
+    );
+    const updatedAt = toIsoString(now);
+
+    for (const tradeDate of uniqueTradeDates(tradeDates)) {
+      statement.run(generationId, tradeDate, updatedAt);
+    }
+
+    db.exec("commit");
+    transactionStarted = false;
+  } catch (error) {
+    if (transactionStarted) {
+      db.exec("rollback");
+    }
+    throw error;
+  } finally {
+    db.close();
+  }
+}
+
+export function updateMarketGenerationDateItemStatus(
+  generationId: number,
+  tradeDate: string,
+  itemKind: MarketDataItemKind,
+  status: MarketGenerationItemStatus,
+  now = new Date(),
+) {
+  const db = openDatabase();
+
+  try {
+    const generation = readGenerationFromDatabase(db, generationId);
+
+    if (!generation) {
+      throw new Error("market_generation_not_found");
+    }
+
+    const updatedAt = toIsoString(now);
+    const existing = db
+      .prepare(
+        `
+        select generation_id, trade_date, daily_status, factor_status, updated_at
+        from market_generation_dates
+        where generation_id = ? and trade_date = ?
+        `,
+      )
+      .get(generationId, tradeDate) as GenerationDateRow | undefined;
+
+    if (!existing) {
+      db.prepare(
+        `
+        insert into market_generation_dates
+          (generation_id, trade_date, daily_status, factor_status, updated_at)
+        values (?, ?, ?, ?, ?)
+        `,
+      ).run(
+        generationId,
+        tradeDate,
+        itemKind === "daily" ? status : "pending",
+        itemKind === "factor" ? status : "pending",
+        updatedAt,
+      );
+      return;
+    }
+
+    if (itemKind === "daily") {
+      db.prepare(
+        `
+        update market_generation_dates
+        set daily_status = ?,
+          updated_at = ?
+        where generation_id = ? and trade_date = ?
+        `,
+      ).run(status, updatedAt, generationId, tradeDate);
+      return;
+    }
+
+    db.prepare(
+      `
+      update market_generation_dates
+      set factor_status = ?,
+        updated_at = ?
+      where generation_id = ? and trade_date = ?
+      `,
+    ).run(status, updatedAt, generationId, tradeDate);
+  } finally {
+    db.close();
+  }
+}
+
+export function planActiveGenerationMarketWork(
+  generationId: number,
+  targetTradeDates: string[],
+): ActiveGenerationMarketWorkPlan {
+  const db = openDatabase();
+
+  try {
+    const generation = readGenerationFromDatabase(db, generationId);
+
+    if (!generation) {
+      throw new Error("market_generation_not_found");
+    }
+
+    const normalizedTargetTradeDates = uniqueTradeDates(targetTradeDates);
+    const rows = (
+      db
+        .prepare(
+          `
+          select generation_id, trade_date, daily_status, factor_status, updated_at
+          from market_generation_dates
+          where generation_id = ?
+          `,
+        )
+        .all(generationId) as GenerationDateRow[]
+    ).map(mapGenerationDate);
+    const byTradeDate = new Map(rows.map((row) => [row.tradeDate, row]));
+    const items: ActiveGenerationMarketWorkPlan["items"] = [];
+
+    for (const tradeDate of normalizedTargetTradeDates) {
+      const record = byTradeDate.get(tradeDate);
+      const dailyStatus = record?.dailyStatus ?? "pending";
+      const factorStatus = record?.factorStatus ?? "pending";
+
+      if (dailyStatus !== "succeeded") {
+        items.push({
+          generationId,
+          tradeDate,
+          itemKind: "daily",
+          currentStatus: dailyStatus,
+        });
+      }
+
+      if (factorStatus !== "succeeded") {
+        items.push({
+          generationId,
+          tradeDate,
+          itemKind: "factor",
+          currentStatus: factorStatus,
+        });
+      }
+    }
+
+    return {
+      generationId,
+      targetTradeDates: normalizedTargetTradeDates,
+      items,
+      missingDailyCount: items.filter((item) => item.itemKind === "daily").length,
+      missingFactorCount: items.filter((item) => item.itemKind === "factor")
+        .length,
+      ready: items.length === 0,
+    };
+  } finally {
+    db.close();
+  }
+}
+
+export function readPairedSuccessTradeDates(
+  generationId: number,
+  targetTradeDates: string[],
+): string[] {
+  const db = openDatabase();
+
+  try {
+    const generation = readGenerationFromDatabase(db, generationId);
+
+    if (!generation) {
+      throw new Error("market_generation_not_found");
+    }
+
+    const normalizedTargetTradeDates = uniqueTradeDates(targetTradeDates);
+    const rows = (
+      db
+        .prepare(
+          `
+          select generation_id, trade_date, daily_status, factor_status, updated_at
+          from market_generation_dates
+          where generation_id = ?
+          `,
+        )
+        .all(generationId) as GenerationDateRow[]
+    ).map(mapGenerationDate);
+    const byTradeDate = new Map(rows.map((row) => [row.tradeDate, row]));
+
+    return normalizedTargetTradeDates.filter((tradeDate) => {
+      const record = byTradeDate.get(tradeDate);
+
+      return (
+        record?.dailyStatus === "succeeded" &&
+        record.factorStatus === "succeeded"
+      );
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export function assertActiveGenerationReadyForScreening(
+  generationId: number,
+  targetTradeDates: string[],
+) {
+  const targetCount = uniqueTradeDates(targetTradeDates).length;
+  const pairedSuccessCount = readPairedSuccessTradeDates(
+    generationId,
+    targetTradeDates,
+  ).length;
+
+  if (pairedSuccessCount !== targetCount) {
+    throw new Error("active_generation_target_incomplete");
   }
 }
 

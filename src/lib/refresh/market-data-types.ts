@@ -42,6 +42,24 @@ export type MarketGenerationItemStatus =
   | "succeeded"
   | "failed";
 
+export type MarketDataItemKind = "daily" | "factor";
+
+export type MarketDataWorkItem = {
+  generationId: number;
+  tradeDate: string;
+  itemKind: MarketDataItemKind;
+  currentStatus: MarketGenerationItemStatus;
+};
+
+export type ActiveGenerationMarketWorkPlan = {
+  generationId: number;
+  targetTradeDates: string[];
+  items: MarketDataWorkItem[];
+  missingDailyCount: number;
+  missingFactorCount: number;
+  ready: boolean;
+};
+
 export type MarketGenerationDateRecord = {
   generationId: number;
   tradeDate: string;
