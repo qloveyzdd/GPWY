@@ -179,11 +179,11 @@ function buildDistributionPanel(
   };
 }
 
-function withSharedScale(
-  previous: ChartChipDistributionPanel,
-  latest: ChartChipDistributionPanel,
-): ChartChipDistributions {
-  const successfulLevels = [previous, latest]
+function withSharedScale(panels: {
+  previous: ChartChipDistributionPanel;
+  latest: ChartChipDistributionPanel;
+}): ChartChipDistributions {
+  const successfulLevels = [panels.previous, panels.latest]
     .filter((panel) => panel.status === "succeeded")
     .flatMap((panel) => panel.levels);
   const priceLevels = Array.from(
@@ -195,8 +195,8 @@ function withSharedScale(
   );
 
   return {
-    previous,
-    latest,
+    previous: panels.previous,
+    latest: panels.latest,
     scale: {
       priceLevels,
       maxPercent,
@@ -229,7 +229,7 @@ function buildChipDistributions(
     latestTradeDate,
   );
 
-  return withSharedScale(previous, latest);
+  return withSharedScale({ previous, latest });
 }
 
 function unavailable(unavailableReason: ChartUnavailableReason): ChartSnapshot {

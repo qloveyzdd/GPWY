@@ -7,9 +7,12 @@ import { AlertTriangle, CandlestickChart, CircleSlash } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import type {
+  ChartChipDistributions,
   ChartChipDistributionPanel,
   ChartChipDistributionScale,
+  ChartChipDistributionTargetKind,
   ChartMovingAveragePoint,
+  ReadyChartSnapshot,
   ChartSnapshot,
 } from "@/lib/results/chart-types";
 
@@ -56,6 +59,10 @@ const distributionStatusLabels: Record<
   missing: "缺少数据",
 };
 
+function distributionTargetLabel(targetKind: ChartChipDistributionTargetKind) {
+  return targetKind === "previous" ? "前一有效交易日" : "最新有效交易日";
+}
+
 function formatPrice(value: number) {
   return value.toFixed(2);
 }
@@ -89,6 +96,57 @@ function alignMovingAverageSeries(
   );
 
   return tradeDates.map((tradeDate) => valueByDate.get(tradeDate) ?? null);
+}
+
+function findPreviousTradeDate(snapshot: ReadyChartSnapshot) {
+  const latestIndex = snapshot.bars.findIndex(
+    (bar) => bar.tradeDate === snapshot.row.latestTradeDate,
+  );
+
+  if (latestIndex <= 0) {
+    return null;
+  }
+
+  return snapshot.bars[latestIndex - 1]?.tradeDate ?? null;
+}
+
+function fallbackDistributionPanel(
+  snapshot: ReadyChartSnapshot,
+  targetKind: ChartChipDistributionTargetKind,
+): ChartChipDistributionPanel {
+  return {
+    targetKind,
+    label: distributionTargetLabel(targetKind),
+    tradeDate:
+      targetKind === "latest"
+        ? snapshot.row.latestTradeDate
+        : findPreviousTradeDate(snapshot),
+    status: "missing",
+    levels: [],
+    maxLevel: null,
+    errorCategory: null,
+    errorSummary:
+      targetKind === "previous" ? "previous_trade_date_missing" : null,
+  };
+}
+
+function resolveChipDistributions(
+  snapshot: ReadyChartSnapshot,
+): ChartChipDistributions {
+  const distributions = snapshot.chipDistributions as Partial<ChartChipDistributions>;
+
+  return {
+    previous:
+      distributions.previous ??
+      fallbackDistributionPanel(snapshot, "previous"),
+    latest:
+      distributions.latest ?? fallbackDistributionPanel(snapshot, "latest"),
+    scale:
+      distributions.scale ?? {
+        priceLevels: [],
+        maxPercent: 0,
+      },
+  };
 }
 
 function mapDistributionSeries(
@@ -526,6 +584,8 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
     );
   }
 
+  const chipDistributions = resolveChipDistributions(snapshot);
+
   return (
     <div className="rounded-lg border border-border bg-background p-4">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -554,12 +614,12 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
       />
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <ChipDistributionCard
-          panel={snapshot.chipDistributions.previous}
-          scale={snapshot.chipDistributions.scale}
+          panel={chipDistributions.previous}
+          scale={chipDistributions.scale}
         />
         <ChipDistributionCard
-          panel={snapshot.chipDistributions.latest}
-          scale={snapshot.chipDistributions.scale}
+          panel={chipDistributions.latest}
+          scale={chipDistributions.scale}
         />
       </div>
     </div>

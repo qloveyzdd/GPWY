@@ -307,6 +307,46 @@ describe("StockKlineChart", () => {
     expect(barOptions()[0]?.series?.[0]?.data).toEqual([0, 5.5, 0, 4.4, 0]);
   });
 
+  it("falls back to an unavailable latest card when the chart DTO omits that panel", async () => {
+    const snapshot = readySnapshot({
+      chipDistributions: {
+        previous: {
+          targetKind: "previous",
+          label: "前一有效交易日",
+          tradeDate: "20260059",
+          status: "blocked",
+          levels: [],
+          maxLevel: null,
+          errorCategory: "empty_data",
+          errorSummary:
+            "cyq_chips returned no distribution rows for previous trade date",
+        },
+        scale: {
+          priceLevels: [],
+          maxPercent: 0,
+        },
+      } as unknown as ReadyChartSnapshot["chipDistributions"],
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify(snapshot), { status: 200 }),
+    );
+
+    render(<StockKlineChart tsCode="000001.SZ" />);
+
+    expect(await screen.findByText("000001.SZ 平安银行")).toBeTruthy();
+    expect(screen.getByText("前一有效交易日 20260059")).toBeTruthy();
+    expect(screen.getByText("最新有效交易日 20260623")).toBeTruthy();
+    expect(screen.getByText("缺少数据")).toBeTruthy();
+    expect(screen.getAllByText("阻塞")).toHaveLength(1);
+
+    await waitFor(() => {
+      expect(klineOption()).toBeTruthy();
+    });
+
+    expect(barOptions()).toHaveLength(0);
+    expect(initMock).toHaveBeenCalledTimes(1);
+  });
+
   it("renders missing previous distribution as a neutral empty state", async () => {
     const base = readySnapshot();
     const snapshot = readySnapshot({
