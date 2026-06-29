@@ -41,11 +41,11 @@
 
 ### Charts
 
-- [ ] **CHRT-07**: 股票详情展示最新有效交易日的完整筹码分布图。
-- [ ] **CHRT-08**: 股票详情展示前一有效交易日的完整筹码分布图。
-- [ ] **CHRT-09**: 两个筹码分布图分别标明实际交易日期，避免使用含糊的自然日描述。
-- [ ] **CHRT-10**: 某一交易日筹码数据失败时，另一交易日的可用分布图仍能正常展示。
-- [ ] **CHRT-11**: K 线图移除原有前三筹码峰标记，由两个完整筹码分布图替代。
+- [x] **CHRT-07**: 股票详情展示最新有效交易日的完整筹码分布图。
+- [x] **CHRT-08**: 股票详情展示前一有效交易日的完整筹码分布图。
+- [x] **CHRT-09**: 两个筹码分布图分别标明实际交易日期，避免使用含糊的自然日描述。
+- [x] **CHRT-10**: 某一交易日筹码数据失败时，另一交易日的可用分布图仍能正常展示。
+- [x] **CHRT-11**: K 线图移除原有前三筹码峰标记，由两个完整筹码分布图替代。
 
 ## Future Requirements
 
@@ -111,11 +111,11 @@
 | UI-05 | Phase 11 | Pending |
 | UI-06 | Phase 9 | Complete |
 | UI-07 | Phase 9 | Complete |
-| CHRT-07 | Phase 11 | Pending |
-| CHRT-08 | Phase 11 | Pending |
-| CHRT-09 | Phase 11 | Pending |
-| CHRT-10 | Phase 11 | Pending |
-| CHRT-11 | Phase 11 | Pending |
+| CHRT-07 | Phase 11 | Complete |
+| CHRT-08 | Phase 11 | Complete |
+| CHRT-09 | Phase 11 | Complete |
+| CHRT-10 | Phase 11 | Complete |
+| CHRT-11 | Phase 11 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 27 total
