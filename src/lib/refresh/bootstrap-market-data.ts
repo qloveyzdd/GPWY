@@ -21,6 +21,10 @@ import type {
   MarketStockRecord,
   RawDailyQuoteRecord,
 } from "@/lib/refresh/market-data-types";
+import type {
+  RefreshStageKey,
+  RefreshStageStatus,
+} from "@/lib/refresh/refresh-types";
 import type { TushareClientLike } from "@/lib/tushare/types";
 
 export type BootstrapMarketDataStore = {
@@ -71,6 +75,16 @@ export type BootstrapMarketDataOptions = {
   targetTradingDates?: number;
   maxLookbackDays?: number;
   store?: BootstrapMarketDataStore;
+  onProgress?: (progress: BootstrapMarketDataProgress) => void;
+};
+
+export type BootstrapMarketDataProgress = {
+  stage: Extract<RefreshStageKey, "stock_list" | "market_data">;
+  status: RefreshStageStatus;
+  total: number;
+  completed: number;
+  failed: number;
+  errorSummary?: string | null;
 };
 
 export type BootstrapMarketDataResult = {
@@ -87,6 +101,7 @@ export async function bootstrapMarketData({
   targetTradingDates = DEFAULT_TRADING_DATE_COUNT,
   maxLookbackDays = DEFAULT_MAX_LOOKBACK_DAYS,
   store = DEFAULT_BOOTSTRAP_MARKET_DATA_STORE,
+  onProgress,
 }: BootstrapMarketDataOptions): Promise<BootstrapMarketDataResult> {
   const generation = store.createGeneration({
     targetTradeDateCount: targetTradingDates,
@@ -95,8 +110,22 @@ export async function bootstrapMarketData({
   let activated = false;
 
   try {
+    onProgress?.({
+      stage: "stock_list",
+      status: "running",
+      total: 0,
+      completed: 0,
+      failed: 0,
+    });
     const stocks = await fetchMarketStocks({ client });
     store.upsertStocks(stocks, now);
+    onProgress?.({
+      stage: "stock_list",
+      status: "succeeded",
+      total: stocks.length,
+      completed: stocks.length,
+      failed: 0,
+    });
     const tradeDates = await fetchTargetTradeDates({
       client,
       now,
@@ -116,26 +145,60 @@ export async function bootstrapMarketData({
       );
     }
 
+    let completedItems = 0;
+    let failedItems = 0;
+    const totalItems = tradeDates.length * 2;
+
+    onProgress?.({
+      stage: "market_data",
+      status: "running",
+      total: totalItems,
+      completed: completedItems,
+      failed: failedItems,
+    });
+
     const dateTasks = tradeDates.map(async (tradeDate) => {
-      const [dailyQuotes, adjustmentFactors] = await Promise.all([
-        fetchDailyQuotesForDate({ client, tradeDate }),
-        fetchAdjustmentFactorsForDate({ client, tradeDate }),
-      ]);
-      store.upsertDailyQuotes(generation.id, dailyQuotes, now);
-      store.upsertAdjustmentFactors(generation.id, adjustmentFactors, now);
-      store.upsertGenerationDate(
-        generation.id,
-        {
-          tradeDate,
-          dailyStatus: "succeeded",
-          factorStatus: "succeeded",
-        },
-        now,
-      );
-      return {
-        dailyQuoteCount: dailyQuotes.length,
-        adjustmentFactorCount: adjustmentFactors.length,
-      };
+      try {
+        const [dailyQuotes, adjustmentFactors] = await Promise.all([
+          fetchDailyQuotesForDate({ client, tradeDate }),
+          fetchAdjustmentFactorsForDate({ client, tradeDate }),
+        ]);
+        store.upsertDailyQuotes(generation.id, dailyQuotes, now);
+        store.upsertAdjustmentFactors(generation.id, adjustmentFactors, now);
+        store.upsertGenerationDate(
+          generation.id,
+          {
+            tradeDate,
+            dailyStatus: "succeeded",
+            factorStatus: "succeeded",
+          },
+          now,
+        );
+        completedItems += 2;
+        onProgress?.({
+          stage: "market_data",
+          status: "running",
+          total: totalItems,
+          completed: completedItems,
+          failed: failedItems,
+        });
+        return {
+          dailyQuoteCount: dailyQuotes.length,
+          adjustmentFactorCount: adjustmentFactors.length,
+        };
+      } catch (error) {
+        failedItems += 2;
+        onProgress?.({
+          stage: "market_data",
+          status: "running",
+          total: totalItems,
+          completed: completedItems,
+          failed: failedItems,
+          errorSummary:
+            error instanceof Error ? error.message.slice(0, 240) : "unknown",
+        });
+        throw error;
+      }
     });
     const dateResults = await Promise.allSettled(dateTasks);
     const failedDate = dateResults.find(
@@ -143,6 +206,17 @@ export async function bootstrapMarketData({
         result.status === "rejected",
     );
     if (failedDate) {
+      onProgress?.({
+        stage: "market_data",
+        status: "failed",
+        total: totalItems,
+        completed: completedItems,
+        failed: failedItems,
+        errorSummary:
+          failedDate.reason instanceof Error
+            ? failedDate.reason.message.slice(0, 240)
+            : "unknown",
+      });
       throw failedDate.reason;
     }
     const fulfilledDates = dateResults as PromiseFulfilledResult<{
@@ -160,6 +234,13 @@ export async function bootstrapMarketData({
 
     store.activateGeneration(generation.id, now);
     activated = true;
+    onProgress?.({
+      stage: "market_data",
+      status: "succeeded",
+      total: totalItems,
+      completed: completedItems,
+      failed: 0,
+    });
 
     return {
       generationId: generation.id,

@@ -58,6 +58,25 @@ npm run dev
 
 首次标准化缓存初始化期间，最后一份可用筛选结果会继续显示并标记为“旧缓存结果”；初始化成功后自动切换到新缓存结果。
 
+## 运维全量重建
+
+全量重建只提供服务器 shell 命令，不提供网页按钮、链接、菜单或 API 入口。该操作会重新创建 building generation，完整校验通过后才激活；如果失败，旧 active cache 和旧筛选结果继续可用。
+
+```bash
+npm run rebuild:market
+```
+
+注意事项：
+
+- 只在服务器环境执行，依赖服务器上的 `TUSHARE_TOKEN`、provider 并发和 tinyshare 配置。
+- 不要在命令行参数里传 token；命令只从环境变量读取。
+- 全量重建可能按小时运行，适合作为维护操作，不适合作为网页交互。
+- 查看帮助不需要 token，也不会触发 provider 请求：
+
+```bash
+npm run rebuild:market -- --help
+```
+
 ## 验证命令
 
 常规验证：

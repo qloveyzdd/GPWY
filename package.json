@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest --passWithNoTests",
     "smoke": "playwright test",
+    "rebuild:market": "tsx scripts/rebuild-market-cache.ts",
     "verify": "npm run typecheck && npm run lint && npm run test -- --run && npm run build"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
     "eslint-config-next": "16.2.9",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.9"
   }
