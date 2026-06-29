@@ -20,9 +20,9 @@
 - [x] **REFR-08**: tinyshare provider 使用可复用的持久 Python worker，避免每个数据请求重新启动 Python 进程。
 - [x] **REFR-09**: 刷新中断后，系统可以识别并跳过已完成的数据项目，继续处理缺失或失败项目。
 - [x] **REFR-10**: 系统记录刷新各阶段的状态、开始时间、结束时间、总数、完成数、失败数和重试数。
-- [ ] **REFR-11**: 行情刷新和筛选成功后，页面立即提供新的筛选结果，不等待筹码分布处理全部完成。
+- [x] **REFR-11**: 行情刷新和筛选成功后，页面立即提供新的筛选结果，不等待筹码分布处理全部完成。
 - [ ] **REFR-12**: 维护者可以通过运维命令执行手动全量重建，网页不提供全量重建入口。
-- [ ] **REFR-13**: 当数据源没有新增交易日时，普通刷新不会重新下载已有 60 日行情。
+- [x] **REFR-13**: 当数据源没有新增交易日时，普通刷新不会重新下载已有 60 日行情。
 
 ### Chip Distribution
 
@@ -36,7 +36,7 @@
 ### Results Experience
 
 - [ ] **UI-05**: 结果表格删除筹码峰字段和筹码峰排序能力。
-- [ ] **UI-06**: 筹码分布尚未完成或部分失败时，用户仍可查看已发布的筛选结果。
+- [x] **UI-06**: 筹码分布尚未完成或部分失败时，用户仍可查看已发布的筛选结果。
 - [x] **UI-07**: 页面展示当前刷新阶段、阶段进度和失败数量。
 
 ### Charts
@@ -99,9 +99,9 @@
 | REFR-08 | Phase 8 | Complete |
 | REFR-09 | Phase 9 | Complete |
 | REFR-10 | Phase 9 | Complete |
-| REFR-11 | Phase 9 | Pending |
+| REFR-11 | Phase 9 | Complete |
 | REFR-12 | Phase 9 | Pending |
-| REFR-13 | Phase 9 | Pending |
+| REFR-13 | Phase 9 | Complete |
 | CHIP-05 | Phase 10 | Pending |
 | CHIP-06 | Phase 10 | Pending |
 | CHIP-07 | Phase 10 | Pending |
@@ -109,7 +109,7 @@
 | CHIP-09 | Phase 10 | Pending |
 | CHIP-10 | Phase 10 | Pending |
 | UI-05 | Phase 11 | Pending |
-| UI-06 | Phase 9 | Pending |
+| UI-06 | Phase 9 | Complete |
 | UI-07 | Phase 9 | Complete |
 | CHRT-07 | Phase 11 | Pending |
 | CHRT-08 | Phase 11 | Pending |
