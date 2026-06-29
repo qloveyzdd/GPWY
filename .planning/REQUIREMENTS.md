@@ -21,7 +21,7 @@
 - [x] **REFR-09**: 刷新中断后，系统可以识别并跳过已完成的数据项目，继续处理缺失或失败项目。
 - [x] **REFR-10**: 系统记录刷新各阶段的状态、开始时间、结束时间、总数、完成数、失败数和重试数。
 - [x] **REFR-11**: 行情刷新和筛选成功后，页面立即提供新的筛选结果，不等待筹码分布处理全部完成。
-- [ ] **REFR-12**: 维护者可以通过运维命令执行手动全量重建，网页不提供全量重建入口。
+- [x] **REFR-12**: 维护者可以通过运维命令执行手动全量重建，网页不提供全量重建入口。
 - [x] **REFR-13**: 当数据源没有新增交易日时，普通刷新不会重新下载已有 60 日行情。
 
 ### Chip Distribution
@@ -100,7 +100,7 @@
 | REFR-09 | Phase 9 | Complete |
 | REFR-10 | Phase 9 | Complete |
 | REFR-11 | Phase 9 | Complete |
-| REFR-12 | Phase 9 | Pending |
+| REFR-12 | Phase 9 | Complete |
 | REFR-13 | Phase 9 | Complete |
 | CHIP-05 | Phase 10 | Pending |
 | CHIP-06 | Phase 10 | Pending |

@@ -67,7 +67,7 @@ v2.0 先修正行情数据模型和复权口径，再建立统一的受控请求
 4. 行情和筛选完成后立即发布新筛选结果，筹码阶段可以继续后台处理或部分失败。
 5. 维护者可通过运维命令执行全量重建，网页没有高成本重建入口。
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 
@@ -76,7 +76,7 @@ Plans:
 
 **Wave 2 *(blocked on Wave 1 completion)***
 - [x] 09-02-PLAN.md — 实现普通增量刷新、筛选发布边界和后台筹码阶段。
-- [ ] 09-03-PLAN.md — 提供运维全量重建 CLI，并保留 building generation 原子激活语义。
+- [x] 09-03-PLAN.md — 提供运维全量重建 CLI，并保留 building generation 原子激活语义。
 
 **Wave 3 *(blocked on Wave 2 completion)***
 - [ ] 09-04-PLAN.md — 在页面展示四阶段进度，并按筛选/chip marker 刷新结果。
@@ -121,7 +121,7 @@ Plans:
 |-------|--------------|--------|-----------|
 | 7. Standardized Market Data Cache | 4/4 | Complete    | 2026-06-26 |
 | 8. Controlled Provider Concurrency | 3/3 | Complete   | 2026-06-26 |
-| 9. Incremental Refresh Workflow | 2/4 | In Progress|  |
+| 9. Incremental Refresh Workflow | 3/4 | In Progress|  |
 | 10. Dual-Day Chip Distribution | 6 | Not started | — |
 | 11. Distribution Comparison Experience | 6 | Not started | — |
 
