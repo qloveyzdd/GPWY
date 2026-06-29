@@ -11,6 +11,13 @@ test("protected workspace renders top three chip peaks and inline chart", async 
     .fill(process.env.APP_PASSWORD ?? "smoke-password");
   await page.getByRole("button", { name: "进入工作台" }).click();
 
+  await expect(page.getByRole("button", { name: "开始增量刷新" })).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: /全量重建|rebuild:market|重建市场缓存/,
+    }),
+  ).toHaveCount(0);
+  await expect(page.getByText("rebuild:market")).toHaveCount(0);
   await expect(page.getByText("最新筛选结果")).toBeVisible();
   const blockedRow = page.getByRole("row", { name: /000002\.SZ.*万科A/ });
   const availableRow = page.getByRole("row", {
