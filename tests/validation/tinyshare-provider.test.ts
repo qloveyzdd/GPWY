@@ -255,7 +255,10 @@ describe("TinysharePythonClient", () => {
   });
 
   it("kills and rebuilds a worker after timeout", async () => {
-    const client = createPersistentClient({ timeoutMs: 40 });
+    const client = createPersistentClient({
+      timeoutMs: 40,
+      startupTimeoutMs: 1_000,
+    });
     const first = await client.query(TUSHARE_ENDPOINTS.daily, { mode: "pid" });
 
     await expect(

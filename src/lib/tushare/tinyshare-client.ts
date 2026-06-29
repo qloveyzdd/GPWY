@@ -84,6 +84,7 @@ export type TinysharePythonClientOptions = {
   pythonPath?: string;
   scriptPath?: string;
   timeoutMs?: number;
+  startupTimeoutMs?: number;
   workerCount?: number;
   restartBudget?: number;
   runner?: TinyshareRunner;
@@ -97,6 +98,7 @@ export class TinysharePythonClient implements TushareClientLike {
   private readonly pythonPath: string;
   private readonly scriptPath: string;
   private readonly timeoutMs: number;
+  private readonly startupTimeoutMs: number;
   private readonly restartBudget: number;
   private readonly runner?: TinyshareRunner;
   private readonly slots: WorkerSlot[];
@@ -111,6 +113,7 @@ export class TinysharePythonClient implements TushareClientLike {
     pythonPath = process.env.PYTHON_BIN ?? "python",
     scriptPath = path.join(process.cwd(), "scripts", "tinyshare_bridge.py"),
     timeoutMs = 60_000,
+    startupTimeoutMs = timeoutMs,
     workerCount = 2,
     restartBudget = 3,
     runner,
@@ -119,6 +122,7 @@ export class TinysharePythonClient implements TushareClientLike {
     this.pythonPath = pythonPath;
     this.scriptPath = scriptPath;
     this.timeoutMs = timeoutMs;
+    this.startupTimeoutMs = startupTimeoutMs;
     this.restartBudget = restartBudget;
     this.runner = runner;
     this.slots = Array.from({ length: workerCount }, (_, index) => ({
@@ -264,7 +268,7 @@ export class TinysharePythonClient implements TushareClientLike {
     });
     slot.startupTimeout = setTimeout(
       () => this.failSlot(slot, child),
-      this.timeoutMs,
+      this.startupTimeoutMs,
     );
 
     slot.lines.on("line", (line) => this.handleWorkerLine(slot, child, line));
