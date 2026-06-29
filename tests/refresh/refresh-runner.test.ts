@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   readRefreshStatus,
   startManualRefresh,
+  type ChipDistributionWorkflowRunner,
 } from "@/lib/refresh/refresh-runner";
 import {
   activateMarketCacheGeneration,
@@ -29,7 +30,8 @@ import {
   readLatestScreeningRun,
   writeScreeningRun,
 } from "@/lib/screening/screening-store";
-import type { ChipPeakRunRecord } from "@/lib/chip/chip-types";
+import { writeChipDistributionRun } from "@/lib/chip/chip-store";
+import type { ChipDistributionRunRecord } from "@/lib/chip/chip-types";
 import type { DailyBarRecord } from "@/lib/refresh/refresh-types";
 import type {
   TushareClientLike,
@@ -161,17 +163,48 @@ function makeBars(tsCode: string, count: number): DailyBarRecord[] {
   });
 }
 
-function chipRunFixture(): ChipPeakRunRecord {
+function chipRunFixture(
+  overrides: Partial<ChipDistributionRunRecord> = {},
+): ChipDistributionRunRecord {
   return {
     id: 1,
     screeningRunId: 1,
     status: "succeeded",
     createdAt: "2026-06-23T00:00:00.000Z",
-    totalCandidates: 0,
+    totalTargets: 0,
     successCount: 0,
     blockedCount: 0,
     failedCount: 0,
+    missingCount: 0,
+    skippedCompleteCount: 0,
+    ...overrides,
   };
+}
+
+function writeChipRunFixture(
+  overrides: Partial<ChipDistributionRunRecord> = {},
+): ChipDistributionRunRecord {
+  const screeningRunId =
+    overrides.screeningRunId ?? readLatestScreeningRun()?.id ?? 1;
+  const createdAt = overrides.createdAt ?? "2026-06-23T00:00:00.000Z";
+  const fixture = chipRunFixture({
+    ...overrides,
+    screeningRunId,
+    createdAt,
+  });
+
+  return writeChipDistributionRun({
+    screeningRunId: fixture.screeningRunId,
+    status: fixture.status,
+    totalTargets: fixture.totalTargets,
+    successCount: fixture.successCount,
+    blockedCount: fixture.blockedCount,
+    failedCount: fixture.failedCount,
+    missingCount: fixture.missingCount,
+    skippedCompleteCount: fixture.skippedCompleteCount,
+    statuses: [],
+    now: new Date(createdAt),
+  });
 }
 
 function createEmptyActiveGeneration() {
@@ -268,9 +301,9 @@ describe("refresh runner", () => {
     expect(serialized).not.toContain("C:\\server\\private");
   });
 
-  it("runs cache refresh, downtrend screening, and chip peak enrichment as one workflow", async () => {
+  it("runs cache refresh, downtrend screening, and chip distribution enrichment as one workflow", async () => {
     useTempRefreshStore();
-    const chipPeakRunner = vi.fn(async () => chipRunFixture());
+    const chipPeakRunner = vi.fn(async () => writeChipRunFixture());
 
     const result = await startManualRefresh({
       waitForCompletion: true,
@@ -306,16 +339,21 @@ describe("refresh runner", () => {
       },
     ]);
     expect(chipPeakRunner).toHaveBeenCalledOnce();
+    await vi.waitFor(() => {
+      expect(readRefreshStatus().chipVersion).toContain(
+        ":2026-06-23T00:00:00.000Z:succeeded",
+      );
+    });
   });
 
-  it("marks refresh succeeded while chip peak enrichment continues in background", async () => {
+  it("marks refresh succeeded while chip distribution enrichment continues in background", async () => {
     useTempRefreshStore();
     let finishChipPeak:
-      | ((value: ChipPeakRunRecord) => void)
+      | ((value: ChipDistributionRunRecord) => void)
       | undefined;
     const chipPeakRunner = vi.fn(
       () =>
-        new Promise<ChipPeakRunRecord>((resolve) => {
+        new Promise<ChipDistributionRunRecord>((resolve) => {
           finishChipPeak = resolve;
         }),
     );
@@ -354,11 +392,11 @@ describe("refresh runner", () => {
   it("rejects a new manual refresh while chip background work owns the operation lock", async () => {
     useTempRefreshStore();
     let finishChipPeak:
-      | ((value: ChipPeakRunRecord) => void)
+      | ((value: ChipDistributionRunRecord) => void)
       | undefined;
     const chipPeakRunner = vi.fn(
       () =>
-        new Promise<ChipPeakRunRecord>((resolve) => {
+        new Promise<ChipDistributionRunRecord>((resolve) => {
           finishChipPeak = resolve;
         }),
     );
@@ -397,6 +435,58 @@ describe("refresh runner", () => {
     });
   });
 
+  it("maps chip distribution progress and terminal counts into the chip stage", async () => {
+    useTempRefreshStore();
+    const chipPeakRunner = vi.fn(
+      async ({
+        onProgress,
+      }: Parameters<ChipDistributionWorkflowRunner>[0]) => {
+      onProgress?.({
+        totalTargets: 4,
+        completedTargets: 2,
+        succeeded: 1,
+        blocked: 0,
+        failed: 0,
+        missing: 1,
+        skippedComplete: 0,
+      });
+
+      return chipRunFixture({
+        status: "partial",
+        totalTargets: 4,
+        successCount: 1,
+        blockedCount: 1,
+        failedCount: 1,
+        missingCount: 1,
+      });
+      },
+    );
+
+    await startManualRefresh({
+      waitForCompletion: true,
+      chipPeakRunner,
+      worker: async () => ({
+        totalStocks: 0,
+        successCount: 0,
+        failedCount: 0,
+      }),
+    });
+
+    await vi.waitFor(() => {
+      const chipStage = readRefreshStatus().stages.find(
+        (stage) => stage.stage === "chip",
+      );
+
+      expect(chipStage).toMatchObject({
+        status: "partial",
+        total: 4,
+        completed: 4,
+        failed: 3,
+        errorSummary: "chip_partial:3",
+      });
+    });
+  });
+
   it("marks screening failures as refresh workflow failures", async () => {
     useTempRefreshStore();
     const chipPeakRunner = vi.fn(async () => chipRunFixture());
@@ -425,7 +515,7 @@ describe("refresh runner", () => {
     expect(chipPeakRunner).not.toHaveBeenCalled();
   });
 
-  it("does not fail refresh when chip peak enrichment throws", async () => {
+  it("does not fail refresh when chip distribution enrichment throws", async () => {
     useTempRefreshStore();
 
     const result = await startManualRefresh({

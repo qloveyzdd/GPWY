@@ -28,11 +28,11 @@ import {
   readActiveMarketCacheStats,
 } from "@/lib/refresh/market-data-store";
 import {
-  runChipPeakIntegrationFromLatestScreening,
+  runChipDistributionIntegrationFromLatestScreening,
+  type ChipDistributionProgress,
 } from "@/lib/chip/chip-runner";
-import type { ChipPeakProgress } from "@/lib/chip/chip-runner";
-import type { ChipPeakRunRecord } from "@/lib/chip/chip-types";
-import { readLatestChipPeakRun } from "@/lib/chip/chip-store";
+import type { ChipDistributionRunRecord } from "@/lib/chip/chip-types";
+import { readLatestChipDistributionRun } from "@/lib/chip/chip-store";
 import { readTushareTokenSecret } from "@/lib/config";
 import { runDowntrendScreeningFromCache } from "@/lib/screening/screening-runner";
 import { readLatestScreeningRun } from "@/lib/screening/screening-store";
@@ -54,16 +54,17 @@ export type ScreeningWorkflowRunner = (options: {
   now?: Date;
   targetTradeDates?: string[];
 }) => ScreeningRunRecord;
-export type ChipPeakWorkflowRunner = (options: {
+export type ChipDistributionWorkflowRunner = (options: {
   now?: Date;
-  onProgress?: (progress: ChipPeakProgress) => void;
-}) => Promise<ChipPeakRunRecord>;
+  onProgress?: (progress: ChipDistributionProgress) => void;
+}) => Promise<ChipDistributionRunRecord>;
 
 export type StartManualRefreshOptions = {
   worker?: RefreshWorker;
   providerWorkerOptions?: ProviderRefreshWorkerOptions;
   screeningRunner?: ScreeningWorkflowRunner;
-  chipPeakRunner?: ChipPeakWorkflowRunner;
+  chipDistributionRunner?: ChipDistributionWorkflowRunner;
+  chipPeakRunner?: ChipDistributionWorkflowRunner;
   now?: Date;
   waitForCompletion?: boolean;
 };
@@ -169,7 +170,7 @@ function createResultVersion(run: ScreeningRunRecord | null) {
   return run ? `${run.id}:${run.createdAt}` : null;
 }
 
-function createChipVersion(run: ChipPeakRunRecord | null) {
+function createChipVersion(run: ChipDistributionRunRecord | null) {
   return run ? `${run.id}:${run.createdAt}:${run.status}` : null;
 }
 
@@ -180,14 +181,20 @@ async function finishRefreshJob(
   {
     now,
     screeningRunner = runDowntrendScreeningFromCache,
-    chipPeakRunner = runChipPeakIntegrationFromLatestScreening,
+    chipDistributionRunner,
+    chipPeakRunner,
   }: {
     now?: Date;
     screeningRunner?: ScreeningWorkflowRunner;
-    chipPeakRunner?: ChipPeakWorkflowRunner;
+    chipDistributionRunner?: ChipDistributionWorkflowRunner;
+    chipPeakRunner?: ChipDistributionWorkflowRunner;
   } = {},
 ) {
   try {
+    const selectedChipDistributionRunner =
+      chipDistributionRunner ??
+      chipPeakRunner ??
+      runChipDistributionIntegrationFromLatestScreening;
     const result = await worker(job);
     const screeningStartedAt = new Date();
 
@@ -217,7 +224,10 @@ async function finishRefreshJob(
     });
     completeRefreshJob(job.id, result);
     completeRefreshOperation(operationId);
-    startChipBackground({ chipPeakRunner, now });
+    startChipBackground({
+      chipDistributionRunner: selectedChipDistributionRunner,
+      now,
+    });
   } catch (error) {
     const errorSummary = sanitizeErrorSummary(error);
 
@@ -236,8 +246,8 @@ async function finishRefreshJob(
   }
 }
 
-function chipStageStatus(run: ChipPeakRunRecord) {
-  if (run.totalCandidates === 0) {
+function chipStageStatus(run: ChipDistributionRunRecord) {
+  if (run.totalTargets === 0) {
     return "skipped" as const;
   }
 
@@ -253,10 +263,10 @@ function chipStageStatus(run: ChipPeakRunRecord) {
 }
 
 function startChipBackground({
-  chipPeakRunner,
+  chipDistributionRunner,
   now,
 }: {
-  chipPeakRunner: ChipPeakWorkflowRunner;
+  chipDistributionRunner: ChipDistributionWorkflowRunner;
   now?: Date;
 }) {
   const startedAt = new Date();
@@ -290,21 +300,22 @@ function startChipBackground({
 
   void (async () => {
     try {
-      const run = await chipPeakRunner({
+      const run = await chipDistributionRunner({
         now,
         onProgress: (progress) => {
           upsertRefreshStage(operationId, {
             stage: "chip",
             status: "running",
-            total: progress.total,
-            completed: progress.completed,
-            failed: progress.failed + progress.blocked,
+            total: progress.totalTargets,
+            completed: progress.completedTargets,
+            failed: progress.failed + progress.blocked + progress.missing,
             startedAt,
           });
         },
       });
       const terminalStatus = chipStageStatus(run);
-      const failedCount = run.failedCount + run.blockedCount;
+      const failedCount =
+        run.failedCount + run.blockedCount + run.missingCount;
       const errorSummary =
         terminalStatus === "partial" || terminalStatus === "failed"
           ? `chip_${run.status}:${failedCount}`
@@ -313,8 +324,9 @@ function startChipBackground({
       upsertRefreshStage(operationId, {
         stage: "chip",
         status: terminalStatus,
-        total: run.totalCandidates,
-        completed: run.successCount + run.blockedCount + run.failedCount,
+        total: run.totalTargets,
+        completed:
+          run.successCount + run.blockedCount + run.failedCount + run.missingCount,
         failed: failedCount,
         startedAt,
         finishedAt: new Date(),
@@ -360,7 +372,7 @@ export function readRefreshStatus(): RefreshStatusSnapshot {
     stages: operationSnapshot.stages,
     hasActiveWork: operationSnapshot.hasActiveWork || Boolean(activeJob),
     resultVersion: createResultVersion(readLatestScreeningRun()),
-    chipVersion: createChipVersion(readLatestChipPeakRun()),
+    chipVersion: createChipVersion(readLatestChipDistributionRun()),
     isRunning: Boolean(activeJob),
     mode: activeJob?.mode ?? null,
     lastSuccessfulFinishedAt: latestSuccessfulJob?.finishedAt ?? null,
@@ -371,6 +383,7 @@ export async function startManualRefresh({
   worker,
   providerWorkerOptions,
   screeningRunner,
+  chipDistributionRunner,
   chipPeakRunner,
   now = new Date(),
   waitForCompletion = false,
@@ -421,6 +434,7 @@ export async function startManualRefresh({
     {
       now,
       screeningRunner,
+      chipDistributionRunner,
       chipPeakRunner,
     },
   );

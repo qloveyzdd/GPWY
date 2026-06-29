@@ -250,7 +250,7 @@ describe("StatusWorkspace", () => {
       },
       hasActiveWork: false,
       resultVersion: "screening:2",
-      chipVersion: "chip:1",
+      chipVersion: "1:2026-06-29T00:00:00.000Z:partial",
       stages: stages({
         chip: {
           status: "partial",
@@ -306,7 +306,7 @@ describe("StatusWorkspace", () => {
         initialSnapshot={EMPTY_VALIDATION_SNAPSHOT}
         initialRefreshStatus={refreshStatus({
           latestOperation: operation("chip_background", "succeeded"),
-          chipVersion: "chip:partial",
+          chipVersion: "1:2026-06-29T00:00:00.000Z:partial",
           stages: stages({
             chip: {
               status: "partial",

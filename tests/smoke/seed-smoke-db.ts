@@ -134,6 +134,51 @@ function migrate(db: DatabaseConnection) {
       percent real not null,
       primary key (chip_peak_run_id, ts_code, peak_rank)
     );
+
+    create table chip_distribution_runs (
+      id integer primary key autoincrement,
+      screening_run_id integer not null,
+      status text not null,
+      created_at text not null,
+      total_targets integer not null,
+      success_count integer not null,
+      blocked_count integer not null,
+      failed_count integer not null,
+      missing_count integer not null,
+      skipped_complete_count integer not null default 0
+    );
+
+    create index chip_distribution_runs_screening_run_id
+      on chip_distribution_runs(screening_run_id, id);
+
+    create table chip_distribution_statuses (
+      chip_distribution_run_id integer not null,
+      screening_run_id integer not null,
+      ts_code text not null,
+      target_kind text not null,
+      trade_date text,
+      status text not null,
+      source text,
+      error_category text,
+      error_summary text,
+      updated_at text not null,
+      primary key (chip_distribution_run_id, ts_code, target_kind)
+    );
+
+    create index chip_distribution_statuses_target_lookup
+      on chip_distribution_statuses(ts_code, trade_date, chip_distribution_run_id);
+
+    create table chip_distribution_levels (
+      ts_code text not null,
+      trade_date text not null,
+      price real not null,
+      percent real not null,
+      fetched_at text not null,
+      primary key (ts_code, trade_date, price)
+    );
+
+    create index chip_distribution_levels_target_lookup
+      on chip_distribution_levels(ts_code, trade_date);
   `);
 }
 
@@ -325,6 +370,133 @@ export default async function seedSmokeDb() {
       null,
       "permission_denied",
       "筹码接口权限不足。",
+    );
+    const chipDistributionRunId = Number(
+      db
+        .prepare(
+          `
+          insert into chip_distribution_runs
+            (
+              screening_run_id, status, created_at, total_targets,
+              success_count, blocked_count, failed_count, missing_count,
+              skipped_complete_count
+            )
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          screeningRunId,
+          "partial",
+          iso("2026-06-23T00:04:30.000Z"),
+          4,
+          2,
+          2,
+          0,
+          0,
+          0,
+        ).lastInsertRowid,
+    );
+    const insertDistributionLevel = db.prepare(
+      `
+      insert into chip_distribution_levels
+        (ts_code, trade_date, price, percent, fetched_at)
+      values (?, ?, ?, ?, ?)
+      `,
+    );
+
+    insertDistributionLevel.run(
+      "000001.SZ",
+      "20260060",
+      36.2,
+      6.5,
+      updatedAt,
+    );
+    insertDistributionLevel.run(
+      "000001.SZ",
+      "20260060",
+      35.8,
+      4.2,
+      updatedAt,
+    );
+    insertDistributionLevel.run(
+      "000001.SZ",
+      "20260060",
+      37.1,
+      3.1,
+      updatedAt,
+    );
+    insertDistributionLevel.run(
+      "000001.SZ",
+      "20260059",
+      35.9,
+      5.5,
+      updatedAt,
+    );
+    insertDistributionLevel.run(
+      "000001.SZ",
+      "20260059",
+      36.4,
+      4.4,
+      updatedAt,
+    );
+    const insertDistributionStatus = db.prepare(
+      `
+      insert into chip_distribution_statuses
+        (
+          chip_distribution_run_id, screening_run_id, ts_code, target_kind,
+          trade_date, status, source, error_category, error_summary, updated_at
+        )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+
+    insertDistributionStatus.run(
+      chipDistributionRunId,
+      screeningRunId,
+      "000001.SZ",
+      "latest",
+      "20260060",
+      "succeeded",
+      "cyq_chips_highest_percent",
+      null,
+      null,
+      updatedAt,
+    );
+    insertDistributionStatus.run(
+      chipDistributionRunId,
+      screeningRunId,
+      "000001.SZ",
+      "previous",
+      "20260059",
+      "succeeded",
+      "cyq_chips_highest_percent",
+      null,
+      null,
+      updatedAt,
+    );
+    insertDistributionStatus.run(
+      chipDistributionRunId,
+      screeningRunId,
+      "000002.SZ",
+      "latest",
+      "20260060",
+      "blocked",
+      null,
+      "permission_denied",
+      "chip distribution endpoint permission denied",
+      updatedAt,
+    );
+    insertDistributionStatus.run(
+      chipDistributionRunId,
+      screeningRunId,
+      "000002.SZ",
+      "previous",
+      "20260059",
+      "blocked",
+      null,
+      "empty_data",
+      "cyq_chips returned no distribution rows for previous trade date",
+      updatedAt,
     );
   } finally {
     db.close();
