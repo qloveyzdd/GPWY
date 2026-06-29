@@ -160,7 +160,8 @@ describe("ResultsTable", () => {
     expect(screen.getByText("区间高点")).toBeTruthy();
     expect(screen.getByText("当前/高点")).toBeTruthy();
     expect(screen.getByText("下跌幅度")).toBeTruthy();
-    expect(screen.getByText("筹码峰价格")).toBeTruthy();
+    expect(screen.queryByText("筹码峰价格")).toBeNull();
+    expect(screen.queryByRole("button", { name: "按筹码峰价格排序" })).toBeNull();
 
     const rows = screen.getAllByRole("row");
     expect(within(rows[1]).getByText("000002.SZ")).toBeTruthy();
@@ -169,21 +170,21 @@ describe("ResultsTable", () => {
     expect(within(rows[1]).getByText("100.00")).toBeTruthy();
     expect(within(rows[1]).getByText("40.0%")).toBeTruthy();
     expect(within(rows[1]).getByText("60.0%")).toBeTruthy();
-    expect(within(rows[1]).getByText("38.50")).toBeTruthy();
-    expect(within(rows[1]).getByText("6.50%")).toBeTruthy();
-    expect(within(rows[1]).getByText("39.10")).toBeTruthy();
-    expect(within(rows[1]).getByText("4.20%")).toBeTruthy();
-    expect(within(rows[1]).getByText("37.80")).toBeTruthy();
-    expect(within(rows[1]).getByText("3.10%")).toBeTruthy();
+    expect(within(rows[1]).queryByText("38.50")).toBeNull();
+    expect(within(rows[1]).queryByText("6.50%")).toBeNull();
+    expect(within(rows[1]).queryByText("39.10")).toBeNull();
+    expect(within(rows[1]).queryByText("4.20%")).toBeNull();
+    expect(within(rows[1]).queryByText("37.80")).toBeNull();
+    expect(within(rows[1]).queryByText("3.10%")).toBeNull();
   });
 
-  it("renders an explicit marker when chip peak is unavailable", () => {
+  it("does not render row-level chip availability markers", () => {
     render(<ResultsTable snapshot={readySnapshot} />);
 
     const row = screen.getByText("000001.SZ").closest("tr");
 
     expect(row).toBeTruthy();
-    expect(within(row as HTMLTableRowElement).getByText("阻塞")).toBeTruthy();
+    expect(within(row as HTMLTableRowElement).queryByText("阻塞")).toBeNull();
     expect(
       within(row as HTMLTableRowElement).queryByText("0.00"),
     ).toBeNull();
@@ -259,19 +260,6 @@ describe("ResultsTable", () => {
     ).toBe("descending");
   });
 
-  it("sorts by chip peak price and places unavailable chip rows last", () => {
-    render(<ResultsTable snapshot={sortableSnapshot} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "按筹码峰价格排序" }));
-
-    expect(renderedCodes()).toEqual(["000004.SZ", "000002.SZ", "000001.SZ"]);
-    expect(
-      screen
-        .getByRole("columnheader", { name: /筹码峰价格/ })
-        .getAttribute("aria-sort"),
-    ).toBe("ascending");
-  });
-
   it("distinguishes empty results from unavailable result data", () => {
     const { rerender } = render(<ResultsTable snapshot={emptySnapshot} />);
 
@@ -289,7 +277,7 @@ describe("ResultsTable", () => {
     expect(screen.queryByText("TUSHARE_TOKEN=")).toBeNull();
   });
 
-  it("keeps row-level chip states distinct from page-level unavailable state", () => {
+  it("does not surface row-level chip states as table badges", () => {
     render(
       <ResultsTable
         snapshot={{
@@ -318,9 +306,9 @@ describe("ResultsTable", () => {
       />,
     );
 
-    expect(screen.getByText("阻塞")).toBeTruthy();
-    expect(screen.getByText("失败")).toBeTruthy();
-    expect(screen.getByText("无数据")).toBeTruthy();
+    expect(screen.queryByText("阻塞")).toBeNull();
+    expect(screen.queryByText("失败")).toBeNull();
+    expect(screen.queryByText("无数据")).toBeNull();
     expect(screen.queryByText("结果数据不可用")).toBeNull();
   });
 
@@ -354,5 +342,20 @@ describe("ResultsTable", () => {
     expect(screen.queryByTestId("stock-chart")).toBeNull();
     expect(targetRow?.getAttribute("aria-selected")).toBe("false");
     expect(targetRow?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("opens the inline chart from keyboard interaction", () => {
+    render(<ResultsTable snapshot={sortableSnapshot} />);
+
+    const targetRow = screen.getByText("000001.SZ").closest("tr");
+
+    expect(targetRow).toBeTruthy();
+    fireEvent.keyDown(targetRow as HTMLTableRowElement, { key: "Enter" });
+
+    expect(screen.getByTestId("stock-chart").textContent).toBe(
+      "chart 000001.SZ",
+    );
+    expect(targetRow?.getAttribute("aria-selected")).toBe("true");
+    expect(targetRow?.getAttribute("aria-expanded")).toBe("true");
   });
 });

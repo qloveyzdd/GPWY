@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CircleSlash } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import { StockKlineChart } from "@/components/charts/stock-kline-chart";
 import { Badge } from "@/components/ui/badge";
@@ -14,31 +14,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type {
-  ResultChipPeakState,
-  ResultRow,
-  ResultsSnapshot,
-} from "@/lib/results/results-types";
+import type { ResultRow, ResultsSnapshot } from "@/lib/results/results-types";
 import { cn } from "@/lib/utils";
 
 type ResultsTableProps = {
   snapshot: ResultsSnapshot;
 };
 
-type SortKey = "currentHighRatio" | "drawdownPct" | "chipPeakPrice";
+type SortKey = "currentHighRatio" | "drawdownPct";
 
 type SortDirection = "asc" | "desc";
 
 type SortState = {
   key: SortKey;
   direction: SortDirection;
-};
-
-const chipStateLabels: Record<ResultChipPeakState, string> = {
-  available: "可用",
-  blocked: "阻塞",
-  failed: "失败",
-  missing: "无数据",
 };
 
 function formatPrice(value: number) {
@@ -57,31 +46,10 @@ function ariaSort(direction: SortDirection) {
   return direction === "asc" ? "ascending" : "descending";
 }
 
-function sortValue(row: ResultRow, key: SortKey) {
-  if (key === "chipPeakPrice") {
-    return row.chipPeakState === "available" ? row.chipPeakPrice : null;
-  }
-
-  return row[key];
-}
-
 function sortRows(rows: ResultRow[], sort: SortState) {
   return [...rows].sort((left, right) => {
-    const leftValue = sortValue(left, sort.key);
-    const rightValue = sortValue(right, sort.key);
-
-    if (leftValue === null && rightValue === null) {
-      return left.tsCode.localeCompare(right.tsCode);
-    }
-
-    if (leftValue === null) {
-      return 1;
-    }
-
-    if (rightValue === null) {
-      return -1;
-    }
-
+    const leftValue = left[sort.key];
+    const rightValue = right[sort.key];
     const direction = sort.direction === "asc" ? 1 : -1;
     const diff = (leftValue - rightValue) * direction;
 
@@ -91,53 +59,6 @@ function sortRows(rows: ResultRow[], sort: SortState) {
 
     return left.tsCode.localeCompare(right.tsCode);
   });
-}
-
-function chipStateTone(state: ResultChipPeakState) {
-  switch (state) {
-    case "available":
-      return "border-[#15803D]/30 bg-[#15803D]/5 text-[#15803D]";
-    case "blocked":
-      return "border-[#B91C1C]/30 bg-[#B91C1C]/5 text-[#B91C1C]";
-    case "failed":
-      return "border-[#B45309]/30 bg-[#B45309]/5 text-[#B45309]";
-    default:
-      return "border-border bg-card text-muted-foreground";
-  }
-}
-
-function ChipPeakCell({ row }: { row: ResultRow }) {
-  if (row.chipPeakState === "available" && row.chipPeaks.length > 0) {
-    return (
-      <div className="ml-auto grid w-fit gap-1 text-right tabular-nums">
-        {row.chipPeaks.map((peak) => (
-          <div key={peak.rank} className="flex items-baseline justify-end gap-2">
-            <span className="text-[12px] text-muted-foreground">
-              #{peak.rank}
-            </span>
-            <span className="font-medium">{formatPrice(peak.price)}</span>
-            <span className="min-w-12 text-[12px] text-muted-foreground">
-              {peak.percent.toFixed(2)}%
-            </span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <Badge
-      variant="outline"
-      className={cn("gap-1 border px-2", chipStateTone(row.chipPeakState))}
-    >
-      {row.chipPeakState === "missing" ? (
-        <CircleSlash className="size-3" />
-      ) : (
-        <AlertTriangle className="size-3" />
-      )}
-      {chipStateLabels[row.chipPeakState]}
-    </Badge>
-  );
 }
 
 function ResultsState({ snapshot }: ResultsTableProps) {
@@ -283,12 +204,6 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
                   sort={sort}
                   onSort={handleSort}
                 />
-                <SortHeader
-                  label="筹码峰价格"
-                  sortKey="chipPeakPrice"
-                  sort={sort}
-                  onSort={handleSort}
-                />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -327,9 +242,6 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
                       <TableCell className="text-right tabular-nums">
                         {formatPercent(row.drawdownPct)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <ChipPeakCell row={row} />
-                      </TableCell>
                     </TableRow>
                     {isSelected ? (
                       <TableRow
@@ -337,7 +249,7 @@ export function ResultsTable({ snapshot }: ResultsTableProps) {
                         className="hover:bg-transparent"
                       >
                         <TableCell
-                          colSpan={7}
+                          colSpan={6}
                           className="whitespace-normal bg-muted/20 p-3 sm:p-4"
                         >
                           <StockKlineChart tsCode={row.tsCode} />
