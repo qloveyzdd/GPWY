@@ -71,6 +71,13 @@ type RefreshStageRow = {
   error_summary: string | null;
 };
 
+type StaleChipBackgroundRow = RefreshOperationRow & {
+  chip_started_at: string | null;
+  chip_total_count: number | null;
+  chip_completed_count: number | null;
+  chip_failed_count: number | null;
+};
+
 type StockBasicRow = {
   ts_code: string;
   name: string;
@@ -98,6 +105,9 @@ type TableInfoRow = {
 
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3") as DatabaseConstructor;
+const STALE_CHIP_BACKGROUND_NO_PROGRESS_MS = 15 * 60 * 1000;
+const STALE_CHIP_BACKGROUND_ERROR =
+  "stale_chip_background_no_progress_after_restart";
 
 function getDatabasePath() {
   return (
@@ -389,6 +399,81 @@ function readOperationFromDatabase(
   return row ? mapOperation(row) : null;
 }
 
+function isOlderThan(value: string | null, now: Date, durationMs: number) {
+  if (!value) {
+    return false;
+  }
+
+  const timestamp = Date.parse(value);
+
+  if (Number.isNaN(timestamp)) {
+    return false;
+  }
+
+  return now.getTime() - timestamp >= durationMs;
+}
+
+function recoverStaleOperationsInDatabase(db: DatabaseConnection, now: Date) {
+  const rows = db
+    .prepare(
+      `
+      select
+        operation.*,
+        stage.started_at as chip_started_at,
+        stage.total_count as chip_total_count,
+        stage.completed_count as chip_completed_count,
+        stage.failed_count as chip_failed_count
+      from refresh_operations operation
+      join refresh_operation_stages stage
+        on stage.operation_id = operation.id
+        and stage.stage_key = 'chip'
+      where operation.status = 'running'
+        and operation.kind = 'chip_background'
+        and stage.status = 'running'
+      `,
+    )
+    .all() as StaleChipBackgroundRow[];
+
+  for (const row of rows) {
+    const hasNoProgress =
+      (row.chip_total_count ?? 0) === 0 &&
+      (row.chip_completed_count ?? 0) === 0 &&
+      (row.chip_failed_count ?? 0) === 0;
+    const staleSince = row.chip_started_at ?? row.started_at;
+
+    if (
+      !hasNoProgress ||
+      !isOlderThan(staleSince, now, STALE_CHIP_BACKGROUND_NO_PROGRESS_MS)
+    ) {
+      continue;
+    }
+
+    const finishedAt = toIsoString(now);
+
+    db.prepare(
+      `
+      update refresh_operation_stages
+      set status = 'failed',
+        finished_at = ?,
+        error_summary = ?
+      where operation_id = ?
+        and stage_key = 'chip'
+        and status = 'running'
+      `,
+    ).run(finishedAt, STALE_CHIP_BACKGROUND_ERROR, row.id);
+    db.prepare(
+      `
+      update refresh_operations
+      set status = 'failed',
+        finished_at = ?,
+        error_summary = ?
+      where id = ?
+        and status = 'running'
+      `,
+    ).run(finishedAt, STALE_CHIP_BACKGROUND_ERROR, row.id);
+  }
+}
+
 export function startRefreshOperation(
   kind: RefreshOperationKind,
   {
@@ -402,6 +487,8 @@ export function startRefreshOperation(
   const db = openDatabase();
 
   try {
+    recoverStaleOperationsInDatabase(db, now);
+
     try {
       const result = db
         .prepare(
@@ -578,6 +665,8 @@ export function readRefreshOperationSnapshot(
   const db = openDatabase();
 
   try {
+    recoverStaleOperationsInDatabase(db, now);
+
     const activeRow = db
       .prepare(
         `

@@ -96,6 +96,106 @@ describe("refresh store", () => {
     ).toBe(true);
   });
 
+  it("recovers a stale chip background operation with no progress", () => {
+    useTempRefreshStore();
+    const operation = startRefreshOperation("chip_background", {
+      now: new Date("2026-06-29T00:00:00.000Z"),
+    }).operation;
+
+    upsertRefreshStage(operation.id, {
+      stage: "chip",
+      status: "running",
+      startedAt: new Date("2026-06-29T00:00:00.000Z"),
+    });
+
+    const snapshot = readRefreshOperationSnapshot(
+      new Date("2026-06-29T00:15:00.000Z"),
+    );
+    const chipStage = snapshot.stages.find((stage) => stage.stage === "chip");
+
+    expect(snapshot.hasActiveWork).toBe(false);
+    expect(snapshot.activeOperation).toBeNull();
+    expect(snapshot.latestOperation).toMatchObject({
+      id: operation.id,
+      status: "failed",
+      errorSummary: "stale_chip_background_no_progress_after_restart",
+    });
+    expect(chipStage).toMatchObject({
+      status: "failed",
+      total: 0,
+      completed: 0,
+      failed: 0,
+      finishedAt: "2026-06-29T00:15:00.000Z",
+      errorSummary: "stale_chip_background_no_progress_after_restart",
+    });
+
+    const next = startRefreshOperation("manual_refresh", {
+      now: new Date("2026-06-29T00:16:00.000Z"),
+    });
+
+    expect(next.started).toBe(true);
+    expect(next.operation.kind).toBe("manual_refresh");
+  });
+
+  it("keeps a recent chip background operation running", () => {
+    useTempRefreshStore();
+    const operation = startRefreshOperation("chip_background", {
+      now: new Date("2026-06-29T00:00:00.000Z"),
+    }).operation;
+
+    upsertRefreshStage(operation.id, {
+      stage: "chip",
+      status: "running",
+      startedAt: new Date("2026-06-29T00:00:00.000Z"),
+    });
+
+    const snapshot = readRefreshOperationSnapshot(
+      new Date("2026-06-29T00:14:59.000Z"),
+    );
+
+    expect(snapshot.hasActiveWork).toBe(true);
+    expect(snapshot.activeOperation).toMatchObject({
+      id: operation.id,
+      status: "running",
+    });
+    expect(snapshot.latestOperation).toMatchObject({
+      id: operation.id,
+      status: "running",
+    });
+  });
+
+  it("does not recover a chip background operation that has progress", () => {
+    useTempRefreshStore();
+    const operation = startRefreshOperation("chip_background", {
+      now: new Date("2026-06-29T00:00:00.000Z"),
+    }).operation;
+
+    upsertRefreshStage(operation.id, {
+      stage: "chip",
+      status: "running",
+      total: 4,
+      completed: 1,
+      failed: 0,
+      startedAt: new Date("2026-06-29T00:00:00.000Z"),
+    });
+
+    const snapshot = readRefreshOperationSnapshot(
+      new Date("2026-06-29T02:00:00.000Z"),
+    );
+    const chipStage = snapshot.stages.find((stage) => stage.stage === "chip");
+
+    expect(snapshot.hasActiveWork).toBe(true);
+    expect(snapshot.activeOperation).toMatchObject({
+      id: operation.id,
+      status: "running",
+    });
+    expect(chipStage).toMatchObject({
+      status: "running",
+      total: 4,
+      completed: 1,
+    });
+  });
+
   it("persists stage progress in UI order with deterministic durations", () => {
     useTempRefreshStore();
     const operation = startRefreshOperation("manual_refresh", {
