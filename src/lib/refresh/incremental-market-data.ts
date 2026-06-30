@@ -10,6 +10,7 @@ import {
   assertActiveGenerationReadyForScreening,
   ensureMarketGenerationDates,
   planActiveGenerationMarketWork,
+  readMarketGenerationDates,
   updateMarketGenerationDateItemStatus,
   upsertMarketAdjustmentFactors,
   upsertMarketDailyQuotes,
@@ -140,11 +141,15 @@ export async function refreshActiveMarketGeneration({
     });
   }
 
+  const knownReadyTradeDates = readMarketGenerationDates(generationId)
+    .filter((record) => record.dailyStatus === "succeeded")
+    .map((record) => record.tradeDate);
   const targetTradeDates = await fetchTargetTradeDates({
     client,
     now,
     targetTradingDates,
     maxLookbackDays,
+    knownReadyTradeDates,
   });
   ensureMarketGenerationDates(generationId, targetTradeDates, now);
   const workPlan = planActiveGenerationMarketWork(

@@ -5,6 +5,7 @@ import {
   DEFAULT_TRADING_DATE_COUNT,
   fetchMarketStocks,
   fetchRefreshData,
+  fetchTargetTradeDates,
 } from "@/lib/refresh/fetch-refresh-data";
 import { TushareApiError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
@@ -140,6 +141,49 @@ describe("fetchRefreshData", () => {
       },
     ]);
     expect(result.dailyQuotes[1]?.high).toBe(11);
+  });
+
+  it("skips the latest open trading date when daily quotes are not ready yet", async () => {
+    const client = createMockClient(async (endpoint, params) => {
+      if (endpoint.apiName === "trade_cal") {
+        return table(["cal_date", "is_open"], [
+          ["20260630", 1],
+          ["20260629", 1],
+          ["20260626", 1],
+        ]);
+      }
+
+      if (endpoint.apiName === "daily") {
+        if (params.trade_date === "20260630") {
+          throw new TushareApiError("daily", 0, "empty data");
+        }
+
+        return table(TUSHARE_ENDPOINTS.daily.fields, [
+          ["000001.SZ", params.trade_date, 10, 11, 9, 10.5, 1200],
+        ]);
+      }
+
+      throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+    });
+
+    await expect(
+      fetchTargetTradeDates({
+        client,
+        now: new Date("2026-06-30T12:00:00.000Z"),
+        targetTradingDates: 2,
+        maxLookbackDays: 10,
+      }),
+    ).resolves.toEqual(["20260629", "20260626"]);
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.daily,
+      { trade_date: "20260630" },
+      { priority: "market" },
+    );
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.daily,
+      { trade_date: "20260629" },
+      { priority: "market" },
+    );
   });
 
   it("uses the requested stock status when list_status is omitted", async () => {

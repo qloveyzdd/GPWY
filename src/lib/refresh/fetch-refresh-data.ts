@@ -90,10 +90,10 @@ function mapStocks(
   });
 }
 
-function isEmptyStockBasicData(error: unknown) {
+function isEmptyDataError(error: unknown, apiName: string) {
   return (
     error instanceof TushareApiError &&
-    error.apiName === TUSHARE_ENDPOINTS.stockBasic.apiName &&
+    error.apiName === apiName &&
     (error.code === 0 || error.message === "empty_data")
   );
 }
@@ -114,7 +114,10 @@ async function fetchMarketStocksByStatus({
 
     return mapStocks(table, listStatus);
   } catch (error) {
-    if (listStatus !== "L" && isEmptyStockBasicData(error)) {
+    if (
+      listStatus !== "L" &&
+      isEmptyDataError(error, TUSHARE_ENDPOINTS.stockBasic.apiName)
+    ) {
       return [];
     }
 
@@ -132,6 +135,43 @@ function mapTradeDates(table: TushareDataTable) {
     })
     .filter((tradeDate): tradeDate is string => tradeDate !== null)
     .sort((left, right) => right.localeCompare(left));
+}
+
+async function findFirstDailyReadyTradeDateIndex({
+  client,
+  tradeDates,
+  knownReadyTradeDates,
+}: {
+  client: TushareClientLike;
+  tradeDates: string[];
+  knownReadyTradeDates?: Iterable<string>;
+}) {
+  const knownReadyTradeDateSet = new Set(knownReadyTradeDates ?? []);
+
+  for (let index = 0; index < tradeDates.length; index += 1) {
+    const tradeDate = tradeDates[index]!;
+
+    if (knownReadyTradeDateSet.has(tradeDate)) {
+      return index;
+    }
+
+    try {
+      await client.query(
+        TUSHARE_ENDPOINTS.daily,
+        { trade_date: tradeDate },
+        { priority: "market" },
+      );
+      return index;
+    } catch (error) {
+      if (isEmptyDataError(error, TUSHARE_ENDPOINTS.daily.apiName)) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  return -1;
 }
 
 function mapDailyQuotes(table: TushareDataTable): RawDailyQuoteRecord[] {
@@ -191,11 +231,13 @@ export async function fetchTargetTradeDates({
   now = new Date(),
   targetTradingDates = DEFAULT_TRADING_DATE_COUNT,
   maxLookbackDays = DEFAULT_MAX_LOOKBACK_DAYS,
+  knownReadyTradeDates,
 }: {
   client: TushareClientLike;
   now?: Date;
   targetTradingDates?: number;
   maxLookbackDays?: number;
+  knownReadyTradeDates?: Iterable<string>;
 }) {
   const table = await client.query(
     TUSHARE_ENDPOINTS.tradeCalendar,
@@ -207,7 +249,19 @@ export async function fetchTargetTradeDates({
     },
     { priority: "market" },
   );
-  const tradeDates = mapTradeDates(table).slice(0, targetTradingDates);
+  const candidateTradeDates = mapTradeDates(table);
+  const firstReadyIndex = await findFirstDailyReadyTradeDateIndex({
+    client,
+    tradeDates: candidateTradeDates,
+    knownReadyTradeDates,
+  });
+  const tradeDates =
+    firstReadyIndex >= 0
+      ? candidateTradeDates.slice(
+          firstReadyIndex,
+          firstReadyIndex + targetTradingDates,
+        )
+      : [];
 
   if (tradeDates.length !== targetTradingDates) {
     throw new Error(
