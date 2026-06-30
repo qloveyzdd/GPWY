@@ -4,6 +4,7 @@ import type {
   MarketStockStatus,
   RawDailyQuoteRecord,
 } from "@/lib/refresh/market-data-types";
+import { TushareApiError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
 import type {
   TushareClientLike,
@@ -89,6 +90,38 @@ function mapStocks(
   });
 }
 
+function isEmptyStockBasicData(error: unknown) {
+  return (
+    error instanceof TushareApiError &&
+    error.apiName === TUSHARE_ENDPOINTS.stockBasic.apiName &&
+    (error.code === 0 || error.message === "empty_data")
+  );
+}
+
+async function fetchMarketStocksByStatus({
+  client,
+  listStatus,
+}: {
+  client: TushareClientLike;
+  listStatus: MarketStockStatus;
+}) {
+  try {
+    const table = await client.query(
+      TUSHARE_ENDPOINTS.stockBasic,
+      { list_status: listStatus },
+      { priority: "market" },
+    );
+
+    return mapStocks(table, listStatus);
+  } catch (error) {
+    if (listStatus !== "L" && isEmptyStockBasicData(error)) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
 function mapTradeDates(table: TushareDataTable) {
   return table.items
     .map((row) => {
@@ -137,19 +170,15 @@ export async function fetchMarketStocks({
   client: TushareClientLike;
 }) {
   const stocksByCode = new Map<string, MarketStockRecord>();
-  const tables = await Promise.all(
+  const stockGroups = await Promise.all(
     (["L", "P", "D"] as const).map(async (listStatus) => ({
       listStatus,
-      table: await client.query(
-        TUSHARE_ENDPOINTS.stockBasic,
-        { list_status: listStatus },
-        { priority: "market" },
-      ),
+      stocks: await fetchMarketStocksByStatus({ client, listStatus }),
     })),
   );
 
-  for (const { listStatus, table } of tables) {
-    for (const stock of mapStocks(table, listStatus)) {
+  for (const { stocks } of stockGroups) {
+    for (const stock of stocks) {
       stocksByCode.set(stock.tsCode, stock);
     }
   }

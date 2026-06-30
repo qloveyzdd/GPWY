@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_TRADING_DATE_COUNT,
+  fetchMarketStocks,
   fetchRefreshData,
 } from "@/lib/refresh/fetch-refresh-data";
 import { TushareApiError } from "@/lib/tushare/client";
@@ -178,6 +179,39 @@ describe("fetchRefreshData", () => {
       "L",
       "P",
       "D",
+    ]);
+  });
+
+  it("keeps bootstrap stock loading when optional stock statuses return empty data", async () => {
+    const client = createMockClient(async (endpoint, params) => {
+      if (endpoint.apiName === "stock_basic") {
+        const status = String(params.list_status);
+
+        if (status === "P") {
+          throw new TushareApiError("stock_basic", null, "empty_data");
+        }
+
+        return table(["ts_code", "name", "market"], [
+          [`00000${status === "L" ? 1 : 3}.SZ`, status, "主板"],
+        ]);
+      }
+
+      throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+    });
+
+    await expect(fetchMarketStocks({ client })).resolves.toEqual([
+      {
+        tsCode: "000001.SZ",
+        name: "L",
+        market: "主板",
+        listStatus: "L",
+      },
+      {
+        tsCode: "000003.SZ",
+        name: "D",
+        market: "主板",
+        listStatus: "D",
+      },
     ]);
   });
 
