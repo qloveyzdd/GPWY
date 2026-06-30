@@ -1,9 +1,16 @@
 ---
 phase: 10-dual-day-chip-distribution
 phase_number: 10
-status: pass
+status: passed
 verified_at: 2026-06-29T23:57:20+08:00
 verifier: codex-inline
+requirements:
+  - CHIP-05
+  - CHIP-06
+  - CHIP-07
+  - CHIP-08
+  - CHIP-09
+  - CHIP-10
 ---
 
 # Phase 10 Verification

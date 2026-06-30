@@ -10,17 +10,17 @@
 
 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到最新有效交易日与前一有效交易日的完整筹码分布。
 
-## Current Milestone: v2.0 增量刷新与筹码分布对比
+## Current Milestone: v2.1 衰减筹码分布模型
 
-**Goal:** 将串行全量刷新改造为可恢复的增量刷新和受控并行处理，并让用户对比筛选股票最新交易日与前一交易日的完整筹码分布。
+**Goal:** 获取目标日前 60 个交易日的官方筹码分布作为种子，再按后续交易、换手和可选衰减系数推演目标日计算筹码分布。
 
-**Status:** Implementation complete as of 2026-06-30; ready for milestone completion/archive.
+**Status:** Requirements defined as of 2026-06-30; ready for Phase 12 discussion and planning.
 
-**Delivered features:**
-- 行情和复权因子复用已有数据，只拉取缺失交易日，并保留手动全量重建能力。
-- 外部接口使用受控并行、限频退避、重试和失败恢复；tinyshare 避免每次请求重复启动 Python 进程。
-- 筹码数据覆盖最新有效交易日和前一有效交易日，股票详情展示两个完整筹码分布图。
-- 记录刷新各阶段的进度、耗时和结果，为后续制定性能验收标准提供真实基线。
+**Target capabilities:**
+- 获取并缓存目标日前第 60 个交易日的官方 `cyq_chips` 完整筹码分布。
+- 使用目标区间内的日线、成交量、换手率和复权因子逐日推演目标日计算筹码分布。
+- 支持固定衰减系数集合：`0.3 / 0.5 / 0.8 / 1.0 / 1.2 / 1.5 / 2.0`。
+- 在股票详情中明确标注计算分布的目标日、种子日、衰减系数和非官方口径。
 
 ## Requirements
 
@@ -45,7 +45,11 @@
 
 ### Active
 
-None for v2.0. Future work is tracked below.
+- [ ] 获取目标日前 60 个交易日的官方 `cyq_chips` 种子分布 — v2.1
+- [ ] 按种子日至目标日之间的交易、换手和复权数据逐日推演计算筹码分布 — v2.1
+- [ ] 支持衰减系数 `0.3 / 0.5 / 0.8 / 1.0 / 1.2 / 1.5 / 2.0` — v2.1
+- [ ] 将官方原始分布、种子分布和计算分布分开缓存与展示 — v2.1
+- [ ] 在股票详情页切换并标注计算筹码分布，不把计算结果伪装成官方 `cyq_chips` — v2.1
 
 ### Out of Scope
 
@@ -54,12 +58,13 @@ None for v2.0. Future work is tracked below.
 - 交易下单、自动策略执行和收益回测 - 当前目标是信息筛选与可视化，不直接做交易决策闭环。
 - 使用非 Tushare 数据源作为主数据源 - 首版数据来源明确为 Tushare，避免多源口径不一致。
 - 完整移动端体验 - 首版以桌面网页研判为主，移动端只需基本可访问。
-- 强行自研筹码分布算法 - 若 Tushare 没有直接字段，必须先研究并确认口径，再决定是否进入后续版本。
+- 把计算筹码分布当作官方数据 - v2.1 可以引入可解释计算模型，但必须独立标注、独立缓存，不覆盖 Tushare 原始 `cyq_chips`。
 
 ## Context
 
 - v1.0 已于 2026-06-24 完成，共 6 个阶段、16 个计划和 36 个任务。
 - v2.0 已于 2026-06-30 完成实现，共 5 个阶段，交付增量刷新、受控并行、双日筹码分布缓存和双图对比体验。
+- v2.1 已于 2026-06-30 定义需求，目标是建立以 60 日前官方筹码分布为种子的衰减推演模型。
 - 当前技术栈为 Next.js 16、React 19、TypeScript、SQLite、ECharts、Vitest 和 Playwright。
 - 完整验证为 30 个测试文件、177 项测试及 1 项浏览器冒烟测试。
 - 数据源限定为 Tushare API，tinyshare 作为兼容授权码的服务端 provider。
@@ -83,7 +88,7 @@ None for v2.0. Future work is tracked below.
 - **Refresh mode**: 手动刷新 - 降低 API 额度消耗和调度复杂度。
 - **Algorithm window**: 最近 60 个交易日 - 当前筛选定义依赖该窗口。
 - **Trend definition**: `MA20 < MA60` 且 `MA20` 近 5 日斜率为负 - 防止仅凭单点价格回撤误判趋势。
-- **Chip distribution source**: 优先使用 Tushare `cyq_chips` 等官方筹码分布接口 - 不用未经验证的临时近似掩盖数据口径问题。
+- **Chip distribution source**: 官方 `cyq_chips` 与计算分布必须分开标注和存储 - 不用未经验证的近似结果覆盖或伪装官方数据。
 - **Deployment**: 云端服务器运行 - 实现需要支持环境变量配置、后台任务执行和稳定的网页访问。
 
 ## Key Decisions
@@ -103,10 +108,13 @@ None for v2.0. Future work is tracked below.
 | 使用受控 provider 调度器和持久 tinyshare worker | 避免无界并发、重复 Python 启动和不可控重试放大刷新耗时 | ✓ Phase 8 验证 |
 | 筹码源数据保存完整双日分布而不是前三峰 | 支持用户比较真实价格档位分布，不再把 Top-N 摘要伪装成完整筹码结构 | ✓ Phase 10/11 验证 |
 | 表格删除筹码峰，只在详情展示完整筹码分布 | 表格聚焦趋势筛选，筹码信息进入可视化详情，避免单价摘要误导 | ✓ Phase 11 验证 |
+| 计算筹码分布必须独立于官方 `cyq_chips` | 衰减模型是可解释估算，不是官方数据源；必须避免把模型误认为事实数据 | — v2.1 待验证 |
 
 ## Current State
 
-**Shipped version:** v2.0 implementation complete — 2026-06-30
+**Shipped version:** v2.0 — 2026-06-30
+
+**Active milestone:** v2.1 衰减筹码分布模型 — requirements defined, implementation not started.
 
 - 37/37 v1 需求完成。
 - 6/6 阶段通过阶段验证和 Nyquist 覆盖审计。
@@ -118,7 +126,7 @@ None for v2.0. Future work is tracked below.
 
 ## Next Milestone Goals
 
-后续候选方向：根据 v2.0 实测刷新数据制定性能验收标准；再评估自动每日刷新、结果历史、可配置筛选、CSV 导出、外部任务队列和 PostgreSQL。
+v2.1 聚焦筹码分布模型校准：以 60 日前官方筹码分布为种子，按后续交易数据推演目标日计算分布，并允许用户在固定衰减系数集合中切换对比。
 
 ## Evolution
 
@@ -138,4 +146,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-30 after Phase 11 completion*
+*Last updated: 2026-06-30 after v2.1 requirements definition*

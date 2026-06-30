@@ -1,35 +1,35 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: 增量刷新与筹码分布对比
-status: milestone_complete
-stopped_at: Completed 11-04-PLAN.md
-last_updated: "2026-06-29T22:36:29.182Z"
-last_activity: 2026-06-29
+milestone: v2.1
+milestone_name: 衰减筹码分布模型
+status: requirements_defined
+stopped_at: Created v2.1 requirements and Phase 12 roadmap entry
+last_updated: "2026-06-30T21:32:00+08:00"
+last_activity: 2026-06-30 — v2.1 requirements defined
 progress:
-  total_phases: 5
-  completed_phases: 6
-  total_plans: 20
-  completed_plans: 20
-  percent: 120
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-26)
+See: .planning/PROJECT.md (updated 2026-06-30)
 
-**Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并直观看到对应筹码分布。
+**Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并用可解释的筹码分布辅助研判。
 
-**Current focus:** Phase 11 — distribution-comparison-experience
+**Current focus:** Phase 12 — decay-based-chip-distribution-model
 
 ## Current Position
 
-Phase: 11
+Phase: 12
 Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-29
+Status: Requirements defined
+Last activity: 2026-06-30 — v2.1 requirements defined
 
 ## Performance Metrics
 
@@ -99,6 +99,7 @@ Recent decisions affecting current work:
 - Publish screening results before chip distribution enrichment finishes.
 - Remove chip peak columns from the results table and show two full distributions in stock details.
 - Configure concurrency through server environment variables; keep full rebuild as an operations command.
+- Keep official `cyq_chips`, seed distributions, and calculated chip distributions separate; calculated distributions must be labeled as model output.
 - [Phase 08]: 调度器是 provider 重试、退避、动态并发和优先级的唯一政策层。 — 避免工作流和客户端叠加重试，确保尝试次数及并发预算可证明。
 - [Phase 08]: REST attempt 超时通过 AbortSignal 下传到 fetch。 — 终止真实网络请求，避免外层超时后仍存在幽灵在途请求。
 - [Phase 08]: tinyshare worker 槽位只管理进程恢复，不在池内执行请求级重试。 — 请求尝试预算由统一 scheduler 单独拥有，避免 worker 重建与请求重试相乘。
@@ -114,7 +115,7 @@ None yet.
 
 ### Blockers/Concerns
 
-No milestone blockers. Tinyshare worker concurrency safety must be validated with conservative defaults because the SDK implementation is closed bytecode.
+No current milestone blockers. Phase 12 still needs discussion to finalize the exact daily allocation formula and cache invalidation behavior for calculated distributions.
 
 ### Quick Tasks Completed
 
@@ -134,10 +135,10 @@ No milestone blockers. Tinyshare worker concurrency safety must be validated wit
 
 ## Session Continuity
 
-Last session: 2026-06-29T22:36:29.176Z
-Stopped at: Completed 11-04-PLAN.md
+Last session: 2026-06-30T21:32:00+08:00
+Stopped at: Created v2.1 requirements and Phase 12 roadmap entry
 Resume file: None
 
 ## Operator Next Steps
 
-- Plan Phase 10 with `$gsd-plan-phase 10`.
+- Run `$gsd-discuss-phase 12` to finalize the calculation formula and UI behavior before planning implementation.
