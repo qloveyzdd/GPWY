@@ -37,6 +37,7 @@ export type ChipDecayModelBar = {
   close: number;
   averagePrice: number;
   turnoverRate: number | null;
+  adjFactor: number | null;
 };
 
 export type ApplyChipDecayDayInput = {

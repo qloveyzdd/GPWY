@@ -83,7 +83,15 @@ export function calculateDecayChipDistribution(
     };
   }
 
-  const levels = normalizeLevels(input.seedLevels);
+  let levels = normalizeLevels(input.seedLevels);
+
+  if (levels.length === 0) {
+    return {
+      ...baseResult,
+      status: "unavailable",
+      reason: "missing_seed_distribution",
+    };
+  }
 
   if (input.targetTradeDate === input.seedTradeDate) {
     return {
@@ -93,10 +101,65 @@ export function calculateDecayChipDistribution(
     };
   }
 
+  const modelBars = input.bars
+    .filter(
+      (bar) =>
+        bar.tradeDate.localeCompare(input.seedTradeDate) > 0 &&
+        bar.tradeDate.localeCompare(input.targetTradeDate) <= 0,
+    )
+    .sort((left, right) => left.tradeDate.localeCompare(right.tradeDate));
+
+  if (!modelBars.some((bar) => bar.tradeDate === input.targetTradeDate)) {
+    return {
+      ...baseResult,
+      status: "unavailable",
+      reason: "missing_trade_data",
+    };
+  }
+
+  const invalidAdjustment = modelBars.some(
+    (bar) =>
+      bar.adjFactor === null ||
+      bar.adjFactor === undefined ||
+      !Number.isFinite(bar.adjFactor) ||
+      bar.adjFactor <= 0,
+  );
+
+  if (invalidAdjustment) {
+    return {
+      ...baseResult,
+      status: "unavailable",
+      reason: "missing_adjustment_factor",
+    };
+  }
+
+  const invalidTurnover = modelBars.some(
+    (bar) =>
+      bar.turnoverRate === null ||
+      !Number.isFinite(bar.turnoverRate) ||
+      bar.turnoverRate < 0,
+  );
+
+  if (invalidTurnover) {
+    return {
+      ...baseResult,
+      status: "unavailable",
+      reason: "missing_turnover_rate",
+    };
+  }
+
+  for (const bar of modelBars) {
+    levels = applyChipDecayDay({
+      levels,
+      bar,
+      decayCoefficient,
+    });
+  }
+
   return {
     ...baseResult,
-    status: "unavailable",
-    reason: "missing_trade_data",
+    status: "succeeded",
+    levels,
   };
 }
 
