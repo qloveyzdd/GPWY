@@ -13,7 +13,6 @@ import {
 } from "@/lib/chip/chip-model-runner";
 import {
   CHIP_MODEL_VERSION,
-  DEFAULT_CHIP_DECAY_COEFFICIENT,
 } from "@/lib/chip/chip-model";
 import { replaceChipDistribution } from "@/lib/chip/chip-store";
 import {
