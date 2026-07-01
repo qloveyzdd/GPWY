@@ -59,6 +59,7 @@ export type ChipDecayModelInput = {
   targetTradeDate: string;
   seedLevels: ChipCalculatedDistributionLevel[];
   bars: ChipDecayModelBar[];
+  expectedTradeDates?: string[];
   decayCoefficient?: ChipDecayCoefficient;
   modelVersion?: typeof CHIP_MODEL_VERSION;
 };

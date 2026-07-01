@@ -101,13 +101,7 @@ export function calculateDecayChipDistribution(
     };
   }
 
-  const modelBars = input.bars
-    .filter(
-      (bar) =>
-        bar.tradeDate.localeCompare(input.seedTradeDate) > 0 &&
-        bar.tradeDate.localeCompare(input.targetTradeDate) <= 0,
-    )
-    .sort((left, right) => left.tradeDate.localeCompare(right.tradeDate));
+  const modelBars = selectModelBars(input);
 
   if (!modelBars.some((bar) => bar.tradeDate === input.targetTradeDate)) {
     return {
@@ -161,6 +155,45 @@ export function calculateDecayChipDistribution(
     status: "succeeded",
     levels,
   };
+}
+
+function selectModelBars(input: ChipDecayModelInput) {
+  const sortedBars = input.bars
+    .filter(
+      (bar) =>
+        bar.tradeDate.localeCompare(input.seedTradeDate) > 0 &&
+        bar.tradeDate.localeCompare(input.targetTradeDate) <= 0,
+    )
+    .sort((left, right) => left.tradeDate.localeCompare(right.tradeDate));
+
+  if (input.expectedTradeDates === undefined) {
+    return sortedBars;
+  }
+
+  const barsByTradeDate = new Map(
+    sortedBars.map((bar) => [bar.tradeDate, bar] as const),
+  );
+  const expectedTradeDates = Array.from(new Set(input.expectedTradeDates))
+    .filter(
+      (tradeDate) =>
+        tradeDate.localeCompare(input.seedTradeDate) > 0 &&
+        tradeDate.localeCompare(input.targetTradeDate) <= 0,
+    )
+    .sort((left, right) => left.localeCompare(right));
+
+  if (expectedTradeDates.some((tradeDate) => !barsByTradeDate.has(tradeDate))) {
+    return [];
+  }
+
+  return expectedTradeDates.map((tradeDate) => {
+    const bar = barsByTradeDate.get(tradeDate);
+
+    if (bar === undefined) {
+      throw new Error("missing_trade_data");
+    }
+
+    return bar;
+  });
 }
 
 export function applyChipDecayDay(
