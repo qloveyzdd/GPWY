@@ -11,6 +11,77 @@ export type ChipDistributionLevel = ChipDistributionRow;
 
 export type ChipDistributionTargetKind = "latest" | "previous";
 
+export const CHIP_MODEL_VERSION = "decay-triangle-v1" as const;
+
+export const SUPPORTED_CHIP_DECAY_COEFFICIENTS = [
+  0.3, 0.5, 0.8, 1, 1.2, 1.5, 2,
+] as const;
+
+export const DEFAULT_CHIP_DECAY_COEFFICIENT = 0.5 as const;
+
+export type ChipDecayCoefficient =
+  (typeof SUPPORTED_CHIP_DECAY_COEFFICIENTS)[number];
+
+export type ChipCalculatedDistributionSource = "calculated_decay_model";
+
+export type ChipCalculatedDistributionLevel = {
+  price: number;
+  percent: number;
+};
+
+export type ChipDecayModelBar = {
+  tsCode: string;
+  tradeDate: string;
+  low: number;
+  high: number;
+  close: number;
+  averagePrice: number;
+  turnoverRate: number | null;
+};
+
+export type ChipModelUnavailableReason =
+  | "missing_seed_distribution"
+  | "missing_trade_data"
+  | "missing_turnover_rate"
+  | "missing_adjustment_factor"
+  | "invalid_trade_date_range";
+
+export type ChipDecayModelInput = {
+  tsCode: string;
+  seedTradeDate: string;
+  targetTradeDate: string;
+  seedLevels: ChipCalculatedDistributionLevel[];
+  bars: ChipDecayModelBar[];
+  decayCoefficient?: ChipDecayCoefficient;
+  modelVersion?: typeof CHIP_MODEL_VERSION;
+};
+
+export type ChipDecayModelSucceededResult = {
+  status: "succeeded";
+  tsCode: string;
+  source: ChipCalculatedDistributionSource;
+  modelVersion: typeof CHIP_MODEL_VERSION;
+  decayCoefficient: ChipDecayCoefficient;
+  seedTradeDate: string;
+  targetTradeDate: string;
+  levels: ChipCalculatedDistributionLevel[];
+};
+
+export type ChipDecayModelUnavailableResult = {
+  status: "unavailable";
+  tsCode: string;
+  source: ChipCalculatedDistributionSource;
+  modelVersion: typeof CHIP_MODEL_VERSION;
+  decayCoefficient: ChipDecayCoefficient;
+  seedTradeDate: string;
+  targetTradeDate: string;
+  reason: ChipModelUnavailableReason;
+};
+
+export type ChipDecayModelResult =
+  | ChipDecayModelSucceededResult
+  | ChipDecayModelUnavailableResult;
+
 export type ChipDistributionStatus =
   | "succeeded"
   | "blocked"
