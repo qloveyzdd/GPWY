@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { StockKlineChart } from "@/components/charts/stock-kline-chart";
 import type {
@@ -189,6 +195,41 @@ function readySnapshot(
             maxPercent: 8,
           },
         },
+        "1": {
+          decayCoefficient: 1,
+          previous: {
+            targetKind: "previous",
+            label: "前一有效交易日",
+            targetTradeDate: "20260622",
+            seedTradeDate: "20260401",
+            status: "succeeded",
+            decayCoefficient: 1,
+            modelVersion: "decay-triangle-v1",
+            levels: [{ price: 29, percent: 6 }],
+            maxLevel: { price: 29, percent: 6 },
+            unavailableReason: null,
+            errorCategory: null,
+            errorSummary: null,
+          },
+          latest: {
+            targetKind: "latest",
+            label: "最新有效交易日",
+            targetTradeDate: "20260623",
+            seedTradeDate: "20260402",
+            status: "succeeded",
+            decayCoefficient: 1,
+            modelVersion: "decay-triangle-v1",
+            levels: [{ price: 28, percent: 10 }],
+            maxLevel: { price: 28, percent: 10 },
+            unavailableReason: null,
+            errorCategory: null,
+            errorSummary: null,
+          },
+          scale: {
+            priceLevels: [28, 29],
+            maxPercent: 10,
+          },
+        },
       },
     },
   };
@@ -311,6 +352,39 @@ describe("StockKlineChart", () => {
       value: 6.5,
     });
     expect(initMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("renders calculated distribution with fixed coefficient selector and switches local chart data", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify(readySnapshot()), { status: 200 }),
+    );
+
+    render(<StockKlineChart tsCode="000001.SZ" />);
+
+    expect(await screen.findByText("计算分布")).toBeTruthy();
+    expect(screen.getByText("模型输出，不等同官方 cyq_chips")).toBeTruthy();
+    expect(screen.getByText("目标日 20260623")).toBeTruthy();
+    expect(screen.getByText("种子日 20260402")).toBeTruthy();
+    expect(screen.getByText("模型 decay-triangle-v1")).toBeTruthy();
+
+    const selector = screen.getByLabelText("衰减系数");
+    expect(selector).toHaveValue("0.5");
+    expect(
+      Array.from((selector as HTMLSelectElement).options).map(
+        (option) => option.value,
+      ),
+    ).toEqual(["0.3", "0.5", "0.8", "1", "1.2", "1.5", "2"]);
+
+    await waitFor(() => {
+      expect(barOptions().at(-1)?.series?.[0]?.data).toEqual([0, 8, 4]);
+    });
+
+    fireEvent.change(selector, { target: { value: "1" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("衰减系数 1")).toBeTruthy();
+      expect(barOptions().at(-1)?.series?.[0]?.data).toEqual([10, 0]);
+    });
   });
 
   it("keeps previous distribution chart available when latest distribution is blocked", async () => {
