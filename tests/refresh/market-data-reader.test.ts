@@ -9,12 +9,14 @@ import {
   activateMarketCacheGeneration,
   createMarketCacheGeneration,
   readMarketDailyQuotes,
+  upsertMarketDailyBasics,
   upsertMarketAdjustmentFactors,
   upsertMarketDailyQuotes,
   upsertMarketGenerationDate,
   upsertMarketStocks,
 } from "@/lib/refresh/market-data-store";
 import {
+  readAdjustedChipModelBarsForStock,
   readAdjustedMarketBarsForStock,
   readAdjustedMarketData,
 } from "@/lib/refresh/market-data-reader";
@@ -67,6 +69,7 @@ function makeQuotes(tsCode: string, count: number, offset = 0) {
       low: price - 1,
       close: price + 0.5,
       vol: 1000 + index,
+      amount: (price + 0.5) * (1000 + index) * 100 / 1000,
     });
     factors.push({
       tsCode,
@@ -257,5 +260,133 @@ describe("market data reader", () => {
       readAdjustedMarketBarsForStock(generation.id, "000003.SZ"),
     ).toHaveLength(2);
     expect(readAdjustedMarketData().stocks).toEqual([]);
+  });
+
+  it("reads adjusted chip model bars with average price and free-float turnover", () => {
+    useTempMarketStore();
+    const generation = createActiveGeneration();
+
+    upsertMarketDailyQuotes(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        open: 10,
+        high: 12,
+        low: 8,
+        close: 11,
+        vol: 1000,
+        amount: 1100,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260002",
+        open: 12,
+        high: 14,
+        low: 10,
+        close: 13,
+        vol: 1000,
+        amount: 1200,
+      },
+    ]);
+    upsertMarketAdjustmentFactors(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        adjFactor: 2,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260002",
+        adjFactor: 4,
+      },
+    ]);
+    upsertMarketDailyBasics(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        turnoverRate: 2.3,
+        turnoverRateFreeFloat: 1.7,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260002",
+        turnoverRate: 2.4,
+        turnoverRateFreeFloat: null,
+      },
+    ]);
+
+    expect(
+      readAdjustedChipModelBarsForStock({
+        generationId: generation.id,
+        tsCode: "000001.SZ",
+        startTradeDate: "20260001",
+        endTradeDate: "20260002",
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        tradeDate: "20260001",
+        open: 5,
+        high: 6,
+        low: 4,
+        close: 5.5,
+        averagePrice: 5.5,
+        turnoverRate: 1.7,
+        adjFactor: 2,
+      }),
+      expect.objectContaining({
+        tradeDate: "20260002",
+        open: 12,
+        high: 14,
+        low: 10,
+        close: 13,
+        averagePrice: 12,
+        turnoverRate: 2.4,
+        adjFactor: 4,
+      }),
+    ]);
+  });
+
+  it("blocks chip model bars when turnover or adjustment factor is missing", () => {
+    useTempMarketStore();
+    const generation = createActiveGeneration();
+
+    upsertMarketDailyQuotes(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        open: 10,
+        high: 12,
+        low: 8,
+        close: 11,
+        vol: 1000,
+        amount: 1100,
+      },
+    ]);
+
+    expect(() =>
+      readAdjustedChipModelBarsForStock({
+        generationId: generation.id,
+        tsCode: "000001.SZ",
+        startTradeDate: "20260001",
+        endTradeDate: "20260001",
+      }),
+    ).toThrow("missing_adjustment_factor");
+
+    upsertMarketAdjustmentFactors(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        adjFactor: 1,
+      },
+    ]);
+
+    expect(() =>
+      readAdjustedChipModelBarsForStock({
+        generationId: generation.id,
+        tsCode: "000001.SZ",
+        startTradeDate: "20260001",
+        endTradeDate: "20260001",
+      }),
+    ).toThrow("missing_turnover_rate");
   });
 });
