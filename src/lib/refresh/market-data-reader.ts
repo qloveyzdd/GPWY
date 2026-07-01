@@ -2,11 +2,13 @@ import {
   readActiveMarketCacheGeneration,
   readMarketAdjustmentFactors,
   readMarketCacheGenerationById,
+  readMarketDailyBasics,
   readMarketDailyQuotes,
   readMarketStocks,
 } from "@/lib/refresh/market-data-store";
 import type {
   AdjustmentFactorRecord,
+  DailyBasicRecord,
   MarketStockRecord,
   RawDailyQuoteRecord,
 } from "@/lib/refresh/market-data-types";
@@ -32,6 +34,13 @@ export type AdjustedMarketData = {
   skips: AdjustedMarketDataSkip[];
 };
 
+export type ChipModelDailyBar = ScreeningDailyBar & {
+  amount: number | null;
+  averagePrice: number;
+  turnoverRate: number;
+  adjFactor: number;
+};
+
 function resolveGenerationId(generationId?: number) {
   if (generationId !== undefined) {
     const generation = readMarketCacheGenerationById(generationId);
@@ -54,6 +63,43 @@ function resolveGenerationId(generationId?: number) {
 
 function adjustmentFactorKey(tsCode: string, tradeDate: string) {
   return `${tsCode}:${tradeDate}`;
+}
+
+function tradeDateInRange(
+  tradeDate: string,
+  startTradeDate: string,
+  endTradeDate: string,
+) {
+  return (
+    tradeDate.localeCompare(startTradeDate) >= 0 &&
+    tradeDate.localeCompare(endTradeDate) <= 0
+  );
+}
+
+function dailyBasicKey(tsCode: string, tradeDate: string) {
+  return `${tsCode}:${tradeDate}`;
+}
+
+function dailyBasicMap(records: DailyBasicRecord[]) {
+  return new Map(
+    records.map((record) => [
+      dailyBasicKey(record.tsCode, record.tradeDate),
+      record,
+    ]),
+  );
+}
+
+function unadjustedAveragePrice(quote: RawDailyQuoteRecord) {
+  if (
+    quote.amount !== null &&
+    quote.amount !== undefined &&
+    quote.amount > 0 &&
+    quote.vol > 0
+  ) {
+    return (quote.amount * 1000) / (quote.vol * 100);
+  }
+
+  return (quote.high + quote.low + quote.close) / 3;
 }
 
 function adjustBarsForStock(
@@ -133,6 +179,80 @@ export function readAdjustedMarketBarsForStock(
   }
 
   return adjusted.bars;
+}
+
+export function readAdjustedChipModelBarsForStock({
+  generationId,
+  tsCode,
+  startTradeDate,
+  endTradeDate,
+}: {
+  generationId: number;
+  tsCode: string;
+  startTradeDate: string;
+  endTradeDate: string;
+}): ChipModelDailyBar[] {
+  const resolvedGenerationId = resolveGenerationId(generationId);
+  const quotes = readMarketDailyQuotes(resolvedGenerationId)
+    .filter(
+      (quote) =>
+        quote.tsCode === tsCode &&
+        tradeDateInRange(quote.tradeDate, startTradeDate, endTradeDate),
+    )
+    .sort((left, right) => left.tradeDate.localeCompare(right.tradeDate));
+  const factors = factorMap(
+    readMarketAdjustmentFactors(resolvedGenerationId).filter(
+      (factor) => factor.tsCode === tsCode,
+    ),
+  );
+  const basics = dailyBasicMap(
+    readMarketDailyBasics(resolvedGenerationId).filter(
+      (record) => record.tsCode === tsCode,
+    ),
+  );
+  const targetFactor = factors.get(
+    adjustmentFactorKey(tsCode, endTradeDate),
+  );
+
+  if (quotes.length === 0 || !quotes.some((quote) => quote.tradeDate === endTradeDate)) {
+    throw new Error("missing_daily_quote");
+  }
+
+  if (targetFactor === undefined || targetFactor <= 0) {
+    throw new Error("missing_adjustment_factor");
+  }
+
+  return quotes.map((quote) => {
+    const factor = factors.get(adjustmentFactorKey(tsCode, quote.tradeDate));
+
+    if (factor === undefined || factor <= 0) {
+      throw new Error("missing_adjustment_factor");
+    }
+
+    const basic = basics.get(dailyBasicKey(tsCode, quote.tradeDate));
+    const turnoverRate =
+      basic?.turnoverRateFreeFloat ?? basic?.turnoverRate ?? null;
+
+    if (turnoverRate === null || turnoverRate < 0) {
+      throw new Error("missing_turnover_rate");
+    }
+
+    const ratio = factor / targetFactor;
+
+    return {
+      tsCode: quote.tsCode,
+      tradeDate: quote.tradeDate,
+      open: quote.open * ratio,
+      high: quote.high * ratio,
+      low: quote.low * ratio,
+      close: quote.close * ratio,
+      vol: quote.vol,
+      amount: quote.amount ?? null,
+      averagePrice: unadjustedAveragePrice(quote) * ratio,
+      turnoverRate,
+      adjFactor: factor,
+    };
+  });
 }
 
 export function readAdjustedMarketData({
