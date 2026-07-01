@@ -15,12 +15,14 @@ import {
   readActiveMarketCacheGeneration,
   readMarketAdjustmentFactors,
   readMarketCacheGenerationById,
+  readMarketDailyBasics,
   readMarketDailyQuotes,
   readMarketGenerationDates,
   readMarketStocks,
   readPairedSuccessTradeDates,
   updateMarketGenerationDateItemStatus,
   upsertMarketAdjustmentFactors,
+  upsertMarketDailyBasics,
   upsertMarketDailyQuotes,
   upsertMarketGenerationDate,
   upsertMarketStocks,
@@ -98,6 +100,7 @@ describe("market data store", () => {
         low: 9,
         close: 10.5,
         vol: 100,
+        amount: 105,
       },
     ]);
     upsertMarketDailyQuotes(generation.id, [
@@ -109,6 +112,7 @@ describe("market data store", () => {
         low: 19,
         close: 20.5,
         vol: 200,
+        amount: 410,
       },
       {
         tsCode: "000001.SZ",
@@ -118,6 +122,7 @@ describe("market data store", () => {
         low: 20,
         close: 21.5,
         vol: 300,
+        amount: 645,
       },
     ]);
 
@@ -163,6 +168,7 @@ describe("market data store", () => {
     ]);
     expect(readMarketDailyQuotes(generation.id)).toHaveLength(2);
     expect(readMarketDailyQuotes(generation.id)[0]?.close).toBe(20.5);
+    expect(readMarketDailyQuotes(generation.id)[0]?.amount).toBe(410);
     expect(readMarketAdjustmentFactors(generation.id)).toEqual([
       {
         tsCode: "000001.SZ",
@@ -173,6 +179,52 @@ describe("market data store", () => {
         tsCode: "000001.SZ",
         tradeDate: "20260626",
         adjFactor: 1.2,
+      },
+    ]);
+  });
+
+  it("stores daily basic turnover records by generation and natural key", () => {
+    useTempMarketStore();
+    const generation = createMarketCacheGeneration({
+      targetTradeDateCount: 60,
+      now: new Date("2026-06-26T00:00:00.000Z"),
+    });
+
+    upsertMarketDailyBasics(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260625",
+        turnoverRate: 2.3,
+        turnoverRateFreeFloat: 1.7,
+      },
+    ]);
+    upsertMarketDailyBasics(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260625",
+        turnoverRate: 2.4,
+        turnoverRateFreeFloat: null,
+      },
+      {
+        tsCode: "000002.SZ",
+        tradeDate: "20260625",
+        turnoverRate: 1.2,
+        turnoverRateFreeFloat: 0.9,
+      },
+    ]);
+
+    expect(readMarketDailyBasics(generation.id)).toEqual([
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260625",
+        turnoverRate: 2.4,
+        turnoverRateFreeFloat: null,
+      },
+      {
+        tsCode: "000002.SZ",
+        tradeDate: "20260625",
+        turnoverRate: 1.2,
+        turnoverRateFreeFloat: 0.9,
       },
     ]);
   });
@@ -230,6 +282,7 @@ describe("market data store", () => {
         low: 9,
         close: 10,
         vol: 100,
+        amount: 100,
       },
     ]);
 
@@ -248,6 +301,15 @@ describe("market data store", () => {
         low: 19,
         close: 20,
         vol: 200,
+        amount: 400,
+      },
+    ]);
+    upsertMarketDailyBasics(building.id, [
+      {
+        tsCode: "000002.SZ",
+        tradeDate: "20260626",
+        turnoverRate: 2.3,
+        turnoverRateFreeFloat: 1.7,
       },
     ]);
     upsertMarketAdjustmentFactors(building.id, [
@@ -262,6 +324,7 @@ describe("market data store", () => {
     expect(readMarketCacheGenerationById(building.id)).toBeNull();
     expect(readMarketGenerationDates(building.id)).toEqual([]);
     expect(readMarketDailyQuotes(building.id)).toEqual([]);
+    expect(readMarketDailyBasics(building.id)).toEqual([]);
     expect(readMarketAdjustmentFactors(building.id)).toEqual([]);
     expect(readActiveMarketCacheGeneration()?.id).toBe(active.id);
     expect(readMarketDailyQuotes(active.id)).toHaveLength(1);
