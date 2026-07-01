@@ -5,7 +5,7 @@ milestone_name: 衰减筹码分布模型
 status: completed
 stopped_at: Completed 12-04-PLAN.md
 last_updated: "2026-07-01T11:24:00+08:00"
-last_activity: 2026-07-01
+last_activity: 2026-07-02
 progress:
   total_phases: 1
   completed_phases: 1
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-30)
 Phase: 12 (decay-based-chip-distribution-model) — COMPLETE
 Plan: 4 of 4
 Status: Verified
-Last activity: 2026-07-01
+Last activity: 2026-07-02 - Completed quick task 260702-4e8: 限制筹码分布图显示到最近90日K线价格区间
 
 ## Performance Metrics
 
@@ -127,6 +127,7 @@ No current milestone blockers. Phase 12 is verified and ready for milestone clos
 
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
+| 260702-4e8 | 限制筹码分布图显示到最近90日K线价格区间 | 2026-07-02 | f2155c8 | Verified | [260702-4e8-90-k](./quick/260702-4e8-90-k/) |
 | 260624-qoq | 对齐区间高点需求文档，补齐 Phase 2 验证并重新审计 v1.0 | 2026-06-24 | e44f2cd | Verified | [260624-qoq-phase-2-v1-0](./quick/260624-qoq-phase-2-v1-0/) |
 | 20260701-chip-empty-data-retry-fallback | 筹码 `empty_data` 重试与最近缓存官方分布回退 | 2026-07-01 | 77ec117 | Verified | [20260701-chip-empty-data-retry-fallback](./quick/20260701-chip-empty-data-retry-fallback/) |
 
