@@ -127,6 +127,7 @@ No current milestone blockers. Phase 12 is verified and ready for milestone clos
 
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
+| 260702-4uw | 修复筹码分布图细价位标签覆盖导致最大占比和柱子不一致 | 2026-07-02 | 9015293 | Verified | [260702-4uw-chip-buckets](./quick/260702-4uw-chip-buckets/) |
 | 260702-4e8 | 限制筹码分布图显示到最近90日K线价格区间 | 2026-07-02 | f2155c8 | Verified | [260702-4e8-90-k](./quick/260702-4e8-90-k/) |
 | 260624-qoq | 对齐区间高点需求文档，补齐 Phase 2 验证并重新审计 v1.0 | 2026-06-24 | e44f2cd | Verified | [260624-qoq-phase-2-v1-0](./quick/260624-qoq-phase-2-v1-0/) |
 | 20260701-chip-empty-data-retry-fallback | 筹码 `empty_data` 重试与最近缓存官方分布回退 | 2026-07-01 | 77ec117 | Verified | [20260701-chip-empty-data-retry-fallback](./quick/20260701-chip-empty-data-retry-fallback/) |
