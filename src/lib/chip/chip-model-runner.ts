@@ -1,16 +1,41 @@
 import { mapCyqChipsTable } from "@/lib/chip/chip-peak";
-import { replaceChipModelSeedSnapshot } from "@/lib/chip/chip-model-store";
-import { readChipDistributionForDate, replaceChipDistribution } from "@/lib/chip/chip-store";
+import {
+  calculateDecayChipDistribution,
+  CHIP_MODEL_VERSION,
+  SUPPORTED_CHIP_DECAY_COEFFICIENTS,
+} from "@/lib/chip/chip-model";
+import {
+  planCalculatedChipDistributionWork,
+  replaceCalculatedChipDistribution,
+  replaceChipModelSeedSnapshot,
+  writeCalculatedChipModelRun,
+  type WriteCalculatedChipModelRunInput,
+} from "@/lib/chip/chip-model-store";
+import {
+  readChipDistributionForDate,
+  replaceChipDistribution,
+} from "@/lib/chip/chip-store";
+import { readTushareTokenSecret } from "@/lib/config";
+import { readAdjustedChipModelBarsForStock } from "@/lib/refresh/market-data-reader";
 import type {
+  CalculatedChipDistributionStatus,
+  CalculatedChipDistributionWorkTarget,
+  CalculatedChipModelRunRecord,
   ChipCalculatedDistributionLevel,
+  ChipDecayCoefficient,
   ChipModelUnavailableReason,
 } from "@/lib/chip/chip-types";
 import {
   readMarketAdjustmentFactors,
   readMarketGenerationDates,
 } from "@/lib/refresh/market-data-store";
+import {
+  readLatestScreeningRun,
+  readScreeningResultsForRun,
+} from "@/lib/screening/screening-store";
 import { classifyTushareError } from "@/lib/tushare/client";
 import { TUSHARE_ENDPOINTS } from "@/lib/tushare/endpoints";
+import { createTushareClient } from "@/lib/tushare/provider";
 import type {
   TushareClientLike,
   TushareErrorCategory,
@@ -24,6 +49,26 @@ export type ResolveChipModelSeedInput = {
   client?: TushareClientLike | null;
   now?: Date;
 };
+
+export type RunCalculatedChipDistributionOptions = {
+  client?: TushareClientLike;
+  now?: Date;
+  onProgress?: CalculatedChipDistributionProgressCallback;
+};
+
+export type CalculatedChipDistributionProgress = {
+  totalTargets: number;
+  completedTargets: number;
+  succeeded: number;
+  blocked: number;
+  failed: number;
+  missing: number;
+  skippedComplete: number;
+};
+
+export type CalculatedChipDistributionProgressCallback = (
+  progress: CalculatedChipDistributionProgress,
+) => void;
 
 export type ResolvedChipModelSeed =
   | {
@@ -45,6 +90,13 @@ export type ResolvedChipModelSeed =
     };
 
 const SEED_LOOKBACK_TRADING_DAYS = 60;
+const failedCategories = new Set<TushareErrorCategory>([
+  "rate_limited",
+  "network_or_service",
+]);
+
+type CalculatedStatusInput =
+  WriteCalculatedChipModelRunInput["statuses"][number];
 
 function unavailableSeedResult({
   input,
@@ -93,6 +145,26 @@ function resolveSeedWindow(generationId: number, targetTradeDate: string) {
     seedTradeDate: tradeDates[seedIndex],
     expectedTradeDates: tradeDates.slice(seedIndex + 1, targetIndex + 1),
   };
+}
+
+function previousTradeDate(generationId: number, latestTradeDate: string) {
+  const tradeDates = readMarketGenerationDates(generationId)
+    .filter(
+      (record) =>
+        record.dailyStatus === "succeeded" &&
+        record.factorStatus === "succeeded",
+    )
+    .map((record) => record.tradeDate)
+    .sort((left, right) => left.localeCompare(right));
+  const latestIndex = tradeDates.findIndex(
+    (tradeDate) => tradeDate === latestTradeDate,
+  );
+
+  if (latestIndex <= 0) {
+    return null;
+  }
+
+  return tradeDates[latestIndex - 1] ?? null;
 }
 
 async function readOrFetchOfficialSeedLevels({
@@ -280,4 +352,400 @@ export async function resolveChipModelSeedForTarget(
     expectedTradeDates: seedWindow.expectedTradeDates,
     seedLevels,
   };
+}
+
+function createProgress(totalTargets: number): CalculatedChipDistributionProgress {
+  return {
+    totalTargets,
+    completedTargets: 0,
+    succeeded: 0,
+    blocked: 0,
+    failed: 0,
+    missing: 0,
+    skippedComplete: 0,
+  };
+}
+
+function emitProgress(
+  onProgress: CalculatedChipDistributionProgressCallback | undefined,
+  progress: CalculatedChipDistributionProgress,
+) {
+  try {
+    onProgress?.({ ...progress });
+  } catch {
+    // Progress callbacks must not change row-level calculation semantics.
+  }
+}
+
+function statusForErrorCategory(
+  category: TushareErrorCategory | null,
+): Extract<CalculatedChipDistributionStatus, "blocked" | "failed"> {
+  return category && failedCategories.has(category) ? "failed" : "blocked";
+}
+
+function recordStatus({
+  statuses,
+  progress,
+  onProgress,
+  record,
+  skippedComplete = false,
+}: {
+  statuses: CalculatedStatusInput[];
+  progress: CalculatedChipDistributionProgress;
+  onProgress?: CalculatedChipDistributionProgressCallback;
+  record: CalculatedStatusInput;
+  skippedComplete?: boolean;
+}) {
+  statuses.push(record);
+  progress.completedTargets += 1;
+
+  if (record.status === "succeeded") {
+    progress.succeeded += 1;
+  } else if (record.status === "failed") {
+    progress.failed += 1;
+  } else if (record.status === "missing") {
+    progress.missing += 1;
+  } else {
+    progress.blocked += 1;
+  }
+
+  if (skippedComplete) {
+    progress.skippedComplete += 1;
+  }
+
+  emitProgress(onProgress, progress);
+}
+
+function statusRecord(
+  target: CalculatedChipDistributionWorkTarget,
+  status: CalculatedChipDistributionStatus,
+  overrides: Partial<
+    Pick<
+      CalculatedStatusInput,
+      "unavailableReason" | "errorCategory" | "errorSummary"
+    >
+  > = {},
+): CalculatedStatusInput {
+  return {
+    ...target,
+    status,
+    unavailableReason: overrides.unavailableReason ?? null,
+    errorCategory: overrides.errorCategory ?? null,
+    errorSummary: overrides.errorSummary ?? null,
+  };
+}
+
+function runStatus({
+  totalTargets,
+  successCount,
+  blockedCount,
+  failedCount,
+  missingCount,
+}: Pick<
+  WriteCalculatedChipModelRunInput,
+  | "totalTargets"
+  | "successCount"
+  | "blockedCount"
+  | "failedCount"
+  | "missingCount"
+>): CalculatedChipModelRunRecord["status"] {
+  if (totalTargets === 0 || successCount === totalTargets) {
+    return "succeeded";
+  }
+
+  if (successCount > 0) {
+    return "partial";
+  }
+
+  if (failedCount > 0) {
+    return "failed";
+  }
+
+  return blockedCount > 0 || missingCount > 0 ? "blocked" : "succeeded";
+}
+
+function calculatedTargetsForLatestScreening(): {
+  generationId: number | null;
+  targets: CalculatedChipDistributionWorkTarget[];
+} {
+  const screeningRun = readLatestScreeningRun();
+
+  if (!screeningRun) {
+    throw new Error("no_screening_results");
+  }
+
+  const generationId = screeningRun.sourceMarketGenerationId;
+  const screeningResults = readScreeningResultsForRun(screeningRun.id);
+  const targets: CalculatedChipDistributionWorkTarget[] = [];
+
+  for (const result of screeningResults) {
+    const baseDates =
+      generationId === null
+        ? {
+            latest: {
+              targetTradeDate: result.latestTradeDate,
+              seedTradeDate: null,
+            },
+            previous: {
+              targetTradeDate: null,
+              seedTradeDate: null,
+            },
+          }
+        : {
+            latest: {
+              targetTradeDate: result.latestTradeDate,
+              seedTradeDate:
+                resolveSeedWindow(generationId, result.latestTradeDate)
+                  ?.seedTradeDate ?? null,
+            },
+            previous: (() => {
+              const targetTradeDate = previousTradeDate(
+                generationId,
+                result.latestTradeDate,
+              );
+
+              return {
+                targetTradeDate,
+                seedTradeDate: targetTradeDate
+                  ? (resolveSeedWindow(generationId, targetTradeDate)
+                      ?.seedTradeDate ?? null)
+                  : null,
+              };
+            })(),
+          };
+
+    for (const targetKind of ["latest", "previous"] as const) {
+      for (const decayCoefficient of SUPPORTED_CHIP_DECAY_COEFFICIENTS) {
+        targets.push({
+          screeningRunId: screeningRun.id,
+          tsCode: result.tsCode,
+          targetKind,
+          targetTradeDate: baseDates[targetKind].targetTradeDate,
+          seedTradeDate: baseDates[targetKind].seedTradeDate,
+          decayCoefficient,
+          modelVersion: CHIP_MODEL_VERSION,
+        });
+      }
+    }
+  }
+
+  return { generationId, targets };
+}
+
+function reasonFromReaderError(error: unknown): ChipModelUnavailableReason {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("missing_turnover_rate")) {
+    return "missing_turnover_rate";
+  }
+
+  if (message.includes("missing_adjustment_factor")) {
+    return "missing_adjustment_factor";
+  }
+
+  return "missing_trade_data";
+}
+
+async function calculateTarget({
+  generationId,
+  target,
+  client,
+  now,
+}: {
+  generationId: number;
+  target: CalculatedChipDistributionWorkTarget;
+  client: TushareClientLike | null;
+  now: Date;
+}): Promise<CalculatedStatusInput> {
+  if (target.targetTradeDate === null || target.seedTradeDate === null) {
+    return statusRecord(target, "missing", {
+      unavailableReason: "missing_trade_data",
+      errorSummary: "target_or_seed_trade_date_missing",
+    });
+  }
+
+  const seed = await resolveChipModelSeedForTarget({
+    generationId,
+    tsCode: target.tsCode,
+    targetTradeDate: target.targetTradeDate,
+    modelVersion: target.modelVersion,
+    client,
+    now,
+  });
+
+  if (seed.status !== "succeeded") {
+    const status = statusForErrorCategory(seed.errorCategory);
+
+    return statusRecord(target, status, {
+      unavailableReason: seed.reason,
+      errorCategory: seed.errorCategory,
+      errorSummary: seed.errorSummary ?? seed.reason,
+    });
+  }
+
+  let bars;
+
+  try {
+    const startTradeDate = seed.expectedTradeDates[0];
+
+    if (!startTradeDate) {
+      return statusRecord(target, "blocked", {
+        unavailableReason: "missing_trade_data",
+        errorSummary: "missing_model_trade_dates",
+      });
+    }
+
+    bars = readAdjustedChipModelBarsForStock({
+      generationId,
+      tsCode: target.tsCode,
+      startTradeDate,
+      endTradeDate: target.targetTradeDate,
+    });
+  } catch (error) {
+    const reason = reasonFromReaderError(error);
+
+    return statusRecord(target, "blocked", {
+      unavailableReason: reason,
+      errorSummary: reason,
+    });
+  }
+
+  const result = calculateDecayChipDistribution({
+    tsCode: target.tsCode,
+    seedTradeDate: seed.seedTradeDate,
+    targetTradeDate: target.targetTradeDate,
+    seedLevels: seed.seedLevels,
+    bars,
+    expectedTradeDates: seed.expectedTradeDates,
+    decayCoefficient: target.decayCoefficient as ChipDecayCoefficient,
+    modelVersion: target.modelVersion,
+  });
+
+  if (result.status !== "succeeded") {
+    return statusRecord(target, "blocked", {
+      unavailableReason: result.reason,
+      errorSummary: result.reason,
+    });
+  }
+
+  replaceCalculatedChipDistribution({
+    tsCode: target.tsCode,
+    targetTradeDate: target.targetTradeDate,
+    seedTradeDate: seed.seedTradeDate,
+    decayCoefficient: target.decayCoefficient,
+    modelVersion: target.modelVersion,
+    levels: result.levels,
+    now,
+  });
+
+  return statusRecord(target, "succeeded");
+}
+
+export async function runCalculatedChipDistributionIntegrationFromLatestScreening({
+  client,
+  now = new Date(),
+  onProgress,
+}: RunCalculatedChipDistributionOptions = {}): Promise<CalculatedChipModelRunRecord> {
+  const screeningRun = readLatestScreeningRun();
+
+  if (!screeningRun) {
+    throw new Error("no_screening_results");
+  }
+
+  const { generationId, targets } = calculatedTargetsForLatestScreening();
+  const workPlan = planCalculatedChipDistributionWork(targets);
+  const token = readTushareTokenSecret();
+  const tushareClient = client ?? (token ? createTushareClient(token) : null);
+  const progress = createProgress(targets.length);
+  const statuses: CalculatedStatusInput[] = [];
+
+  emitProgress(onProgress, progress);
+
+  for (const target of workPlan.skippedCompleteTargets) {
+    recordStatus({
+      statuses,
+      progress,
+      onProgress,
+      record: statusRecord(target, "succeeded"),
+      skippedComplete: true,
+    });
+  }
+
+  for (const target of workPlan.blockedTargets) {
+    recordStatus({
+      statuses,
+      progress,
+      onProgress,
+      record: statusRecord(target, "blocked", {
+        unavailableReason: "missing_trade_data",
+        errorSummary: "calculated_chip_target_blocked",
+      }),
+    });
+  }
+
+  for (const target of workPlan.missingTargets) {
+    recordStatus({
+      statuses,
+      progress,
+      onProgress,
+      record: statusRecord(target, "missing", {
+        unavailableReason: "missing_trade_data",
+        errorSummary: "target_or_seed_trade_date_missing",
+      }),
+    });
+  }
+
+  for (const target of workPlan.items) {
+    const record =
+      generationId === null
+        ? statusRecord(target, "blocked", {
+            unavailableReason: "missing_trade_data",
+            errorSummary: "missing_source_market_generation",
+          })
+        : await calculateTarget({
+            generationId,
+            target,
+            client: tushareClient,
+            now,
+          });
+
+    recordStatus({
+      statuses,
+      progress,
+      onProgress,
+      record,
+    });
+  }
+
+  const successCount = statuses.filter(
+    (record) => record.status === "succeeded",
+  ).length;
+  const blockedCount = statuses.filter(
+    (record) => record.status === "blocked",
+  ).length;
+  const failedCount = statuses.filter(
+    (record) => record.status === "failed",
+  ).length;
+  const missingCount = statuses.filter(
+    (record) => record.status === "missing",
+  ).length;
+
+  return writeCalculatedChipModelRun({
+    screeningRunId: screeningRun.id,
+    status: runStatus({
+      totalTargets: targets.length,
+      successCount,
+      blockedCount,
+      failedCount,
+      missingCount,
+    }),
+    totalTargets: targets.length,
+    successCount,
+    blockedCount,
+    failedCount,
+    missingCount,
+    skippedCompleteCount: progress.skippedComplete,
+    statuses,
+    now,
+  });
 }

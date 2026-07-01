@@ -31,6 +31,9 @@ import {
   runChipDistributionIntegrationFromLatestScreening,
   type ChipDistributionProgress,
 } from "@/lib/chip/chip-runner";
+import {
+  runCalculatedChipDistributionIntegrationFromLatestScreening,
+} from "@/lib/chip/chip-model-runner";
 import type { ChipDistributionRunRecord } from "@/lib/chip/chip-types";
 import { readLatestChipDistributionRun } from "@/lib/chip/chip-store";
 import { readTushareTokenSecret } from "@/lib/config";
@@ -194,7 +197,7 @@ async function finishRefreshJob(
     const selectedChipDistributionRunner =
       chipDistributionRunner ??
       chipPeakRunner ??
-      runChipDistributionIntegrationFromLatestScreening;
+      runDefaultChipBackgroundWorkflow;
     const result = await worker(job);
     const screeningStartedAt = new Date();
 
@@ -244,6 +247,14 @@ async function finishRefreshJob(
     });
     failRefreshOperation(operationId, { errorSummary });
   }
+}
+
+async function runDefaultChipBackgroundWorkflow(
+  options: Parameters<ChipDistributionWorkflowRunner>[0],
+) {
+  await runChipDistributionIntegrationFromLatestScreening(options);
+
+  return runCalculatedChipDistributionIntegrationFromLatestScreening(options);
 }
 
 function chipStageStatus(run: ChipDistributionRunRecord) {

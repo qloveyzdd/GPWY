@@ -1,0 +1,87 @@
+{
+  "tsCode": "002565.SZ",
+  "modelVersion": "decay-triangle-v1",
+  "seedTradeDate": "20260624",
+  "targetTradeDates": ["20260626", "20260629"],
+  "seedLevels": [
+    { "price": 14, "percent": 60 },
+    { "price": 18, "percent": 40 }
+  ],
+  "bars": [
+    {
+      "tradeDate": "20260625",
+      "low": 12,
+      "high": 14,
+      "averagePrice": 13,
+      "turnoverRate": 5
+    },
+    {
+      "tradeDate": "20260626",
+      "low": 11,
+      "high": 13,
+      "averagePrice": 12,
+      "turnoverRate": 4
+    },
+    {
+      "tradeDate": "20260629",
+      "low": 10,
+      "high": 12,
+      "averagePrice": 11,
+      "turnoverRate": 6
+    }
+  ],
+  "summaryOutputs": {
+    "previous": [
+      {
+        "decayCoefficient": 0.3,
+        "levelCount": 181,
+        "peakPrice": 14,
+        "peakPercent": 58.3908,
+        "retainedSeedPercent": 97.318,
+        "totalPercent": 100
+      },
+      {
+        "decayCoefficient": 0.5,
+        "levelCount": 181,
+        "peakPrice": 14,
+        "peakPercent": 57.33,
+        "retainedSeedPercent": 95.55,
+        "totalPercent": 100
+      },
+      {
+        "decayCoefficient": 1.5,
+        "levelCount": 181,
+        "peakPrice": 14,
+        "peakPercent": 52.17,
+        "retainedSeedPercent": 86.95,
+        "totalPercent": 100
+      }
+    ],
+    "latest": [
+      {
+        "decayCoefficient": 0.3,
+        "levelCount": 241,
+        "peakPrice": 14,
+        "peakPercent": 57.339766,
+        "retainedSeedPercent": 95.566276,
+        "totalPercent": 100
+      },
+      {
+        "decayCoefficient": 0.5,
+        "levelCount": 241,
+        "peakPrice": 14,
+        "peakPercent": 55.6101,
+        "retainedSeedPercent": 92.6835,
+        "totalPercent": 100
+      },
+      {
+        "decayCoefficient": 1.5,
+        "levelCount": 241,
+        "peakPrice": 14,
+        "peakPercent": 47.4747,
+        "retainedSeedPercent": 79.1245,
+        "totalPercent": 100
+      }
+    ]
+  }
+}

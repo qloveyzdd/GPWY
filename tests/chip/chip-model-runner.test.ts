@@ -20,6 +20,7 @@ import {
 } from "@/lib/chip/chip-model";
 import { replaceChipDistribution } from "@/lib/chip/chip-store";
 import {
+  activateMarketCacheGeneration,
   createMarketCacheGeneration,
   upsertMarketDailyBasics,
   upsertMarketDailyQuotes,
@@ -102,7 +103,7 @@ function createGenerationWithDates(tradeDates = modelTradeDates()) {
     });
   }
 
-  return generation;
+  return activateMarketCacheGeneration(generation.id);
 }
 
 function writeModelMarketData({
