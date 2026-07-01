@@ -423,6 +423,61 @@ describe("StockKlineChart", () => {
     });
   });
 
+  it("aggregates fine-grained levels by displayed price bucket", async () => {
+    const base = readySnapshot();
+    const snapshot = readySnapshot({
+      bars: base.bars.map((bar) => ({
+        ...bar,
+        high: 25,
+        low: 18,
+      })),
+      chipDistributions: {
+        ...base.chipDistributions,
+        previous: {
+          ...base.chipDistributions.previous,
+          levels: [{ price: 19.251, percent: 0.1 }],
+          maxLevel: { price: 19.251, percent: 0.1 },
+        },
+        latest: {
+          ...base.chipDistributions.latest,
+          levels: [
+            { price: 19.251, percent: 0.08 },
+            { price: 19.252, percent: 0.47 },
+            { price: 19.253, percent: 0.06 },
+          ],
+          maxLevel: { price: 19.252, percent: 0.47 },
+        },
+        scale: {
+          priceLevels: [19.251, 19.252, 19.253],
+          maxPercent: 0.47,
+        },
+      },
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify(snapshot), { status: 200 }),
+    );
+
+    render(<StockKlineChart tsCode="000001.SZ" />);
+
+    expect(await screen.findByText("最大占比 19.25 / 0.61%")).toBeTruthy();
+
+    await waitFor(() => {
+      expect(barOptions()).toHaveLength(2);
+    });
+
+    const [previousOption, latestOption] = barOptions();
+
+    expect(previousOption?.yAxis?.data).toEqual(["19.25"]);
+    expect(latestOption?.yAxis?.data).toEqual(["19.25"]);
+    expect(previousOption?.series?.[0]?.data).toEqual([0.1]);
+    expect(latestOption?.series?.[0]?.data).toEqual([0.61]);
+    expect(latestOption?.xAxis?.max).toBeCloseTo(0.61);
+    expect(latestOption?.series?.[0]?.markPoint?.data?.[0]).toMatchObject({
+      coord: [0.61, "19.25"],
+      value: 0.61,
+    });
+  });
+
   it("renders calculated distribution with fixed coefficient selector and switches local chart data", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify(readySnapshot()), { status: 200 }),

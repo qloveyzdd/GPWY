@@ -136,7 +136,27 @@ function maxDistributionLevel(levels: ChartChipDistributionLevel[]) {
   })[0] ?? null;
 }
 
-function displayPanelInVisibleRange<T extends ChartChipDistributionPanel | ChartCalculatedChipDistributionPanel>(
+function aggregateLevelsForChart(
+  levels: ChartChipDistributionLevel[],
+): ChartChipDistributionLevel[] {
+  const percentByPrice = new Map<string, number>();
+
+  for (const level of levels) {
+    const price = formatPrice(level.price);
+    percentByPrice.set(price, (percentByPrice.get(price) ?? 0) + level.percent);
+  }
+
+  return Array.from(percentByPrice.entries())
+    .map(([price, percent]) => ({
+      price: Number(price),
+      percent: Number(percent.toFixed(4)),
+    }))
+    .sort((left, right) => left.price - right.price);
+}
+
+function displayPanelInVisibleRange<
+  T extends ChartChipDistributionPanel | ChartCalculatedChipDistributionPanel,
+>(
   panel: T,
   range: VisiblePriceRange | null,
 ): T {
@@ -144,8 +164,8 @@ function displayPanelInVisibleRange<T extends ChartChipDistributionPanel | Chart
     return panel;
   }
 
-  const levels = panel.levels.filter((level) =>
-    isLevelInVisibleRange(level, range),
+  const levels = aggregateLevelsForChart(
+    panel.levels.filter((level) => isLevelInVisibleRange(level, range)),
   );
 
   return {
@@ -297,15 +317,16 @@ function mapDistributionSeries(
   panel: ChartChipDistributionPanel,
   scale: ChartChipDistributionScale,
 ) {
-  const percentByPrice = new Map(
-    panel.levels.map((level) => [
-      formatPrice(level.price),
-      Number(level.percent.toFixed(4)),
-    ]),
-  );
+  const percentByPrice = new Map<string, number>();
+
+  for (const level of panel.levels) {
+    const price = formatPrice(level.price);
+    percentByPrice.set(price, (percentByPrice.get(price) ?? 0) + level.percent);
+  }
 
   return scale.priceLevels.map(
-    (priceLevel) => percentByPrice.get(formatPrice(priceLevel)) ?? 0,
+    (priceLevel) =>
+      Number((percentByPrice.get(formatPrice(priceLevel)) ?? 0).toFixed(4)),
   );
 }
 
