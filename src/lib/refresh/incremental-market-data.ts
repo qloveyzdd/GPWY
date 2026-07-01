@@ -2,6 +2,7 @@ import {
   DEFAULT_MAX_LOOKBACK_DAYS,
   DEFAULT_TRADING_DATE_COUNT,
   fetchAdjustmentFactorsForDate,
+  fetchDailyBasicsForDate,
   fetchDailyQuotesForDate,
   fetchMarketStocks,
   fetchTargetTradeDates,
@@ -10,9 +11,11 @@ import {
   assertActiveGenerationReadyForScreening,
   ensureMarketGenerationDates,
   planActiveGenerationMarketWork,
+  readMarketDailyBasics,
   readMarketGenerationDates,
   updateMarketGenerationDateItemStatus,
   upsertMarketAdjustmentFactors,
+  upsertMarketDailyBasics,
   upsertMarketDailyQuotes,
   upsertMarketStocks,
 } from "@/lib/refresh/market-data-store";
@@ -107,6 +110,35 @@ async function runWorkItem({
     );
     throw error;
   }
+}
+
+async function refreshMissingDailyBasics({
+  client,
+  generationId,
+  targetTradeDates,
+  now,
+}: {
+  client: TushareClientLike;
+  generationId: number;
+  targetTradeDates: string[];
+  now: Date;
+}) {
+  const existingDates = new Set(
+    readMarketDailyBasics(generationId).map((record) => record.tradeDate),
+  );
+  const missingDates = targetTradeDates.filter(
+    (tradeDate) => !existingDates.has(tradeDate),
+  );
+
+  await Promise.allSettled(
+    missingDates.map(async (tradeDate) => {
+      const dailyBasics = await fetchDailyBasicsForDate({
+        client,
+        tradeDate,
+      });
+      upsertMarketDailyBasics(generationId, dailyBasics, now);
+    }),
+  );
 }
 
 export async function refreshActiveMarketGeneration({
@@ -204,6 +236,13 @@ export async function refreshActiveMarketGeneration({
       `active_generation_market_data_incomplete:${completedCount}/${workPlan.items.length}`,
     );
   }
+
+  await refreshMissingDailyBasics({
+    client,
+    generationId,
+    targetTradeDates,
+    now,
+  });
 
   assertActiveGenerationReadyForScreening(generationId, targetTradeDates);
 

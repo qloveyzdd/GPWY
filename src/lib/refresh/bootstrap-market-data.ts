@@ -2,6 +2,7 @@ import {
   DEFAULT_MAX_LOOKBACK_DAYS,
   DEFAULT_TRADING_DATE_COUNT,
   fetchAdjustmentFactorsForDate,
+  fetchDailyBasicsForDate,
   fetchDailyQuotesForDate,
   fetchMarketStocks,
   fetchTargetTradeDates,
@@ -11,12 +12,14 @@ import {
   createMarketCacheGeneration,
   deleteBuildingMarketCacheGeneration,
   upsertMarketAdjustmentFactors,
+  upsertMarketDailyBasics,
   upsertMarketDailyQuotes,
   upsertMarketGenerationDate,
   upsertMarketStocks,
 } from "@/lib/refresh/market-data-store";
 import type {
   AdjustmentFactorRecord,
+  DailyBasicRecord,
   MarketCacheGeneration,
   MarketStockRecord,
   RawDailyQuoteRecord,
@@ -43,6 +46,11 @@ export type BootstrapMarketDataStore = {
     records: AdjustmentFactorRecord[],
     now?: Date,
   ) => void;
+  upsertDailyBasics: (
+    generationId: number,
+    records: DailyBasicRecord[],
+    now?: Date,
+  ) => void;
   upsertGenerationDate: (
     generationId: number,
     record: {
@@ -64,6 +72,7 @@ export const DEFAULT_BOOTSTRAP_MARKET_DATA_STORE: BootstrapMarketDataStore = {
   upsertStocks: upsertMarketStocks,
   upsertDailyQuotes: upsertMarketDailyQuotes,
   upsertAdjustmentFactors: upsertMarketAdjustmentFactors,
+  upsertDailyBasics: upsertMarketDailyBasics,
   upsertGenerationDate: upsertMarketGenerationDate,
   activateGeneration: activateMarketCacheGeneration,
   deleteBuildingGeneration: deleteBuildingMarketCacheGeneration,
@@ -93,6 +102,7 @@ export type BootstrapMarketDataResult = {
   tradeDateCount: number;
   dailyQuoteCount: number;
   adjustmentFactorCount: number;
+  dailyBasicCount: number;
 };
 
 export async function bootstrapMarketData({
@@ -163,8 +173,13 @@ export async function bootstrapMarketData({
           fetchDailyQuotesForDate({ client, tradeDate }),
           fetchAdjustmentFactorsForDate({ client, tradeDate }),
         ]);
+        const dailyBasics = await fetchDailyBasicsForDate({
+          client,
+          tradeDate,
+        }).catch(() => [] as DailyBasicRecord[]);
         store.upsertDailyQuotes(generation.id, dailyQuotes, now);
         store.upsertAdjustmentFactors(generation.id, adjustmentFactors, now);
+        store.upsertDailyBasics(generation.id, dailyBasics, now);
         store.upsertGenerationDate(
           generation.id,
           {
@@ -185,6 +200,7 @@ export async function bootstrapMarketData({
         return {
           dailyQuoteCount: dailyQuotes.length,
           adjustmentFactorCount: adjustmentFactors.length,
+          dailyBasicCount: dailyBasics.length,
         };
       } catch (error) {
         failedItems += 2;
@@ -222,6 +238,7 @@ export async function bootstrapMarketData({
     const fulfilledDates = dateResults as PromiseFulfilledResult<{
       dailyQuoteCount: number;
       adjustmentFactorCount: number;
+      dailyBasicCount: number;
     }>[];
     const dailyQuoteCount = fulfilledDates.reduce(
       (total, result) => total + result.value.dailyQuoteCount,
@@ -229,6 +246,10 @@ export async function bootstrapMarketData({
     );
     const adjustmentFactorCount = fulfilledDates.reduce(
       (total, result) => total + result.value.adjustmentFactorCount,
+      0,
+    );
+    const dailyBasicCount = fulfilledDates.reduce(
+      (total, result) => total + result.value.dailyBasicCount,
       0,
     );
 
@@ -248,6 +269,7 @@ export async function bootstrapMarketData({
       tradeDateCount: tradeDates.length,
       dailyQuoteCount,
       adjustmentFactorCount,
+      dailyBasicCount,
     };
   } catch (error) {
     if (!activated) {

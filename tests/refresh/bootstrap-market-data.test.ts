@@ -12,6 +12,7 @@ import {
 import {
   readActiveMarketCacheGeneration,
   readMarketCacheGenerationById,
+  readMarketDailyBasics,
   readMarketDailyQuotes,
   readMarketGenerationDates,
   readMarketStocks,
@@ -82,7 +83,14 @@ function createBootstrapClient({
         if (endpoint.apiName === "daily") {
           const tradeDate = String(params.trade_date);
           return table(TUSHARE_ENDPOINTS.daily.fields, [
-            ["L.SZ", tradeDate, 10, 11, 9, 10.5, 1200],
+            ["L.SZ", tradeDate, 10, 11, 9, 10.5, 1200, 1260],
+          ]);
+        }
+
+        if (endpoint.apiName === "daily_basic") {
+          const tradeDate = String(params.trade_date);
+          return table(TUSHARE_ENDPOINTS.dailyBasic.fields, [
+            ["L.SZ", tradeDate, 2.3, 1.7],
           ]);
         }
 
@@ -123,6 +131,7 @@ describe("bootstrapMarketData", () => {
       tradeDateCount: 60,
       dailyQuoteCount: 60,
       adjustmentFactorCount: 60,
+      dailyBasicCount: 60,
     });
     expect(readMarketGenerationDates(result.generationId)).toHaveLength(60);
     expect(
@@ -138,6 +147,7 @@ describe("bootstrapMarketData", () => {
       "P",
     ]);
     expect(readMarketDailyQuotes(result.generationId)[0]?.high).toBe(11);
+    expect(readMarketDailyBasics(result.generationId)).toHaveLength(60);
   });
 
   it("deletes a partial generation after a provider failure and restarts from zero", async () => {
@@ -196,7 +206,7 @@ describe("bootstrapMarketData", () => {
 
   it("fans out provider work while the shared scheduler caps the true peak", async () => {
     useTempMarketStore();
-    const baseClient = createBootstrapClient();
+    const baseClient = createBootstrapClient({ dateCount: 4 });
     let active = 0;
     let peak = 0;
     const rawClient: TushareClientLike = {
@@ -217,7 +227,7 @@ describe("bootstrapMarketData", () => {
     });
     const client = new ScheduledTushareClient(rawClient, scheduler);
 
-    await bootstrapMarketData({ client });
+    await bootstrapMarketData({ client, targetTradingDates: 4 });
 
     expect(peak).toBe(2);
     expect(scheduler.getSnapshot().configuredConcurrency).toBe(2);

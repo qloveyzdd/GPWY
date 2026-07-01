@@ -121,7 +121,7 @@ function createMarketOnlyClient({
       }
 
       return table(TUSHARE_ENDPOINTS.daily.fields, [
-        ["000001.SZ", tradeDate, 10, 11, 9, 10, 1000],
+        ["000001.SZ", tradeDate, 10, 11, 9, 10, 1000, 1000],
       ]);
     }
 
@@ -593,6 +593,7 @@ describe("refresh runner", () => {
             close - 1,
             close,
             1000 + index,
+            close * (1000 + index) * 100 / 1000,
           ],
         ]);
       }
@@ -600,6 +601,12 @@ describe("refresh runner", () => {
       if (endpoint.apiName === "adj_factor") {
         return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
           ["000001.SZ", params.trade_date, 1],
+        ]);
+      }
+
+      if (endpoint.apiName === "daily_basic") {
+        return table(TUSHARE_ENDPOINTS.dailyBasic.fields, [
+          ["000001.SZ", params.trade_date, 2.3, 1.7],
         ]);
       }
 

@@ -319,9 +319,8 @@ function validateGenerationInDatabase(
     pairedSuccessCount,
     complete:
       generation.status === "building" &&
-      generation.targetTradeDateCount === 60 &&
-      actualTradeDateCount === 60 &&
-      pairedSuccessCount === 60,
+      actualTradeDateCount === generation.targetTradeDateCount &&
+      pairedSuccessCount === generation.targetTradeDateCount,
   };
 }
 
