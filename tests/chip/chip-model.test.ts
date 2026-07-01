@@ -126,16 +126,185 @@ describe("single-day chip decay", () => {
   });
 });
 
-function modelBar(overrides: {
+describe("decay chip distribution calculation", () => {
+  it("rolls seed levels forward through sorted daily bars to the target date", () => {
+    const result = calculateDecayChipDistribution({
+      tsCode: "000001.SZ",
+      seedTradeDate: "20260626",
+      targetTradeDate: "20260629",
+      seedLevels: [{ price: 20, percent: 100 }],
+      bars: [
+        modelBar({
+          tradeDate: "20260629",
+          low: 11,
+          high: 13,
+          averagePrice: 12,
+          turnoverRate: 10,
+        }),
+        modelBar({
+          tradeDate: "20260627",
+          low: 10,
+          high: 12,
+          averagePrice: 11,
+          turnoverRate: 10,
+        }),
+      ],
+      decayCoefficient: 1,
+    });
+
+    expect(result.status).toBe("succeeded");
+
+    if (result.status !== "succeeded") {
+      throw new Error("expected_succeeded_result");
+    }
+
+    expect(sumPercent(result.levels)).toBeCloseTo(100, 8);
+    expect(sumPercentInRange(result.levels, 20, 20)).toBeCloseTo(81, 6);
+    expect(result.levels.map((level) => level.price)).toEqual(
+      [...result.levels].map((level) => level.price).sort((left, right) => left - right),
+    );
+  });
+
+  it("returns missing_trade_data when the target bar is absent", () => {
+    const result = calculateDecayChipDistribution({
+      tsCode: "000001.SZ",
+      seedTradeDate: "20260626",
+      targetTradeDate: "20260629",
+      seedLevels: [{ price: 20, percent: 100 }],
+      bars: [
+        modelBar({
+          tradeDate: "20260627",
+          low: 10,
+          high: 12,
+          averagePrice: 11,
+          turnoverRate: 10,
+        }),
+      ],
+      decayCoefficient: 1,
+    });
+
+    expect(result).toMatchObject({
+      status: "unavailable",
+      reason: "missing_trade_data",
+    });
+  });
+
+  it("returns structured unavailable reasons for missing turnover and adjustment", () => {
+    const missingTurnover = calculateDecayChipDistribution({
+      tsCode: "000001.SZ",
+      seedTradeDate: "20260626",
+      targetTradeDate: "20260627",
+      seedLevels: [{ price: 20, percent: 100 }],
+      bars: [
+        modelBar({
+          tradeDate: "20260627",
+          low: 10,
+          high: 12,
+          averagePrice: 11,
+          turnoverRate: null,
+        }),
+      ],
+      decayCoefficient: 1,
+    });
+    const missingAdjustment = calculateDecayChipDistribution({
+      tsCode: "000001.SZ",
+      seedTradeDate: "20260626",
+      targetTradeDate: "20260627",
+      seedLevels: [{ price: 20, percent: 100 }],
+      bars: [
+        modelBar({
+          tradeDate: "20260627",
+          low: 10,
+          high: 12,
+          averagePrice: 11,
+          turnoverRate: 10,
+          adjFactor: null,
+        }),
+      ],
+      decayCoefficient: 1,
+    });
+
+    expect(missingTurnover).toMatchObject({
+      status: "unavailable",
+      reason: "missing_turnover_rate",
+    });
+    expect(missingAdjustment).toMatchObject({
+      status: "unavailable",
+      reason: "missing_adjustment_factor",
+    });
+  });
+
+  it("calculates different target dates without mutating shared seed levels", () => {
+    const seedLevels = [{ price: 20, percent: 100 }];
+    const previous = calculateDecayChipDistribution({
+      tsCode: "000001.SZ",
+      seedTradeDate: "20260626",
+      targetTradeDate: "20260627",
+      seedLevels,
+      bars: [
+        modelBar({
+          tradeDate: "20260627",
+          low: 10,
+          high: 12,
+          averagePrice: 11,
+          turnoverRate: 10,
+        }),
+      ],
+      decayCoefficient: 1,
+    });
+    const latest = calculateDecayChipDistribution({
+      tsCode: "000001.SZ",
+      seedTradeDate: "20260626",
+      targetTradeDate: "20260629",
+      seedLevels,
+      bars: [
+        modelBar({
+          tradeDate: "20260627",
+          low: 10,
+          high: 12,
+          averagePrice: 11,
+          turnoverRate: 10,
+        }),
+        modelBar({
+          tradeDate: "20260629",
+          low: 11,
+          high: 13,
+          averagePrice: 12,
+          turnoverRate: 10,
+        }),
+      ],
+      decayCoefficient: 1,
+    });
+
+    expect(previous.status).toBe("succeeded");
+    expect(latest.status).toBe("succeeded");
+
+    if (previous.status !== "succeeded" || latest.status !== "succeeded") {
+      throw new Error("expected_succeeded_results");
+    }
+
+    expect(sumPercentInRange(previous.levels, 20, 20)).toBeCloseTo(90, 6);
+    expect(sumPercentInRange(latest.levels, 20, 20)).toBeCloseTo(81, 6);
+    expect(seedLevels).toEqual([{ price: 20, percent: 100 }]);
+  });
+});
+
+function modelBar(
+  overrides: {
+    tradeDate?: string;
+    adjFactor?: number | null;
+  } & {
   low: number;
   high: number;
   averagePrice: number;
   turnoverRate: number | null;
-}) {
+  },
+) {
   return {
     tsCode: "000001.SZ",
-    tradeDate: "20260629",
+    tradeDate: overrides.tradeDate ?? "20260629",
     close: overrides.averagePrice,
+    adjFactor: overrides.adjFactor ?? 1,
     ...overrides,
   };
 }
