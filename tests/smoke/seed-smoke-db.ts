@@ -16,6 +16,7 @@ type DatabaseConstructor = new (filePath: string) => DatabaseConnection;
 
 const require = createRequire(path.join(process.cwd(), "playwright.config.ts"));
 const Database = require("better-sqlite3") as DatabaseConstructor;
+const CHIP_MODEL_VERSION = "decay-triangle-v1";
 
 function iso(date: string) {
   return new Date(date).toISOString();
@@ -575,6 +576,205 @@ export default async function seedSmokeDb() {
       null,
       "empty_data",
       "cyq_chips returned no distribution rows for previous trade date",
+      updatedAt,
+    );
+
+    const chipModelRunId = Number(
+      db
+        .prepare(
+          `
+          insert into chip_model_runs
+            (
+              screening_run_id, status, created_at, total_targets,
+              success_count, blocked_count, failed_count, missing_count,
+              skipped_complete_count
+            )
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          screeningRunId,
+          "partial",
+          iso("2026-06-23T00:05:00.000Z"),
+          6,
+          3,
+          3,
+          0,
+          0,
+          0,
+        ).lastInsertRowid,
+    );
+    const insertModelLevel = db.prepare(
+      `
+      insert into chip_model_levels
+        (
+          ts_code, target_trade_date, seed_trade_date, decay_coefficient,
+          model_version, price, percent, calculated_at
+        )
+      values (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+
+    insertModelLevel.run(
+      "000001.SZ",
+      "20260060",
+      "20260001",
+      0.5,
+      CHIP_MODEL_VERSION,
+      31,
+      8,
+      updatedAt,
+    );
+    insertModelLevel.run(
+      "000001.SZ",
+      "20260060",
+      "20260001",
+      0.5,
+      CHIP_MODEL_VERSION,
+      32,
+      4,
+      updatedAt,
+    );
+    insertModelLevel.run(
+      "000001.SZ",
+      "20260059",
+      "20260000",
+      0.5,
+      CHIP_MODEL_VERSION,
+      30,
+      7,
+      updatedAt,
+    );
+    insertModelLevel.run(
+      "000001.SZ",
+      "20260059",
+      "20260000",
+      0.5,
+      CHIP_MODEL_VERSION,
+      31,
+      5,
+      updatedAt,
+    );
+    insertModelLevel.run(
+      "000001.SZ",
+      "20260060",
+      "20260001",
+      1,
+      CHIP_MODEL_VERSION,
+      28,
+      10,
+      updatedAt,
+    );
+    insertModelLevel.run(
+      "000001.SZ",
+      "20260060",
+      "20260001",
+      1,
+      CHIP_MODEL_VERSION,
+      29,
+      3,
+      updatedAt,
+    );
+    const insertModelStatus = db.prepare(
+      `
+      insert into chip_model_statuses
+        (
+          chip_model_run_id, screening_run_id, ts_code, target_kind,
+          target_trade_date, seed_trade_date, decay_coefficient, model_version,
+          status, unavailable_reason, error_category, error_summary, updated_at
+        )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+
+    insertModelStatus.run(
+      chipModelRunId,
+      screeningRunId,
+      "000001.SZ",
+      "latest",
+      "20260060",
+      "20260001",
+      0.5,
+      CHIP_MODEL_VERSION,
+      "succeeded",
+      null,
+      null,
+      null,
+      updatedAt,
+    );
+    insertModelStatus.run(
+      chipModelRunId,
+      screeningRunId,
+      "000001.SZ",
+      "previous",
+      "20260059",
+      "20260000",
+      0.5,
+      CHIP_MODEL_VERSION,
+      "succeeded",
+      null,
+      null,
+      null,
+      updatedAt,
+    );
+    insertModelStatus.run(
+      chipModelRunId,
+      screeningRunId,
+      "000001.SZ",
+      "latest",
+      "20260060",
+      "20260001",
+      1,
+      CHIP_MODEL_VERSION,
+      "succeeded",
+      null,
+      null,
+      null,
+      updatedAt,
+    );
+    insertModelStatus.run(
+      chipModelRunId,
+      screeningRunId,
+      "000001.SZ",
+      "previous",
+      "20260059",
+      "20260000",
+      1,
+      CHIP_MODEL_VERSION,
+      "blocked",
+      "missing_turnover_rate",
+      "empty_data",
+      "calculated distribution missing turnover rate for previous target",
+      updatedAt,
+    );
+    insertModelStatus.run(
+      chipModelRunId,
+      screeningRunId,
+      "000002.SZ",
+      "latest",
+      "20260060",
+      "20260001",
+      0.5,
+      CHIP_MODEL_VERSION,
+      "blocked",
+      "missing_turnover_rate",
+      "empty_data",
+      "calculated distribution missing turnover rate for latest target",
+      updatedAt,
+    );
+    insertModelStatus.run(
+      chipModelRunId,
+      screeningRunId,
+      "000002.SZ",
+      "previous",
+      "20260059",
+      "20260000",
+      0.5,
+      CHIP_MODEL_VERSION,
+      "blocked",
+      "missing_seed_distribution",
+      "empty_data",
+      "calculated seed distribution is unavailable for previous target",
       updatedAt,
     );
   } finally {

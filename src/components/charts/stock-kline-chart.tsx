@@ -555,6 +555,7 @@ function CalculatedChipDistributionCard({
       sanitizeUnavailableSummary(panel.errorSummary) ??
       panel.unavailableReason ??
       "该计算分布暂不可用。";
+    const reason = panel.unavailableReason ?? summary;
 
     return (
       <section className="flex min-h-[320px] flex-col rounded-lg border border-[#F59E0B]/40 bg-[#FEF3C7]/30 p-4">
@@ -565,6 +566,9 @@ function CalculatedChipDistributionCard({
             </h4>
             <p className="mt-1 text-[13px] leading-[1.4] text-muted-foreground">
               目标日 {targetDateText} · 种子日 {seedDateText}
+            </p>
+            <p className="mt-1 text-[12px] leading-[1.4] text-[#92400E]">
+              原因：{reason}
             </p>
           </div>
           <Badge variant="secondary">
