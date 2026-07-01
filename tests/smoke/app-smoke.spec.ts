@@ -38,6 +38,9 @@ test("protected workspace renders dual chip distributions and inline chart", asy
   await expect(page.getByText("permission_denied")).toBeVisible();
   await expect(page.getByText("empty_data")).toBeVisible();
   await expect(page.getByText("阻塞")).toHaveCount(2);
+  await expect(page.getByText("计算分布")).toBeVisible();
+  await expect(page.getByText("模型输出，不等同官方 cyq_chips")).toBeVisible();
+  await expect(page.getByText("missing_turnover_rate")).toBeVisible();
   await expect(page.getByText(/TUSHARE_TOKEN|Authorization|REFRESH_DB_PATH|C:\\/)).toHaveCount(0);
 
   await availableRow.click();
@@ -52,6 +55,21 @@ test("protected workspace renders dual chip distributions and inline chart", asy
   ).toBeVisible();
   await expect(page.getByText("最大占比 35.90 / 5.50%")).toBeVisible();
   await expect(page.getByText("最大占比 36.20 / 6.50%")).toBeVisible();
+  await expect(page.getByText("计算分布")).toBeVisible();
+  await expect(page.getByText("模型输出，不等同官方 cyq_chips")).toBeVisible();
+  await expect(page.getByText("模型 decay-triangle-v1")).toBeVisible();
+  await expect(page.getByLabel("衰减系数")).toHaveValue("0.5");
+  await expect(
+    page.getByLabel("前一有效交易日 20260059 计算分布图"),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("最新有效交易日 20260060 计算分布图"),
+  ).toBeVisible();
+  await expect(page.getByText("最大占比 30.00 / 7.00%")).toBeVisible();
+  await expect(page.getByText("最大占比 31.00 / 8.00%")).toBeVisible();
+  await page.getByLabel("衰减系数").selectOption("1");
+  await expect(page.getByText("衰减系数 1")).toBeVisible();
+  await expect(page.getByText("missing_turnover_rate")).toBeVisible();
   await expect(
     page.locator('[aria-label="000001.SZ K线图"] canvas'),
   ).toHaveCount(1);
@@ -64,6 +82,9 @@ test("protected workspace renders dual chip distributions and inline chart", asy
     page.locator('[aria-label="最新有效交易日 20260060 筹码分布图"] canvas'),
   ).toHaveCount(1);
   await expect(
+    page.locator('[aria-label="最新有效交易日 20260060 计算分布图"] canvas'),
+  ).toHaveCount(1);
+  await expect(
     page.locator('[data-testid="stock-chart-row-000001.SZ"] canvas'),
-  ).toHaveCount(3);
+  ).toHaveCount(4);
 });

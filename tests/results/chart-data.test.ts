@@ -29,6 +29,8 @@ import {
 import type { DailyBarRecord } from "@/lib/refresh/refresh-types";
 import { readLatestChartSnapshot } from "@/lib/results/chart-data";
 import { writeScreeningRun } from "@/lib/screening/screening-store";
+import chipModelFixture from "../fixtures/chip-model/002565-20260626-20260629.json";
+import { calculateDecayChipDistribution } from "@/lib/chip/chip-model";
 
 const tempRoots: string[] = [];
 
@@ -279,6 +281,67 @@ function writeCalculatedDistributionFixture(screeningRunId: number) {
 }
 
 describe("chart data snapshot", () => {
+  it("replays chip model fixture with visibly different coefficient outputs", () => {
+    const latest05 = calculateDecayChipDistribution({
+      tsCode: chipModelFixture.tsCode,
+      seedTradeDate: chipModelFixture.seedTradeDate,
+      targetTradeDate: "20260629",
+      seedLevels: chipModelFixture.seedLevels,
+      bars: chipModelFixture.bars.map((bar) => ({
+        tsCode: chipModelFixture.tsCode,
+        tradeDate: bar.tradeDate,
+        low: bar.low,
+        high: bar.high,
+        close: bar.averagePrice,
+        averagePrice: bar.averagePrice,
+        turnoverRate: bar.turnoverRate,
+        adjFactor: 1,
+      })),
+      decayCoefficient: 0.5,
+      expectedTradeDates: chipModelFixture.bars.map((bar) => bar.tradeDate),
+    });
+    const latest15 = calculateDecayChipDistribution({
+      tsCode: chipModelFixture.tsCode,
+      seedTradeDate: chipModelFixture.seedTradeDate,
+      targetTradeDate: "20260629",
+      seedLevels: chipModelFixture.seedLevels,
+      bars: chipModelFixture.bars.map((bar) => ({
+        tsCode: chipModelFixture.tsCode,
+        tradeDate: bar.tradeDate,
+        low: bar.low,
+        high: bar.high,
+        close: bar.averagePrice,
+        averagePrice: bar.averagePrice,
+        turnoverRate: bar.turnoverRate,
+        adjFactor: 1,
+      })),
+      decayCoefficient: 1.5,
+      expectedTradeDates: chipModelFixture.bars.map((bar) => bar.tradeDate),
+    });
+
+    expect(latest05.status).toBe("succeeded");
+    expect(latest15.status).toBe("succeeded");
+    if (latest05.status !== "succeeded" || latest15.status !== "succeeded") {
+      throw new Error("expected fixture replay to succeed");
+    }
+
+    const latest05Peak = latest05.levels.reduce((max, level) =>
+      level.percent > max.percent ? level : max,
+    );
+    const latest15Peak = latest15.levels.reduce((max, level) =>
+      level.percent > max.percent ? level : max,
+    );
+
+    expect(latest05Peak.price).toBe(
+      chipModelFixture.summaryOutputs.latest.find(
+        (item) => item.decayCoefficient === 0.5,
+      )?.peakPrice,
+    );
+    expect(latest05Peak.percent).toBeCloseTo(55.6101, 4);
+    expect(latest15Peak.percent).toBeCloseTo(47.4747, 4);
+    expect(latest05Peak.percent).toBeGreaterThan(latest15Peak.percent);
+  });
+
   it("returns unavailable when no screening run exists", () => {
     useTempStore();
 
