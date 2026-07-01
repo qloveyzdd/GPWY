@@ -12,7 +12,7 @@ import type {
   TushareDataTable,
 } from "@/lib/tushare/types";
 
-export const DEFAULT_TRADING_DATE_COUNT = 60;
+export const DEFAULT_TRADING_DATE_COUNT = 62;
 export const DEFAULT_MAX_LOOKBACK_DAYS = 180;
 
 export type FetchRefreshDataOptions = {

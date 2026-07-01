@@ -77,7 +77,7 @@ function createMockClient(
   };
 }
 
-function targetTradeDates(count = 60) {
+function targetTradeDates(count = 62) {
   return Array.from({ length: count }, (_, index) =>
     `2026${String(index + 1).padStart(4, "0")}`,
   );
@@ -215,7 +215,9 @@ function writeChipRunFixture(
 }
 
 function createEmptyActiveGeneration() {
-  const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
+  const generation = createMarketCacheGeneration({
+    targetTradeDateCount: targetTradeDates().length,
+  });
 
   for (const tradeDate of targetTradeDates()) {
     upsertMarketGenerationDate(generation.id, {
@@ -698,7 +700,7 @@ describe("refresh runner", () => {
       if (endpoint.apiName === "trade_cal") {
         return table(
           TUSHARE_ENDPOINTS.tradeCalendar.fields,
-          Array.from({ length: 60 }, (_, index) => [
+          Array.from({ length: 62 }, (_, index) => [
             `2026${String(index + 1).padStart(4, "0")}`,
             1,
           ]),
@@ -753,10 +755,10 @@ describe("refresh runner", () => {
     expect(result.job!.mode).toBe("bootstrap");
     expect(generation).not.toBeNull();
     expect(readMarketStocks()).toHaveLength(3);
-    expect(readMarketDailyQuotes(generation?.id ?? 0)).toHaveLength(60);
+    expect(readMarketDailyQuotes(generation?.id ?? 0)).toHaveLength(62);
     expect(readRefreshStatus().latestCacheStats).toEqual({
       stockCount: 3,
-      dailyBarCount: 60,
+      dailyBarCount: 62,
     });
     expect(screeningRun?.sourceRefreshJobId).toBe(result.job!.id);
     expect(screeningRun?.sourceMarketGenerationId).toBe(generation?.id);

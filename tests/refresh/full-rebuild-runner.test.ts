@@ -45,7 +45,7 @@ function table(fields: string[], items: unknown[][]): TushareDataTable {
   return { fields, items };
 }
 
-function tradeDates(count = 60) {
+function tradeDates(count = 62) {
   return Array.from(
     { length: count },
     (_, index) => `2026${String(index + 1).padStart(4, "0")}`,
@@ -53,7 +53,9 @@ function tradeDates(count = 60) {
 }
 
 function createActiveGeneration() {
-  const generation = createMarketCacheGeneration({ targetTradeDateCount: 60 });
+  const generation = createMarketCacheGeneration({
+    targetTradeDateCount: tradeDates().length,
+  });
 
   for (const tradeDate of tradeDates()) {
     upsertMarketGenerationDate(generation.id, {
@@ -94,7 +96,13 @@ function createRebuildClient({
 
         if (endpoint.apiName === "daily") {
           return table(TUSHARE_ENDPOINTS.daily.fields, [
-            ["L.SZ", params.trade_date, 10, 11, 9, 10, 100],
+            ["L.SZ", params.trade_date, 10, 11, 9, 10, 100, 100],
+          ]);
+        }
+
+        if (endpoint.apiName === "daily_basic") {
+          return table(TUSHARE_ENDPOINTS.dailyBasic.fields, [
+            ["L.SZ", params.trade_date, 2.3, 1.7],
           ]);
         }
 
@@ -142,7 +150,7 @@ describe("runFullMarketRebuild", () => {
     expect(snapshot.stages.find((stage) => stage.stage === "stock_list"))
       .toMatchObject({ status: "succeeded", total: 3, completed: 3 });
     expect(snapshot.stages.find((stage) => stage.stage === "market_data"))
-      .toMatchObject({ status: "succeeded", total: 120, completed: 120 });
+      .toMatchObject({ status: "succeeded", total: 124, completed: 124 });
     expect(snapshot.stages.find((stage) => stage.stage === "screening"))
       .toMatchObject({ status: "skipped" });
     expect(snapshot.stages.find((stage) => stage.stage === "chip"))

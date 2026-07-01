@@ -33,8 +33,8 @@ function createMockClient(
 }
 
 describe("fetchRefreshData", () => {
-  it("uses 60 trading dates by default", () => {
-    expect(DEFAULT_TRADING_DATE_COUNT).toBe(60);
+  it("uses 62 trading dates by default so latest and previous can resolve 60-day seeds", () => {
+    expect(DEFAULT_TRADING_DATE_COUNT).toBe(62);
   });
 
   it("declares amount and daily_basic turnover fields required by chip model inputs", () => {

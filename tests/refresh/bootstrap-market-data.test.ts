@@ -54,7 +54,7 @@ function tradeDates(count: number) {
 }
 
 function createBootstrapClient({
-  dateCount = 60,
+  dateCount = 62,
   failFactorDate,
 }: {
   dateCount?: number;
@@ -115,7 +115,7 @@ function createBootstrapClient({
 }
 
 describe("bootstrapMarketData", () => {
-  it("builds and activates exactly 60 paired market dates", async () => {
+  it("builds and activates exactly 62 paired market dates for model seed coverage", async () => {
     useTempMarketStore();
     const client = createBootstrapClient();
 
@@ -128,12 +128,12 @@ describe("bootstrapMarketData", () => {
     expect(active?.id).toBe(result.generationId);
     expect(result).toMatchObject({
       stockCount: 3,
-      tradeDateCount: 60,
-      dailyQuoteCount: 60,
-      adjustmentFactorCount: 60,
-      dailyBasicCount: 60,
+      tradeDateCount: 62,
+      dailyQuoteCount: 62,
+      adjustmentFactorCount: 62,
+      dailyBasicCount: 62,
     });
-    expect(readMarketGenerationDates(result.generationId)).toHaveLength(60);
+    expect(readMarketGenerationDates(result.generationId)).toHaveLength(62);
     expect(
       readMarketGenerationDates(result.generationId).every(
         (date) =>
@@ -147,12 +147,12 @@ describe("bootstrapMarketData", () => {
       "P",
     ]);
     expect(readMarketDailyQuotes(result.generationId)[0]?.high).toBe(11);
-    expect(readMarketDailyBasics(result.generationId)).toHaveLength(60);
+    expect(readMarketDailyBasics(result.generationId)).toHaveLength(62);
   });
 
   it("deletes a partial generation after a provider failure and restarts from zero", async () => {
     useTempMarketStore();
-    const firstDate = tradeDates(60)[0];
+    const firstDate = tradeDates(62)[0];
 
     await expect(
       bootstrapMarketData({
@@ -168,15 +168,15 @@ describe("bootstrapMarketData", () => {
     });
 
     expect(retry.generationId).toBe(2);
-    expect(readMarketGenerationDates(retry.generationId)).toHaveLength(60);
+    expect(readMarketGenerationDates(retry.generationId)).toHaveLength(62);
   });
 
-  it("rejects fewer than 60 calendar dates without leaving a generation", async () => {
+  it("rejects fewer than 62 calendar dates without leaving a generation", async () => {
     useTempMarketStore();
 
     await expect(
       bootstrapMarketData({
-        client: createBootstrapClient({ dateCount: 59 }),
+        client: createBootstrapClient({ dateCount: 61 }),
       }),
     ).rejects.toThrow("insufficient_trading_dates");
 
@@ -235,7 +235,7 @@ describe("bootstrapMarketData", () => {
 
   it("waits for every date task before deleting a failed generation", async () => {
     useTempMarketStore();
-    const failDate = tradeDates(60)[0];
+    const failDate = tradeDates(62)[0];
     let activeDateQueries = 0;
     let activeAtDelete = -1;
     const baseClient = createBootstrapClient({ failFactorDate: failDate });
