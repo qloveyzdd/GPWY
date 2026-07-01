@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_TRADING_DATE_COUNT,
+  fetchDailyBasicsForDate,
+  fetchDailyQuotesForDate,
   fetchMarketStocks,
   fetchRefreshData,
   fetchTargetTradeDates,
@@ -35,7 +37,22 @@ describe("fetchRefreshData", () => {
     expect(DEFAULT_TRADING_DATE_COUNT).toBe(60);
   });
 
-  it("uses trade_cal, preserves L/P/D stocks, and returns raw quotes and factors separately", async () => {
+  it("declares amount and daily_basic turnover fields required by chip model inputs", () => {
+    expect(TUSHARE_ENDPOINTS.daily.fields).toContain("amount");
+    expect(TUSHARE_ENDPOINTS.dailyBasic).toEqual(
+      expect.objectContaining({
+        apiName: "daily_basic",
+        fields: expect.arrayContaining([
+          "ts_code",
+          "trade_date",
+          "turnover_rate",
+          "turnover_rate_f",
+        ]),
+      }),
+    );
+  });
+
+  it("uses trade_cal, preserves L/P/D stocks, and returns raw quotes, factors, and daily basics separately", async () => {
     const client = createMockClient(async (endpoint, params) => {
       if (endpoint.apiName === "stock_basic") {
         const status = String(params.list_status);
@@ -55,7 +72,7 @@ describe("fetchRefreshData", () => {
       if (endpoint.apiName === "daily") {
         const tradeDate = String(params.trade_date);
         return table(TUSHARE_ENDPOINTS.daily.fields, [
-          ["000001.SZ", tradeDate, 10, 11, 9, 10.5, 1200],
+          ["000001.SZ", tradeDate, 10, 11, 9, 10.5, 1200, 1260],
         ]);
       }
 
@@ -64,6 +81,13 @@ describe("fetchRefreshData", () => {
         const factor = tradeDate === "20260624" ? 2 : 4;
         return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
           ["000001.SZ", tradeDate, factor],
+        ]);
+      }
+
+      if (endpoint.apiName === "daily_basic") {
+        const tradeDate = String(params.trade_date);
+        return table(TUSHARE_ENDPOINTS.dailyBasic.fields, [
+          ["000001.SZ", tradeDate, 2.3, 1.7],
         ]);
       }
 
@@ -117,6 +141,7 @@ describe("fetchRefreshData", () => {
         low: 9,
         close: 10.5,
         vol: 1200,
+        amount: 1260,
       },
       {
         tsCode: "000001.SZ",
@@ -126,6 +151,7 @@ describe("fetchRefreshData", () => {
         low: 9,
         close: 10.5,
         vol: 1200,
+        amount: 1260,
       },
     ]);
     expect(result.adjustmentFactors).toEqual([
@@ -140,7 +166,76 @@ describe("fetchRefreshData", () => {
         adjFactor: 2,
       },
     ]);
+    expect(result.dailyBasics).toEqual([
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260626",
+        turnoverRate: 2.3,
+        turnoverRateFreeFloat: 1.7,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260624",
+        turnoverRate: 2.3,
+        turnoverRateFreeFloat: 1.7,
+      },
+    ]);
     expect(result.dailyQuotes[1]?.high).toBe(11);
+  });
+
+  it("fetches daily_basic turnover records for one trade date", async () => {
+    const client = createMockClient(async (endpoint, params) => {
+      expect(endpoint).toBe(TUSHARE_ENDPOINTS.dailyBasic);
+      expect(params).toEqual({ trade_date: "20260626" });
+      return table(TUSHARE_ENDPOINTS.dailyBasic.fields, [
+        ["000001.SZ", "20260626", 2.3, 1.7],
+      ]);
+    });
+
+    await expect(
+      fetchDailyBasicsForDate({ client, tradeDate: "20260626" }),
+    ).resolves.toEqual([
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260626",
+        turnoverRate: 2.3,
+        turnoverRateFreeFloat: 1.7,
+      },
+    ]);
+  });
+
+  it("rejects invalid daily amount and invalid daily_basic turnover values", async () => {
+    const dailyClient = createMockClient(async (endpoint) => {
+      if (endpoint.apiName === "daily") {
+        return table(TUSHARE_ENDPOINTS.daily.fields, [
+          ["000001.SZ", "20260626", 10, 11, 9, 10.5, 1200, "bad"],
+        ]);
+      }
+
+      throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+    });
+    const basicClient = createMockClient(async (endpoint) => {
+      if (endpoint.apiName === "daily_basic") {
+        return table(TUSHARE_ENDPOINTS.dailyBasic.fields, [
+          ["000001.SZ", "20260626", "bad", 1.7],
+        ]);
+      }
+
+      throw new Error(`Unexpected endpoint ${endpoint.apiName}`);
+    });
+
+    await expect(
+      fetchDailyQuotesForDate({
+        client: dailyClient,
+        tradeDate: "20260626",
+      }),
+    ).rejects.toThrow("invalid amount");
+    await expect(
+      fetchDailyBasicsForDate({
+        client: basicClient,
+        tradeDate: "20260626",
+      }),
+    ).rejects.toThrow("invalid turnover_rate");
   });
 
   it("skips the latest open trading date when daily quotes are not ready yet", async () => {
