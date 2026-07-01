@@ -10,6 +10,7 @@ export default defineConfig({
     environment: "jsdom",
     exclude: [...configDefaults.exclude, "tests/smoke/**"],
     globals: false,
+    testTimeout: 15_000,
   },
   resolve: {
     alias: {

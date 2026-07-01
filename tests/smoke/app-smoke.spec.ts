@@ -57,7 +57,7 @@ test("protected workspace renders dual chip distributions and inline chart", asy
   await expect(page.getByText("最大占比 36.20 / 6.50%")).toBeVisible();
   await expect(page.getByText("计算分布")).toBeVisible();
   await expect(page.getByText("模型输出，不等同官方 cyq_chips")).toBeVisible();
-  await expect(page.getByText("模型 decay-triangle-v1")).toBeVisible();
+  await expect(page.getByText("模型 decay-triangle-v2")).toBeVisible();
   await expect(page.getByLabel("衰减系数")).toHaveValue("0.5");
   await expect(
     page.getByLabel("前一有效交易日 20260059 计算分布图"),

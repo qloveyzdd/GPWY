@@ -11,7 +11,7 @@ export type ChipDistributionLevel = ChipDistributionRow;
 
 export type ChipDistributionTargetKind = "latest" | "previous";
 
-export const CHIP_MODEL_VERSION = "decay-triangle-v1" as const;
+export const CHIP_MODEL_VERSION = "decay-triangle-v2" as const;
 
 export const SUPPORTED_CHIP_DECAY_COEFFICIENTS = [
   0.3, 0.5, 0.8, 1, 1.2, 1.5, 2,

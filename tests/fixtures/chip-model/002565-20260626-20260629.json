@@ -1,6 +1,6 @@
 {
   "tsCode": "002565.SZ",
-  "modelVersion": "decay-triangle-v1",
+  "modelVersion": "decay-triangle-v2",
   "seedTradeDate": "20260624",
   "targetTradeDates": ["20260626", "20260629"],
   "seedLevels": [

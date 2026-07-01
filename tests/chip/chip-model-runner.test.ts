@@ -16,6 +16,7 @@ import {
 } from "@/lib/chip/chip-model-runner";
 import {
   CHIP_MODEL_VERSION,
+  prepareChipModelSeedLevels,
   SUPPORTED_CHIP_DECAY_COEFFICIENTS,
 } from "@/lib/chip/chip-model";
 import { replaceChipDistribution } from "@/lib/chip/chip-store";
@@ -231,7 +232,7 @@ describe("chip model seed resolver", () => {
         seedTradeDate: "20260401",
         modelVersion: CHIP_MODEL_VERSION,
       }),
-    ).toEqual(result.seedLevels);
+    ).toEqual(prepareChipModelSeedLevels(result.seedLevels));
   });
 
   it("fetches and caches official seed rows when cache is missing", async () => {

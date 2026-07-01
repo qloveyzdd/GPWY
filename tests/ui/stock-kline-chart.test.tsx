@@ -163,7 +163,7 @@ function readySnapshot(
             seedTradeDate: "20260401",
             status: "succeeded",
             decayCoefficient: 0.5,
-            modelVersion: "decay-triangle-v1",
+            modelVersion: "decay-triangle-v2",
             levels: [
               { price: 30, percent: 7 },
               { price: 31, percent: 3 },
@@ -180,7 +180,7 @@ function readySnapshot(
             seedTradeDate: "20260402",
             status: "succeeded",
             decayCoefficient: 0.5,
-            modelVersion: "decay-triangle-v1",
+            modelVersion: "decay-triangle-v2",
             levels: [
               { price: 31, percent: 8 },
               { price: 32, percent: 4 },
@@ -204,7 +204,7 @@ function readySnapshot(
             seedTradeDate: "20260401",
             status: "succeeded",
             decayCoefficient: 1,
-            modelVersion: "decay-triangle-v1",
+            modelVersion: "decay-triangle-v2",
             levels: [{ price: 29, percent: 6 }],
             maxLevel: { price: 29, percent: 6 },
             unavailableReason: null,
@@ -218,7 +218,7 @@ function readySnapshot(
             seedTradeDate: "20260402",
             status: "succeeded",
             decayCoefficient: 1,
-            modelVersion: "decay-triangle-v1",
+            modelVersion: "decay-triangle-v2",
             levels: [{ price: 28, percent: 10 }],
             maxLevel: { price: 28, percent: 10 },
             unavailableReason: null,
@@ -489,7 +489,7 @@ describe("StockKlineChart", () => {
     expect(screen.getByText("模型输出，不等同官方 cyq_chips")).toBeTruthy();
     expect(screen.getByText(/目标日 20260623/)).toBeTruthy();
     expect(screen.getByText(/种子日 20260402/)).toBeTruthy();
-    expect(screen.getByText("模型 decay-triangle-v1")).toBeTruthy();
+    expect(screen.getByText("模型 decay-triangle-v2")).toBeTruthy();
 
     const selector = screen.getByLabelText("衰减系数");
     expect((selector as HTMLSelectElement).value).toBe("0.5");

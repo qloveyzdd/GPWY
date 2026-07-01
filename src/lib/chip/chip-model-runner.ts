@@ -2,6 +2,7 @@ import { mapCyqChipsTable } from "@/lib/chip/chip-peak";
 import {
   calculateDecayChipDistribution,
   CHIP_MODEL_VERSION,
+  prepareChipModelSeedLevels,
   SUPPORTED_CHIP_DECAY_COEFFICIENTS,
 } from "@/lib/chip/chip-model";
 import {
@@ -45,7 +46,7 @@ export type ResolveChipModelSeedInput = {
   generationId: number;
   tsCode: string;
   targetTradeDate: string;
-  modelVersion: "decay-triangle-v1";
+  modelVersion: typeof CHIP_MODEL_VERSION;
   client?: TushareClientLike | null;
   now?: Date;
 };
@@ -358,13 +359,23 @@ export async function resolveChipModelSeedForTarget(
       errorSummary: "missing_adjustment_factor",
     });
   }
+  const seedSnapshotLevels = prepareChipModelSeedLevels(seedLevels);
+
+  if (seedSnapshotLevels.length === 0) {
+    return unavailableSeedResult({
+      input,
+      seedTradeDate: seedWindow.seedTradeDate,
+      reason: "missing_seed_distribution",
+      errorSummary: "missing_seed_distribution",
+    });
+  }
 
   replaceChipModelSeedSnapshot({
     tsCode: input.tsCode,
     targetTradeDate: input.targetTradeDate,
     seedTradeDate: seedWindow.seedTradeDate,
     modelVersion: input.modelVersion,
-    levels: seedLevels,
+    levels: seedSnapshotLevels,
     now: input.now,
   });
 

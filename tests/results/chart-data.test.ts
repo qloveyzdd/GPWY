@@ -333,8 +333,8 @@ describe("chart data snapshot", () => {
         (item) => item.decayCoefficient === 0.5,
       )?.peakPrice,
     );
-    expect(latest05Peak.percent).toBeCloseTo(55.6101, 4);
-    expect(latest15Peak.percent).toBeCloseTo(47.4747, 4);
+    expect(latest05Peak.percent).toBeCloseTo(11.122, 4);
+    expect(latest15Peak.percent).toBeCloseTo(9.4949, 4);
     expect(latest05Peak.percent).toBeGreaterThan(latest15Peak.percent);
   });
 

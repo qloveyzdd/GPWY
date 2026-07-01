@@ -7,6 +7,7 @@ import {
   CHIP_MODEL_VERSION,
   DEFAULT_CHIP_DECAY_COEFFICIENT,
   parseChipDecayCoefficient,
+  prepareChipModelSeedLevels,
   SUPPORTED_CHIP_DECAY_COEFFICIENTS,
 } from "@/lib/chip/chip-model";
 
@@ -16,7 +17,7 @@ describe("decay chip model contract", () => {
       0.3, 0.5, 0.8, 1, 1.2, 1.5, 2,
     ]);
     expect(DEFAULT_CHIP_DECAY_COEFFICIENT).toBe(0.5);
-    expect(CHIP_MODEL_VERSION).toBe("decay-triangle-v1");
+    expect(CHIP_MODEL_VERSION).toBe("decay-triangle-v2");
   });
 
   it("rejects coefficients outside the fixed set", () => {
@@ -54,6 +55,33 @@ describe("decay chip model contract", () => {
     expect(result.seedTradeDate).toBe("20260626");
     expect(result.targetTradeDate).toBe("20260626");
     expect(result.source).toBe("calculated_decay_model");
+  });
+});
+
+describe("chip model seed preparation", () => {
+  it("rebuckets and smooths seed levels before the decay window", () => {
+    const prepared = prepareChipModelSeedLevels([{ price: 20, percent: 100 }]);
+
+    expect(prepared.map((level) => level.price)).toEqual([
+      19.8, 19.85, 19.9, 19.95, 20, 20.05, 20.1, 20.15, 20.2,
+    ]);
+    expect(sumPercent(prepared)).toBeCloseTo(100, 8);
+    expect(percentAt(prepared, 20)).toBeGreaterThan(percentAt(prepared, 19.8));
+    expect(percentAt(prepared, 20)).toBeGreaterThan(percentAt(prepared, 20.2));
+  });
+
+  it("merges close seed prices into the configured bucket before smoothing", () => {
+    const prepared = prepareChipModelSeedLevels([
+      { price: 20.011, percent: 40 },
+      { price: 20.019, percent: 60 },
+    ]);
+
+    expect(sumPercent(prepared)).toBeCloseTo(100, 8);
+    expect(percentAt(prepared, 20)).toBeGreaterThan(0);
+    expect(percentAt(prepared, 20.05)).toBeGreaterThan(0);
+    expect(prepared.every((level) => level.price >= 19.8 && level.price <= 20.2)).toBe(
+      true,
+    );
   });
 });
 
@@ -159,7 +187,7 @@ describe("decay chip distribution calculation", () => {
     }
 
     expect(sumPercent(result.levels)).toBeCloseTo(100, 8);
-    expect(sumPercentInRange(result.levels, 20, 20)).toBeCloseTo(81, 6);
+    expect(sumPercentInRange(result.levels, 19.8, 20.2)).toBeCloseTo(81, 6);
     expect(result.levels.map((level) => level.price)).toEqual(
       [...result.levels].map((level) => level.price).sort((left, right) => left - right),
     );
@@ -315,8 +343,8 @@ describe("decay chip distribution calculation", () => {
       throw new Error("expected_succeeded_results");
     }
 
-    expect(sumPercentInRange(previous.levels, 20, 20)).toBeCloseTo(90, 6);
-    expect(sumPercentInRange(latest.levels, 20, 20)).toBeCloseTo(81, 6);
+    expect(sumPercentInRange(previous.levels, 19.8, 20.2)).toBeCloseTo(90, 6);
+    expect(sumPercentInRange(latest.levels, 19.8, 20.2)).toBeCloseTo(81, 6);
     expect(seedLevels).toEqual([{ price: 20, percent: 100 }]);
   });
 });
@@ -343,6 +371,10 @@ function modelBar(
 
 function sumPercent(levels: { percent: number }[]) {
   return levels.reduce((sum, level) => sum + level.percent, 0);
+}
+
+function percentAt(levels: { price: number; percent: number }[], price: number) {
+  return levels.find((level) => level.price === price)?.percent ?? 0;
 }
 
 function sumPercentInRange(

@@ -28,6 +28,8 @@ const EPSILON = 1e-9;
 const DEFAULT_TRIANGLE_LEVEL_COUNT = 121;
 const MAX_TRIANGLE_LEVEL_COUNT = 241;
 const PRICE_PRECISION = 10_000;
+const SEED_PRICE_BUCKET_SIZE = 0.05;
+const SEED_SMOOTHING_RADIUS = 0.2;
 
 export function parseChipDecayCoefficient(
   value: unknown,
@@ -83,7 +85,7 @@ export function calculateDecayChipDistribution(
     };
   }
 
-  let levels = normalizeLevels(input.seedLevels);
+  let levels = prepareChipModelSeedLevels(input.seedLevels);
 
   if (levels.length === 0) {
     return {
@@ -230,6 +232,56 @@ export function applyChipDecayDay(
   ]);
 }
 
+export function prepareChipModelSeedLevels(
+  levels: ChipCalculatedDistributionLevel[],
+): ChipCalculatedDistributionLevel[] {
+  const rebucketedLevels = rebucketLevels(
+    normalizeLevels(levels),
+    SEED_PRICE_BUCKET_SIZE,
+  );
+  const radiusSteps = Math.max(
+    0,
+    Math.round(SEED_SMOOTHING_RADIUS / SEED_PRICE_BUCKET_SIZE),
+  );
+
+  if (rebucketedLevels.length === 0 || radiusSteps === 0) {
+    return rebucketedLevels;
+  }
+
+  const smoothedLevels: ChipCalculatedDistributionLevel[] = [];
+
+  for (const level of rebucketedLevels) {
+    const targets: Array<{ price: number; weight: number }> = [];
+
+    for (let step = -radiusSteps; step <= radiusSteps; step += 1) {
+      const price = roundToPriceStep(
+        level.price + step * SEED_PRICE_BUCKET_SIZE,
+        SEED_PRICE_BUCKET_SIZE,
+      );
+      const weight = radiusSteps + 1 - Math.abs(step);
+
+      if (price > 0 && weight > 0) {
+        targets.push({ price, weight });
+      }
+    }
+
+    const totalWeight = targets.reduce((sum, target) => sum + target.weight, 0);
+
+    if (totalWeight <= 0) {
+      continue;
+    }
+
+    for (const target of targets) {
+      smoothedLevels.push({
+        price: target.price,
+        percent: (level.percent * target.weight) / totalWeight,
+      });
+    }
+  }
+
+  return normalizeLevels(smoothedLevels);
+}
+
 function normalizeLevels(
   levels: ChipCalculatedDistributionLevel[],
 ): ChipCalculatedDistributionLevel[] {
@@ -262,6 +314,30 @@ function normalizeLevels(
       percent: (percent / total) * PERCENT_TOTAL,
     }))
     .sort((left, right) => left.price - right.price);
+}
+
+function rebucketLevels(
+  levels: ChipCalculatedDistributionLevel[],
+  bucketSize: number,
+): ChipCalculatedDistributionLevel[] {
+  const grouped = new Map<number, number>();
+
+  for (const level of levels) {
+    const price = roundToPriceStep(level.price, bucketSize);
+
+    if (price <= 0) {
+      continue;
+    }
+
+    grouped.set(price, (grouped.get(price) ?? 0) + level.percent);
+  }
+
+  return normalizeLevels(
+    Array.from(grouped.entries()).map(([price, percent]) => ({
+      price,
+      percent,
+    })),
+  );
 }
 
 function buildTriangleDistribution(
@@ -352,4 +428,8 @@ function clampInteger(value: number, min: number, max: number) {
 
 function roundPrice(price: number) {
   return Math.round(price * PRICE_PRECISION) / PRICE_PRECISION;
+}
+
+function roundToPriceStep(price: number, step: number) {
+  return roundPrice(Math.round(price / step) * step);
 }
