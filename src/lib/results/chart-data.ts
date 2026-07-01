@@ -1,9 +1,22 @@
 import {
+  readCalculatedChipDistribution,
+  readCalculatedChipModelStatusesForRun,
+  readLatestCalculatedChipModelRun,
+} from "@/lib/chip/chip-model-store";
+import {
+  CHIP_MODEL_VERSION,
+  DEFAULT_CHIP_DECAY_COEFFICIENT,
+  SUPPORTED_CHIP_DECAY_COEFFICIENTS,
+} from "@/lib/chip/chip-model";
+import {
   readChipDistributionForDate,
   readChipDistributionStatusesForRun,
   readLatestChipDistributionRun,
 } from "@/lib/chip/chip-store";
 import type {
+  CalculatedChipModelStatusRecord,
+  ChipCalculatedDistributionLevel,
+  ChipDecayCoefficient,
   ChipDistributionLevel,
   ChipDistributionStatusRecord,
   ChipDistributionTargetKind,
@@ -15,6 +28,8 @@ import type {
   ChartChipDistributionLevel,
   ChartChipDistributionPanel,
   ChartChipDistributions,
+  ChartCalculatedChipDistributionPanel,
+  ChartCalculatedChipDistributions,
   ChartDailyBar,
   ChartUnavailableReason,
   ChartMovingAveragePoint,
@@ -42,7 +57,7 @@ function toChartBar(bar: ScreeningDailyBar): ChartDailyBar {
 }
 
 function toDistributionLevel(
-  level: ChipDistributionLevel,
+  level: Pick<ChipDistributionLevel, "price" | "percent">,
 ): ChartChipDistributionLevel {
   return {
     price: level.price,
@@ -94,6 +109,18 @@ function findStatus(
   targetKind: ChipDistributionTargetKind,
 ) {
   return statuses.find((status) => status.targetKind === targetKind);
+}
+
+function findCalculatedStatus(
+  statuses: CalculatedChipModelStatusRecord[],
+  targetKind: ChipDistributionTargetKind,
+  decayCoefficient: ChipDecayCoefficient,
+) {
+  return statuses.find(
+    (status) =>
+      status.targetKind === targetKind &&
+      status.decayCoefficient === decayCoefficient,
+  );
 }
 
 function maxDistributionLevel(levels: ChartChipDistributionLevel[]) {
@@ -179,6 +206,111 @@ function buildDistributionPanel(
   };
 }
 
+function buildCalculatedMissingPanel({
+  targetKind,
+  targetTradeDate,
+  decayCoefficient,
+}: {
+  targetKind: ChipDistributionTargetKind;
+  targetTradeDate: string | null;
+  decayCoefficient: ChipDecayCoefficient;
+}): ChartCalculatedChipDistributionPanel {
+  return {
+    targetKind,
+    label: targetLabel(targetKind),
+    targetTradeDate,
+    seedTradeDate: null,
+    status: "missing",
+    decayCoefficient,
+    modelVersion: CHIP_MODEL_VERSION,
+    levels: [],
+    maxLevel: null,
+    unavailableReason: "missing_trade_data",
+    errorCategory: null,
+    errorSummary:
+      targetKind === "previous" && targetTradeDate === null
+        ? "previous_trade_date_missing"
+        : null,
+  };
+}
+
+function buildCalculatedPanel({
+  targetKind,
+  status,
+  fallbackTargetTradeDate,
+  decayCoefficient,
+}: {
+  targetKind: ChipDistributionTargetKind;
+  status: CalculatedChipModelStatusRecord | undefined;
+  fallbackTargetTradeDate: string | null;
+  decayCoefficient: ChipDecayCoefficient;
+}): ChartCalculatedChipDistributionPanel {
+  if (!status) {
+    return buildCalculatedMissingPanel({
+      targetKind,
+      targetTradeDate: fallbackTargetTradeDate,
+      decayCoefficient,
+    });
+  }
+
+  const base = {
+    targetKind,
+    label: targetLabel(targetKind),
+    targetTradeDate: status.targetTradeDate ?? fallbackTargetTradeDate,
+    seedTradeDate: status.seedTradeDate,
+    decayCoefficient,
+    modelVersion: status.modelVersion,
+  };
+
+  if (
+    status.status !== "succeeded" ||
+    status.targetTradeDate === null ||
+    status.seedTradeDate === null
+  ) {
+    return {
+      ...base,
+      status: status.status,
+      levels: [],
+      maxLevel: null,
+      unavailableReason: status.unavailableReason,
+      errorCategory: status.errorCategory,
+      errorSummary: sanitizeErrorSummary(status.errorSummary),
+    };
+  }
+
+  const levels = readCalculatedChipDistribution({
+    tsCode: status.tsCode,
+    targetTradeDate: status.targetTradeDate,
+    seedTradeDate: status.seedTradeDate,
+    decayCoefficient,
+    modelVersion: status.modelVersion,
+  }).map((level: ChipCalculatedDistributionLevel) =>
+    toDistributionLevel(level),
+  );
+
+  if (levels.length === 0) {
+    return {
+      ...base,
+      status: "blocked",
+      levels: [],
+      maxLevel: null,
+      unavailableReason: "missing_trade_data",
+      errorCategory: "empty_data",
+      errorSummary: "calculated chip distribution cache has no levels",
+    };
+  }
+
+  return {
+    ...base,
+    status: "succeeded",
+    levels,
+    maxLevel: maxDistributionLevel(levels),
+    unavailableReason: null,
+    errorCategory: null,
+    errorSummary: null,
+  };
+}
+
 function withSharedScale(panels: {
   previous: ChartChipDistributionPanel;
   latest: ChartChipDistributionPanel;
@@ -195,6 +327,35 @@ function withSharedScale(panels: {
   );
 
   return {
+    previous: panels.previous,
+    latest: panels.latest,
+    scale: {
+      priceLevels,
+      maxPercent,
+    },
+  };
+}
+
+function calculatedWithSharedScale(
+  decayCoefficient: ChipDecayCoefficient,
+  panels: {
+    previous: ChartCalculatedChipDistributionPanel;
+    latest: ChartCalculatedChipDistributionPanel;
+  },
+) {
+  const successfulLevels = [panels.previous, panels.latest]
+    .filter((panel) => panel.status === "succeeded")
+    .flatMap((panel) => panel.levels);
+  const priceLevels = Array.from(
+    new Set(successfulLevels.map((level) => level.price)),
+  ).sort((left, right) => left - right);
+  const maxPercent = successfulLevels.reduce(
+    (max, level) => Math.max(max, level.percent),
+    0,
+  );
+
+  return {
+    decayCoefficient,
     previous: panels.previous,
     latest: panels.latest,
     scale: {
@@ -230,6 +391,49 @@ function buildChipDistributions(
   );
 
   return withSharedScale({ previous, latest });
+}
+
+function buildCalculatedChipDistributions(
+  screeningRunId: number,
+  tsCode: string,
+  latestTradeDate: string,
+  bars: ScreeningDailyBar[],
+): ChartCalculatedChipDistributions {
+  const calculatedRun = readLatestCalculatedChipModelRun(screeningRunId);
+  const statuses =
+    calculatedRun?.screeningRunId === screeningRunId
+      ? readCalculatedChipModelStatusesForRun(calculatedRun.id).filter(
+          (status) => status.tsCode === tsCode,
+        )
+      : [];
+  const previousTradeDate = findPreviousTradeDate(bars, latestTradeDate);
+  const byCoefficient: ChartCalculatedChipDistributions["byCoefficient"] = {};
+
+  for (const decayCoefficient of SUPPORTED_CHIP_DECAY_COEFFICIENTS) {
+    const previous = buildCalculatedPanel({
+      targetKind: "previous",
+      status: findCalculatedStatus(statuses, "previous", decayCoefficient),
+      fallbackTargetTradeDate: previousTradeDate,
+      decayCoefficient,
+    });
+    const latest = buildCalculatedPanel({
+      targetKind: "latest",
+      status: findCalculatedStatus(statuses, "latest", decayCoefficient),
+      fallbackTargetTradeDate: latestTradeDate,
+      decayCoefficient,
+    });
+
+    byCoefficient[String(decayCoefficient)] = calculatedWithSharedScale(
+      decayCoefficient,
+      { previous, latest },
+    );
+  }
+
+  return {
+    defaultDecayCoefficient: DEFAULT_CHIP_DECAY_COEFFICIENT,
+    coefficients: [...SUPPORTED_CHIP_DECAY_COEFFICIENTS],
+    byCoefficient,
+  };
 }
 
 function unavailable(unavailableReason: ChartUnavailableReason): ChartSnapshot {
@@ -313,6 +517,12 @@ export function readLatestChartSnapshot(tsCode: string): ChartSnapshot {
       threshold85Price: row.intervalHigh * 0.85,
     },
     chipDistributions: buildChipDistributions(
+      screeningRunId,
+      row.tsCode,
+      row.latestTradeDate,
+      bars,
+    ),
+    calculatedChipDistributions: buildCalculatedChipDistributions(
       screeningRunId,
       row.tsCode,
       row.latestTradeDate,

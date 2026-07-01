@@ -144,6 +144,53 @@ function readySnapshot(
         maxPercent: 6.5,
       },
     },
+    calculatedChipDistributions: {
+      defaultDecayCoefficient: 0.5,
+      coefficients: [0.3, 0.5, 0.8, 1, 1.2, 1.5, 2],
+      byCoefficient: {
+        "0.5": {
+          decayCoefficient: 0.5,
+          previous: {
+            targetKind: "previous",
+            label: "前一有效交易日",
+            targetTradeDate: "20260622",
+            seedTradeDate: "20260401",
+            status: "succeeded",
+            decayCoefficient: 0.5,
+            modelVersion: "decay-triangle-v1",
+            levels: [
+              { price: 30, percent: 7 },
+              { price: 31, percent: 3 },
+            ],
+            maxLevel: { price: 30, percent: 7 },
+            unavailableReason: null,
+            errorCategory: null,
+            errorSummary: null,
+          },
+          latest: {
+            targetKind: "latest",
+            label: "最新有效交易日",
+            targetTradeDate: "20260623",
+            seedTradeDate: "20260402",
+            status: "succeeded",
+            decayCoefficient: 0.5,
+            modelVersion: "decay-triangle-v1",
+            levels: [
+              { price: 31, percent: 8 },
+              { price: 32, percent: 4 },
+            ],
+            maxLevel: { price: 31, percent: 8 },
+            unavailableReason: null,
+            errorCategory: null,
+            errorSummary: null,
+          },
+          scale: {
+            priceLevels: [30, 31, 32],
+            maxPercent: 8,
+          },
+        },
+      },
+    },
   };
 
   return { ...snapshot, ...overrides };

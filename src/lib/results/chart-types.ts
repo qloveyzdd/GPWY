@@ -1,5 +1,10 @@
 import type { TushareErrorCategory } from "@/lib/tushare/types";
 import type { ResultRow, ResultsUnavailableReason } from "@/lib/results/results-types";
+import type {
+  ChipDecayCoefficient,
+  ChipModelUnavailableReason,
+  CHIP_MODEL_VERSION,
+} from "@/lib/chip/chip-types";
 
 export type ChartSnapshotStatus = "ready" | "not_found" | "unavailable";
 
@@ -56,6 +61,34 @@ export type ChartChipDistributions = {
   scale: ChartChipDistributionScale;
 };
 
+export type ChartCalculatedChipDistributionPanel = {
+  targetKind: ChartChipDistributionTargetKind;
+  label: string;
+  targetTradeDate: string | null;
+  seedTradeDate: string | null;
+  status: ChartChipDistributionStatus;
+  decayCoefficient: ChipDecayCoefficient;
+  modelVersion: typeof CHIP_MODEL_VERSION;
+  levels: ChartChipDistributionLevel[];
+  maxLevel: ChartChipDistributionLevel | null;
+  unavailableReason: ChipModelUnavailableReason | null;
+  errorCategory: TushareErrorCategory | null;
+  errorSummary: string | null;
+};
+
+export type ChartCalculatedChipDistributionSet = {
+  decayCoefficient: ChipDecayCoefficient;
+  previous: ChartCalculatedChipDistributionPanel;
+  latest: ChartCalculatedChipDistributionPanel;
+  scale: ChartChipDistributionScale;
+};
+
+export type ChartCalculatedChipDistributions = {
+  defaultDecayCoefficient: ChipDecayCoefficient;
+  coefficients: ChipDecayCoefficient[];
+  byCoefficient: Record<string, ChartCalculatedChipDistributionSet>;
+};
+
 export type ChartOverlays = {
   intervalHighPrice: number;
   intervalHighTradeDate: string;
@@ -71,6 +104,7 @@ export type ReadyChartSnapshot = {
   ma60Series: ChartMovingAveragePoint[];
   overlays: ChartOverlays;
   chipDistributions: ChartChipDistributions;
+  calculatedChipDistributions: ChartCalculatedChipDistributions;
 };
 
 export type UnavailableChartSnapshot = {
