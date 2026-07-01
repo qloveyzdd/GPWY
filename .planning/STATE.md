@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: 衰减筹码分布模型
-status: executing
-stopped_at: Completed 12-03-PLAN.md
-last_updated: "2026-07-01T02:58:11.625Z"
+status: completed
+stopped_at: Completed 12-04-PLAN.md
+last_updated: "2026-07-01T11:24:00+08:00"
 last_activity: 2026-07-01
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 0
+  completed_plans: 4
+  percent: 100
 ---
 
 # Project State
@@ -22,20 +22,20 @@ See: .planning/PROJECT.md (updated 2026-06-30)
 
 **Core value:** 用户可以可靠地筛出当前价格低于最近下降区间波段高点 85% 的 A 股，并用可解释的筹码分布辅助研判。
 
-**Current focus:** Phase 12 — decay-based-chip-distribution-model
+**Current focus:** Phase 12 — decay-based-chip-distribution-model complete
 
 ## Current Position
 
-Phase: 12 (decay-based-chip-distribution-model) — EXECUTING
+Phase: 12 (decay-based-chip-distribution-model) — COMPLETE
 Plan: 4 of 4
-Status: Ready to execute
+Status: Verified
 Last activity: 2026-07-01
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 36
+- Total plans completed: 37
 - Average duration: 13 min
 - Total execution time: 2.5 hours
 
@@ -54,10 +54,11 @@ Last activity: 2026-07-01
 | 09 | 4 | - | - |
 | 10 | 4 | - | - |
 | 11 | 4 | - | - |
+| 12. Decay-Based Chip Distribution Model | 4/4 | 107 min | 27 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 06-03 deployment smoke verification, 07-01 normalized store, 07-02 dynamic adjustment, 07-03 safe bootstrap, 07-04 compatibility UI
+- Last 5 plans: 11-04 detail fallback, 12-01 model data input, 12-02 pure decay model, 12-03 cache runner, 12-04 chart UI integration
 - Trend: stable
 
 *Updated after each plan completion*
@@ -81,6 +82,7 @@ Last activity: 2026-07-01
 | Phase 12 P12-01 | 18 min | 3 tasks | 12 files |
 | Phase 12 P12-02 | 20 min | 3 tasks | 3 files |
 | Phase 12 P12-03 | 45 min | 3 tasks | 10 files |
+| Phase 12 P12-04 | 24 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -103,6 +105,7 @@ Recent decisions affecting current work:
 - Remove chip peak columns from the results table and show two full distributions in stock details.
 - Configure concurrency through server environment variables; keep full rebuild as an operations command.
 - Keep official `cyq_chips`, seed distributions, and calculated chip distributions separate; calculated distributions must be labeled as model output.
+- [Phase 12]: 详情页同时展示官方分布和计算分布，计算分布通过固定衰减系数本地切换。 — 明确标注“模型输出，不等同官方 cyq_chips”，避免把内部模型误认为交易软件或官方真实筹码。
 - [Phase 08]: 调度器是 provider 重试、退避、动态并发和优先级的唯一政策层。 — 避免工作流和客户端叠加重试，确保尝试次数及并发预算可证明。
 - [Phase 08]: REST attempt 超时通过 AbortSignal 下传到 fetch。 — 终止真实网络请求，避免外层超时后仍存在幽灵在途请求。
 - [Phase 08]: tinyshare worker 槽位只管理进程恢复，不在池内执行请求级重试。 — 请求尝试预算由统一 scheduler 单独拥有，避免 worker 重建与请求重试相乘。
@@ -118,7 +121,7 @@ None yet.
 
 ### Blockers/Concerns
 
-No current milestone blockers. Phase 12 still needs discussion to finalize the exact daily allocation formula and cache invalidation behavior for calculated distributions.
+No current milestone blockers. Phase 12 is verified and ready for milestone close-out.
 
 ### Quick Tasks Completed
 
@@ -138,10 +141,10 @@ No current milestone blockers. Phase 12 still needs discussion to finalize the e
 
 ## Session Continuity
 
-Last session: 2026-07-01T02:58:11.619Z
-Stopped at: Completed 12-03-PLAN.md
+Last session: 2026-07-01T11:24:00+08:00
+Stopped at: Completed 12-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
 
-- Run `$gsd-discuss-phase 12` to finalize the calculation formula and UI behavior before planning implementation.
+- Run `$gsd-complete-milestone` to archive v2.1, or start the next requirement with `$gsd-new-milestone`.

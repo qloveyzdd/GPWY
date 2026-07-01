@@ -4,7 +4,7 @@
 
 - [x] **v1.0 MVP** — Phases 1-6，37/37 需求完成，2026-06-24 发布。归档：[路线图](./milestones/v1.0-ROADMAP.md) · [需求](./milestones/v1.0-REQUIREMENTS.md) · [审计](./milestones/v1.0-MILESTONE-AUDIT.md)
 - [x] **v2.0 增量刷新与筹码分布对比** — Phases 7-11，27/27 需求完成，2026-06-30 发布。归档：[路线图](./milestones/v2.0-ROADMAP.md) · [需求](./milestones/v2.0-REQUIREMENTS.md) · [审计](./milestones/v2.0-MILESTONE-AUDIT.md)
-- [ ] **v2.1 衰减筹码分布模型** — Phase 12，13 项需求。
+- [ ] **v2.1 衰减筹码分布模型** — Phase 12，13/13 项需求完成，待里程碑归档。
 
 ## Phases
 
@@ -30,4 +30,4 @@
 |-----------|--------|--------------|--------|---------|
 | v1.0 MVP | 1-6 | 37/37 | Shipped | 2026-06-24 |
 | v2.0 增量刷新与筹码分布对比 | 7-11 | 27/27 | Shipped | 2026-06-30 |
-| v2.1 衰减筹码分布模型 | 12 | 0/13 | Planned | - |
+| v2.1 衰减筹码分布模型 | 12 | 13/13 | Complete | 2026-07-01 |

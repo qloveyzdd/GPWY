@@ -22,9 +22,9 @@
 
 ### Results Experience
 
-- [ ] **UI-08**: 股票详情页可以切换衰减系数，并显示对应的计算筹码分布图。
-- [ ] **UI-09**: 图表必须清楚标明“计算分布”而非官方 `cyq_chips`，并展示目标日、种子日和当前衰减系数。
-- [ ] **UI-10**: 当计算分布不可用时，页面保留官方原始分布或现有可用图，并单独说明计算不可用原因。
+- [x] **UI-08**: 股票详情页可以切换衰减系数，并显示对应的计算筹码分布图。
+- [x] **UI-09**: 图表必须清楚标明“计算分布”而非官方 `cyq_chips`，并展示目标日、种子日和当前衰减系数。
+- [x] **UI-10**: 当计算分布不可用时，页面保留官方原始分布或现有可用图，并单独说明计算不可用原因。
 
 ### Validation
 
@@ -45,19 +45,19 @@
 
 | Requirement | Planned Phase | Status |
 |-------------|---------------|--------|
-| DATA-10 | Phase 12 | Planned |
-| DATA-11 | Phase 12 | Planned |
-| DATA-12 | Phase 12 | Planned |
-| CMOD-01 | Phase 12 | Planned |
-| CMOD-02 | Phase 12 | Planned |
-| CMOD-03 | Phase 12 | Planned |
-| CMOD-04 | Phase 12 | Planned |
-| CMOD-05 | Phase 12 | Planned |
-| UI-08 | Phase 12 | Planned |
-| UI-09 | Phase 12 | Planned |
-| UI-10 | Phase 12 | Planned |
-| VAL-01 | Phase 12 | Planned |
-| VAL-02 | Phase 12 | Planned |
+| DATA-10 | Phase 12 | Complete |
+| DATA-11 | Phase 12 | Complete |
+| DATA-12 | Phase 12 | Complete |
+| CMOD-01 | Phase 12 | Complete |
+| CMOD-02 | Phase 12 | Complete |
+| CMOD-03 | Phase 12 | Complete |
+| CMOD-04 | Phase 12 | Complete |
+| CMOD-05 | Phase 12 | Complete |
+| UI-08 | Phase 12 | Complete |
+| UI-09 | Phase 12 | Complete |
+| UI-10 | Phase 12 | Complete |
+| VAL-01 | Phase 12 | Complete |
+| VAL-02 | Phase 12 | Complete |
 
 **Coverage:**
 - v2.1 requirements: 13 total

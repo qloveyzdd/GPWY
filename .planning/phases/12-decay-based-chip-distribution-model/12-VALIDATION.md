@@ -1,7 +1,7 @@
 ---
 phase: 12
 slug: decay-based-chip-distribution-model
-status: draft
+status: passed
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-07-01
@@ -31,16 +31,16 @@ created: 2026-07-01
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 12-01-01 | 12-01 | 1 | DATA-11, CMOD-02 | T-12-01 | 市场缓存包含成交额和换手率，不用 `vol` 伪装换手率。 | unit/type | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/fetch-refresh-data.test.ts tests/refresh/market-data-store.test.ts` | ✓ | pending |
-| 12-01-02 | 12-01 | 1 | DATA-11, VAL-01 | T-12-02 | 复权一致模型输入包含 OHLC、均价、换手率和缺失原因。 | unit | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-reader.test.ts` | ✓ | pending |
-| 12-02-01 | 12-02 | 1 | CMOD-01, CMOD-02, CMOD-03, VAL-01 | T-12-03 | 衰减系数影响旧筹码留存，新筹码只落在当日价格区间内。 | unit | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model.test.ts` | expected | pending |
-| 12-02-02 | 12-02 | 1 | DATA-12, CMOD-04, VAL-01 | T-12-04 | 种子分布与输出归一化，缺失输入返回结构化不可用。 | unit | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model.test.ts` | expected | pending |
-| 12-03-01 | 12-03 | 2 | DATA-10, DATA-12, CMOD-04 | T-12-05 | seed snapshot、computed levels 与官方 `cyq_chips` 隔离存储。 | unit | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model-store.test.ts` | expected | pending |
-| 12-03-02 | 12-03 | 2 | CMOD-01, CMOD-03, CMOD-05, VAL-02 | T-12-06 | 后台为 latest/previous 和 7 个系数生成可复用结果。 | integration | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model-runner.test.ts tests/refresh/refresh-runner.test.ts` | expected | pending |
-| 12-04-01 | 12-04 | 3 | UI-08, UI-09, UI-10 | T-12-07 | UI 默认 0.5，可切换固定系数，并标明计算分布口径。 | component | `D:\NodeJS\npm.cmd run test -- --run tests/ui/stock-kline-chart.test.tsx` | ✓ | pending |
-| 12-04-02 | 12-04 | 3 | CMOD-04, UI-10 | T-12-08 | 计算分布不可用时保留官方图并显示单日原因。 | unit/component | `D:\NodeJS\npm.cmd run test -- --run tests/results/chart-data.test.ts tests/ui/stock-kline-chart.test.tsx` | ✓ | pending |
-| 12-04-03 | 12-04 | 3 | VAL-02 | T-12-09 | 固定 fixture 能复现不同系数的分布差异。 | fixture/unit | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model-runner.test.ts tests/results/chart-data.test.ts` | expected | pending |
-| 12-04-04 | 12-04 | 3 | DATA-10, DATA-11, DATA-12, CMOD-01, CMOD-02, CMOD-03, CMOD-04, CMOD-05, UI-08, UI-09, UI-10, VAL-01, VAL-02 | T-12-10 | 全链路类型、lint、测试、构建通过。 | full | `D:\NodeJS\npm.cmd run verify` | ✓ | pending |
+| 12-01-01 | 12-01 | 1 | DATA-11, CMOD-02 | T-12-01 | 市场缓存包含成交额和换手率，不用 `vol` 伪装换手率。 | unit/type | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/fetch-refresh-data.test.ts tests/refresh/market-data-store.test.ts` | ✓ | passed |
+| 12-01-02 | 12-01 | 1 | DATA-11, VAL-01 | T-12-02 | 复权一致模型输入包含 OHLC、均价、换手率和缺失原因。 | unit | `D:\NodeJS\npm.cmd run test -- --run tests/refresh/market-data-reader.test.ts` | ✓ | passed |
+| 12-02-01 | 12-02 | 1 | CMOD-01, CMOD-02, CMOD-03, VAL-01 | T-12-03 | 衰减系数影响旧筹码留存，新筹码只落在当日价格区间内。 | unit | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model.test.ts` | ✓ | passed |
+| 12-02-02 | 12-02 | 1 | DATA-12, CMOD-04, VAL-01 | T-12-04 | 种子分布与输出归一化，缺失输入返回结构化不可用。 | unit | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model.test.ts` | ✓ | passed |
+| 12-03-01 | 12-03 | 2 | DATA-10, DATA-12, CMOD-04 | T-12-05 | seed snapshot、computed levels 与官方 `cyq_chips` 隔离存储。 | unit | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model-store.test.ts` | ✓ | passed |
+| 12-03-02 | 12-03 | 2 | CMOD-01, CMOD-03, CMOD-05, VAL-02 | T-12-06 | 后台为 latest/previous 和 7 个系数生成可复用结果。 | integration | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model-runner.test.ts tests/refresh/refresh-runner.test.ts` | ✓ | passed |
+| 12-04-01 | 12-04 | 3 | UI-08, UI-09, UI-10 | T-12-07 | UI 默认 0.5，可切换固定系数，并标明计算分布口径。 | component | `D:\NodeJS\npm.cmd run test -- --run tests/ui/stock-kline-chart.test.tsx` | ✓ | passed |
+| 12-04-02 | 12-04 | 3 | CMOD-04, UI-10 | T-12-08 | 计算分布不可用时保留官方图并显示单日原因。 | unit/component | `D:\NodeJS\npm.cmd run test -- --run tests/results/chart-data.test.ts tests/ui/stock-kline-chart.test.tsx` | ✓ | passed |
+| 12-04-03 | 12-04 | 3 | VAL-02 | T-12-09 | 固定 fixture 能复现不同系数的分布差异。 | fixture/unit | `D:\NodeJS\npm.cmd run test -- --run tests/chip/chip-model-runner.test.ts tests/results/chart-data.test.ts` | ✓ | passed |
+| 12-04-04 | 12-04 | 3 | DATA-10, DATA-11, DATA-12, CMOD-01, CMOD-02, CMOD-03, CMOD-04, CMOD-05, UI-08, UI-09, UI-10, VAL-01, VAL-02 | T-12-10 | 全链路类型、lint、测试、构建通过。 | full | `D:\NodeJS\npm.cmd run verify` | ✓ | passed |
 
 ## Wave 0 Requirements
 
@@ -66,4 +66,4 @@ created: 2026-07-01
 - [x] 不使用 watch-mode 命令。
 - [x] `nyquist_compliant: true` set in frontmatter.
 
-Approval: pending execution
+Approval: passed 2026-07-01
