@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: 衰减筹码分布模型
-status: requirements_defined
-stopped_at: Created v2.1 requirements and Phase 12 roadmap entry
-last_updated: "2026-06-30T21:32:00+08:00"
+status: Requirements defined
+stopped_at: Phase 12 context gathered
+last_updated: "2026-07-01T01:41:06.722Z"
 last_activity: 2026-06-30 — v2.1 requirements defined
 progress:
   total_phases: 1
@@ -135,9 +135,9 @@ No current milestone blockers. Phase 12 still needs discussion to finalize the e
 
 ## Session Continuity
 
-Last session: 2026-06-30T21:32:00+08:00
-Stopped at: Created v2.1 requirements and Phase 12 roadmap entry
-Resume file: None
+Last session: 2026-07-01T01:41:06.702Z
+Stopped at: Phase 12 context gathered
+Resume file: .planning/phases/12-decay-based-chip-distribution-model/12-CONTEXT.md
 
 ## Operator Next Steps
 
