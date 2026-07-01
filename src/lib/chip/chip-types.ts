@@ -90,6 +90,78 @@ export type ChipDecayModelResult =
   | ChipDecayModelSucceededResult
   | ChipDecayModelUnavailableResult;
 
+export type CalculatedChipDistributionStatus =
+  | "succeeded"
+  | "blocked"
+  | "failed"
+  | "missing";
+
+export type CalculatedChipModelRunStatus =
+  | "succeeded"
+  | "partial"
+  | "blocked"
+  | "failed";
+
+export type CalculatedChipDistributionKey = {
+  tsCode: string;
+  targetTradeDate: string;
+  seedTradeDate: string;
+  decayCoefficient: ChipDecayCoefficient;
+  modelVersion: typeof CHIP_MODEL_VERSION;
+};
+
+export type CalculatedChipDistributionWorkTarget = {
+  screeningRunId: number;
+  tsCode: string;
+  targetKind: ChipDistributionTargetKind;
+  targetTradeDate: string | null;
+  seedTradeDate: string | null;
+  decayCoefficient: ChipDecayCoefficient;
+  modelVersion: typeof CHIP_MODEL_VERSION;
+};
+
+export type CalculatedChipModelStatusRecord =
+  CalculatedChipDistributionWorkTarget & {
+    chipModelRunId: number;
+    status: CalculatedChipDistributionStatus;
+    unavailableReason: ChipModelUnavailableReason | null;
+    errorCategory: TushareErrorCategory | null;
+    errorSummary: string | null;
+    updatedAt: string;
+  };
+
+export type CalculatedChipModelRunRecord = {
+  id: number;
+  screeningRunId: number;
+  status: CalculatedChipModelRunStatus;
+  createdAt: string;
+  totalTargets: number;
+  successCount: number;
+  blockedCount: number;
+  failedCount: number;
+  missingCount: number;
+  skippedCompleteCount: number;
+};
+
+export type CalculatedChipDistributionWorkItem =
+  CalculatedChipDistributionWorkTarget & {
+    currentStatus: CalculatedChipDistributionStatus | null;
+    reason: "not_seen" | "retry_failed" | "incomplete_succeeded";
+  };
+
+export type CalculatedChipDistributionWorkPlan = {
+  totalTargets: number;
+  items: CalculatedChipDistributionWorkItem[];
+  skippedCompleteTargets: CalculatedChipDistributionWorkTarget[];
+  blockedTargets: CalculatedChipDistributionWorkTarget[];
+  missingTargets: CalculatedChipDistributionWorkTarget[];
+  skippedCompleteCount: number;
+  blockedCount: number;
+  missingCount: number;
+  failedRetryCount: number;
+  pendingCount: number;
+};
+
 export type ChipDistributionStatus =
   | "succeeded"
   | "blocked"

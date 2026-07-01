@@ -20,7 +20,10 @@ import {
   CHIP_MODEL_VERSION,
   DEFAULT_CHIP_DECAY_COEFFICIENT,
 } from "@/lib/chip/chip-model";
-import type { CalculatedChipDistributionWorkTarget } from "@/lib/chip/chip-types";
+import type {
+  CalculatedChipDistributionKey,
+  CalculatedChipDistributionWorkTarget,
+} from "@/lib/chip/chip-types";
 
 const tempRoots: string[] = [];
 
@@ -52,6 +55,13 @@ function key(
   };
 }
 
+function completeKey(
+  overrides: Partial<CalculatedChipDistributionKey> = {},
+): CalculatedChipDistributionKey & CalculatedChipDistributionWorkTarget {
+  return key(overrides) as CalculatedChipDistributionKey &
+    CalculatedChipDistributionWorkTarget;
+}
+
 describe("calculated chip model store", () => {
   it("stores calculated levels and seed snapshots without touching official distribution levels", () => {
     useTempStore();
@@ -62,25 +72,25 @@ describe("calculated chip model store", () => {
     });
 
     replaceChipModelSeedSnapshot({
-      ...key(),
+      ...completeKey(),
       levels: [
         { price: 15, percent: 40 },
         { price: 16, percent: 60 },
       ],
     });
     replaceCalculatedChipDistribution({
-      ...key(),
+      ...completeKey(),
       levels: [
         { price: 12, percent: 35 },
         { price: 15, percent: 65 },
       ],
     });
 
-    expect(readChipModelSeedSnapshot(key())).toEqual([
+    expect(readChipModelSeedSnapshot(completeKey())).toEqual([
       { price: 15, percent: 40 },
       { price: 16, percent: 60 },
     ]);
-    expect(readCalculatedChipDistribution(key())).toEqual([
+    expect(readCalculatedChipDistribution(completeKey())).toEqual([
       { price: 12, percent: 35 },
       { price: 15, percent: 65 },
     ]);
@@ -98,26 +108,26 @@ describe("calculated chip model store", () => {
     useTempStore();
 
     replaceCalculatedChipDistribution({
-      ...key({ decayCoefficient: 0.5 }),
+      ...completeKey({ decayCoefficient: 0.5 }),
       levels: [{ price: 12, percent: 100 }],
     });
     replaceCalculatedChipDistribution({
-      ...key({ decayCoefficient: 1.5 }),
+      ...completeKey({ decayCoefficient: 1.5 }),
       levels: [{ price: 18, percent: 100 }],
     });
 
-    expect(readCalculatedChipDistribution(key({ decayCoefficient: 0.5 }))).toEqual([
-      { price: 12, percent: 100 },
-    ]);
-    expect(readCalculatedChipDistribution(key({ decayCoefficient: 1.5 }))).toEqual([
-      { price: 18, percent: 100 },
-    ]);
+    expect(
+      readCalculatedChipDistribution(completeKey({ decayCoefficient: 0.5 })),
+    ).toEqual([{ price: 12, percent: 100 }]);
+    expect(
+      readCalculatedChipDistribution(completeKey({ decayCoefficient: 1.5 })),
+    ).toEqual([{ price: 18, percent: 100 }]);
   });
 
   it("writes statuses and plans cached, failed, blocked, missing, and unseen work separately", () => {
     useTempStore();
     replaceCalculatedChipDistribution({
-      ...key({ decayCoefficient: 0.5 }),
+      ...completeKey({ decayCoefficient: 0.5 }),
       levels: [{ price: 12, percent: 100 }],
     });
     const run = writeCalculatedChipModelRun({
@@ -167,9 +177,9 @@ describe("calculated chip model store", () => {
     });
 
     expect(readCalculatedChipModelStatusesForRun(run.id)).toHaveLength(4);
-    expect(isCalculatedChipDistributionComplete(key({ decayCoefficient: 0.5 }))).toBe(
-      true,
-    );
+    expect(
+      isCalculatedChipDistributionComplete(key({ decayCoefficient: 0.5 })),
+    ).toBe(true);
 
     const plan = planCalculatedChipDistributionWork([
       key({ decayCoefficient: 0.5 }),

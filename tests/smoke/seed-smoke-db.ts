@@ -179,6 +179,85 @@ function migrate(db: DatabaseConnection) {
 
     create index chip_distribution_levels_target_lookup
       on chip_distribution_levels(ts_code, trade_date);
+
+    create table chip_model_runs (
+      id integer primary key autoincrement,
+      screening_run_id integer not null,
+      status text not null,
+      created_at text not null,
+      total_targets integer not null,
+      success_count integer not null,
+      blocked_count integer not null,
+      failed_count integer not null,
+      missing_count integer not null,
+      skipped_complete_count integer not null default 0
+    );
+
+    create index chip_model_runs_screening_run_id
+      on chip_model_runs(screening_run_id, id);
+
+    create table chip_model_statuses (
+      id integer primary key autoincrement,
+      chip_model_run_id integer not null,
+      screening_run_id integer not null,
+      ts_code text not null,
+      target_kind text not null,
+      target_trade_date text,
+      seed_trade_date text,
+      decay_coefficient real not null,
+      model_version text not null,
+      status text not null,
+      unavailable_reason text,
+      error_category text,
+      error_summary text,
+      updated_at text not null
+    );
+
+    create index chip_model_status_lookup
+      on chip_model_statuses(
+        ts_code,
+        target_trade_date,
+        seed_trade_date,
+        decay_coefficient,
+        model_version,
+        chip_model_run_id
+      );
+
+    create table chip_model_levels (
+      ts_code text not null,
+      target_trade_date text not null,
+      seed_trade_date text not null,
+      decay_coefficient real not null,
+      model_version text not null,
+      price real not null,
+      percent real not null,
+      calculated_at text not null,
+      primary key (
+        ts_code,
+        target_trade_date,
+        seed_trade_date,
+        decay_coefficient,
+        model_version,
+        price
+      )
+    );
+
+    create table chip_model_seed_snapshots (
+      ts_code text not null,
+      target_trade_date text not null,
+      seed_trade_date text not null,
+      model_version text not null,
+      price real not null,
+      percent real not null,
+      calculated_at text not null,
+      primary key (
+        ts_code,
+        target_trade_date,
+        seed_trade_date,
+        model_version,
+        price
+      )
+    );
   `);
 }
 
