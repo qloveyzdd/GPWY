@@ -10,6 +10,11 @@ import {
   writeChipDistributionRun,
 } from "@/lib/chip/chip-store";
 import {
+  replaceCalculatedChipDistribution,
+  writeCalculatedChipModelRun,
+} from "@/lib/chip/chip-model-store";
+import { CHIP_MODEL_VERSION } from "@/lib/chip/chip-model";
+import {
   activateMarketCacheGeneration,
   createMarketCacheGeneration,
   upsertMarketAdjustmentFactors,
@@ -174,6 +179,100 @@ function writeBlockedLatestAndSuccessfulPrevious(screeningRunId: number) {
         source: "cyq_chips_highest_percent",
         errorCategory: null,
         errorSummary: null,
+      },
+    ],
+  });
+}
+
+function writeCalculatedDistributionFixture(screeningRunId: number) {
+  replaceCalculatedChipDistribution({
+    tsCode: "000001.SZ",
+    targetTradeDate: "20260623",
+    seedTradeDate: "20260401",
+    decayCoefficient: 0.5,
+    modelVersion: CHIP_MODEL_VERSION,
+    levels: [
+      { price: 31, percent: 8 },
+      { price: 32, percent: 4 },
+    ],
+  });
+  replaceCalculatedChipDistribution({
+    tsCode: "000001.SZ",
+    targetTradeDate: "20260622",
+    seedTradeDate: "20260331",
+    decayCoefficient: 0.5,
+    modelVersion: CHIP_MODEL_VERSION,
+    levels: [{ price: 30, percent: 7 }],
+  });
+  replaceCalculatedChipDistribution({
+    tsCode: "000001.SZ",
+    targetTradeDate: "20260623",
+    seedTradeDate: "20260401",
+    decayCoefficient: 1,
+    modelVersion: CHIP_MODEL_VERSION,
+    levels: [{ price: 28, percent: 10 }],
+  });
+  writeCalculatedChipModelRun({
+    screeningRunId,
+    status: "partial",
+    totalTargets: 4,
+    successCount: 3,
+    blockedCount: 1,
+    failedCount: 0,
+    missingCount: 0,
+    statuses: [
+      {
+        screeningRunId,
+        tsCode: "000001.SZ",
+        targetKind: "latest",
+        targetTradeDate: "20260623",
+        seedTradeDate: "20260401",
+        decayCoefficient: 0.5,
+        modelVersion: CHIP_MODEL_VERSION,
+        status: "succeeded",
+        unavailableReason: null,
+        errorCategory: null,
+        errorSummary: null,
+      },
+      {
+        screeningRunId,
+        tsCode: "000001.SZ",
+        targetKind: "previous",
+        targetTradeDate: "20260622",
+        seedTradeDate: "20260331",
+        decayCoefficient: 0.5,
+        modelVersion: CHIP_MODEL_VERSION,
+        status: "succeeded",
+        unavailableReason: null,
+        errorCategory: null,
+        errorSummary: null,
+      },
+      {
+        screeningRunId,
+        tsCode: "000001.SZ",
+        targetKind: "latest",
+        targetTradeDate: "20260623",
+        seedTradeDate: "20260401",
+        decayCoefficient: 1,
+        modelVersion: CHIP_MODEL_VERSION,
+        status: "succeeded",
+        unavailableReason: null,
+        errorCategory: null,
+        errorSummary: null,
+      },
+      {
+        screeningRunId,
+        tsCode: "000001.SZ",
+        targetKind: "previous",
+        targetTradeDate: "20260622",
+        seedTradeDate: "20260331",
+        decayCoefficient: 1,
+        modelVersion: CHIP_MODEL_VERSION,
+        status: "blocked",
+        unavailableReason: "missing_turnover_rate",
+        errorCategory: null,
+        errorSummary:
+          "Authorization: Bearer secret TUSHARE_TOKEN=secret C:\\Users\\secret\\model.txt",
       },
     ],
   });
@@ -418,6 +517,129 @@ describe("chart data snapshot", () => {
       priceLevels: [35.9, 36.4],
       maxPercent: 5.5,
     });
+  });
+
+  it("returns calculated distribution DTO grouped by fixed coefficient with default 0.5", () => {
+    useTempStore();
+    const sourceRefreshJob = writeRefreshWithBars(
+      "000001.SZ",
+      makeBars("000001.SZ", 60),
+    );
+    const screeningRun = writeScreeningRun({
+      sourceRefreshJobId: sourceRefreshJob.id,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [
+        {
+          tsCode: "000001.SZ",
+          name: "平安银行",
+          latestTradeDate: "20260623",
+          currentPrice: 41,
+          intervalHigh: 90,
+          intervalHighTradeDate: "20260214",
+          intervalHighSource: "swing_high",
+          currentHighRatio: 41 / 90,
+          drawdownPct: 1 - 41 / 90,
+          ma20: 50.5,
+          ma60: 70.5,
+          ma20Slope: -1,
+        },
+      ],
+    });
+    writeDualChipDistribution(screeningRun.id);
+    writeCalculatedDistributionFixture(screeningRun.id);
+
+    const snapshot = readLatestChartSnapshot("000001.SZ");
+
+    expect(snapshot.status).toBe("ready");
+    if (snapshot.status !== "ready") {
+      throw new Error("expected ready chart snapshot");
+    }
+
+    expect(snapshot.calculatedChipDistributions.defaultDecayCoefficient).toBe(0.5);
+    expect(snapshot.calculatedChipDistributions.coefficients).toContain(1);
+    expect(snapshot.calculatedChipDistributions.byCoefficient["0.5"].latest)
+      .toMatchObject({
+        targetKind: "latest",
+        status: "succeeded",
+        targetTradeDate: "20260623",
+        seedTradeDate: "20260401",
+        decayCoefficient: 0.5,
+        modelVersion: CHIP_MODEL_VERSION,
+        levels: [
+          { price: 31, percent: 8 },
+          { price: 32, percent: 4 },
+        ],
+        maxLevel: { price: 31, percent: 8 },
+      });
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["0.5"].previous.levels,
+    ).toEqual([{ price: 30, percent: 7 }]);
+    expect(snapshot.calculatedChipDistributions.byCoefficient["0.5"].scale)
+      .toEqual({
+        priceLevels: [30, 31, 32],
+        maxPercent: 8,
+      });
+  });
+
+  it("keeps calculated coefficients isolated and sanitizes unavailable reasons", () => {
+    useTempStore();
+    const sourceRefreshJob = writeRefreshWithBars(
+      "000001.SZ",
+      makeBars("000001.SZ", 60),
+    );
+    const screeningRun = writeScreeningRun({
+      sourceRefreshJobId: sourceRefreshJob.id,
+      totalStocks: 1,
+      matchedCount: 1,
+      skippedCount: 0,
+      results: [
+        {
+          tsCode: "000001.SZ",
+          name: "平安银行",
+          latestTradeDate: "20260623",
+          currentPrice: 41,
+          intervalHigh: 90,
+          intervalHighTradeDate: "20260214",
+          intervalHighSource: "swing_high",
+          currentHighRatio: 41 / 90,
+          drawdownPct: 1 - 41 / 90,
+          ma20: 50.5,
+          ma60: 70.5,
+          ma20Slope: -1,
+        },
+      ],
+    });
+    writeCalculatedDistributionFixture(screeningRun.id);
+
+    const snapshot = readLatestChartSnapshot("000001.SZ");
+
+    expect(snapshot.status).toBe("ready");
+    if (snapshot.status !== "ready") {
+      throw new Error("expected ready chart snapshot");
+    }
+
+    expect(snapshot.calculatedChipDistributions.byCoefficient["1"].latest.levels)
+      .toEqual([{ price: 28, percent: 10 }]);
+    expect(snapshot.calculatedChipDistributions.byCoefficient["1"].previous)
+      .toMatchObject({
+        status: "blocked",
+        unavailableReason: "missing_turnover_rate",
+        levels: [],
+      });
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["1"].previous
+        .errorSummary,
+    ).not.toContain("TUSHARE_TOKEN=secret");
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["1"].previous
+        .errorSummary,
+    ).not.toContain("Authorization");
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["1"].previous
+        .errorSummary,
+    ).not.toContain("C:\\Users");
   });
 
   it("reads chart bars from the screening generation instead of legacy bars", () => {
