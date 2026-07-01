@@ -1,5 +1,6 @@
 import type {
   AdjustmentFactorRecord,
+  DailyBasicRecord,
   MarketStockRecord,
   MarketStockStatus,
   RawDailyQuoteRecord,
@@ -25,6 +26,7 @@ export type FetchRefreshDataResult = {
   stocks: MarketStockRecord[];
   dailyQuotes: RawDailyQuoteRecord[];
   adjustmentFactors: AdjustmentFactorRecord[];
+  dailyBasics: DailyBasicRecord[];
   tradeDates: string[];
 };
 
@@ -60,6 +62,20 @@ function optionalString(value: unknown) {
 }
 
 function requiredNumber(value: unknown, field: string) {
+  const numberValue = Number(value);
+
+  if (Number.isFinite(numberValue)) {
+    return numberValue;
+  }
+
+  throw new Error(`invalid ${field}`);
+}
+
+function optionalNumber(value: unknown, field: string) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
   const numberValue = Number(value);
 
   if (Number.isFinite(numberValue)) {
@@ -186,6 +202,23 @@ function mapDailyQuotes(table: TushareDataTable): RawDailyQuoteRecord[] {
       low: requiredNumber(mapped.low, "low"),
       close: requiredNumber(mapped.close, "close"),
       vol: requiredNumber(mapped.vol, "vol"),
+      amount: requiredNumber(mapped.amount, "amount"),
+    };
+  });
+}
+
+function mapDailyBasics(table: TushareDataTable): DailyBasicRecord[] {
+  return table.items.map((row) => {
+    const mapped = mapRow(table.fields, row);
+
+    return {
+      tsCode: requiredString(mapped.ts_code, "ts_code"),
+      tradeDate: requiredString(mapped.trade_date, "trade_date"),
+      turnoverRate: requiredNumber(mapped.turnover_rate, "turnover_rate"),
+      turnoverRateFreeFloat: optionalNumber(
+        mapped.turnover_rate_f,
+        "turnover_rate_f",
+      ),
     };
   });
 }
@@ -304,6 +337,22 @@ export async function fetchAdjustmentFactorsForDate({
   return mapAdjustmentFactors(table);
 }
 
+export async function fetchDailyBasicsForDate({
+  client,
+  tradeDate,
+}: {
+  client: TushareClientLike;
+  tradeDate: string;
+}) {
+  const table = await client.query(
+    TUSHARE_ENDPOINTS.dailyBasic,
+    { trade_date: tradeDate },
+    { priority: "market" },
+  );
+
+  return mapDailyBasics(table);
+}
+
 export async function fetchRefreshData({
   client,
   now = new Date(),
@@ -319,7 +368,7 @@ export async function fetchRefreshData({
   });
   const dateResults = await Promise.all(
     tradeDates.map(async (tradeDate) => {
-      const [dailyQuotes, adjustmentFactors] = await Promise.all([
+      const [dailyQuotes, adjustmentFactors, dailyBasics] = await Promise.all([
         fetchDailyQuotesForDate({
           client,
           tradeDate,
@@ -328,8 +377,12 @@ export async function fetchRefreshData({
           client,
           tradeDate,
         }),
+        fetchDailyBasicsForDate({
+          client,
+          tradeDate,
+        }),
       ]);
-      return { dailyQuotes, adjustmentFactors };
+      return { dailyQuotes, adjustmentFactors, dailyBasics };
     }),
   );
 
@@ -339,6 +392,7 @@ export async function fetchRefreshData({
     adjustmentFactors: dateResults.flatMap(
       (result) => result.adjustmentFactors,
     ),
+    dailyBasics: dateResults.flatMap((result) => result.dailyBasics),
     tradeDates,
   };
 }

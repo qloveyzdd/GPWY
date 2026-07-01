@@ -15,6 +15,14 @@ export type RawDailyQuoteRecord = {
   low: number;
   close: number;
   vol: number;
+  amount?: number | null;
+};
+
+export type DailyBasicRecord = {
+  tsCode: string;
+  tradeDate: string;
+  turnoverRate: number;
+  turnoverRateFreeFloat: number | null;
 };
 
 export type AdjustmentFactorRecord = {

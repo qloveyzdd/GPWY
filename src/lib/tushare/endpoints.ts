@@ -9,7 +9,20 @@ export const TUSHARE_ENDPOINTS = {
   },
   daily: {
     apiName: "daily",
-    fields: ["ts_code", "trade_date", "open", "high", "low", "close", "vol"],
+    fields: [
+      "ts_code",
+      "trade_date",
+      "open",
+      "high",
+      "low",
+      "close",
+      "vol",
+      "amount",
+    ],
+  },
+  dailyBasic: {
+    apiName: "daily_basic",
+    fields: ["ts_code", "trade_date", "turnover_rate", "turnover_rate_f"],
   },
   adjFactor: {
     apiName: "adj_factor",

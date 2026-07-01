@@ -254,7 +254,7 @@ describe("fetchRefreshData", () => {
         }
 
         return table(TUSHARE_ENDPOINTS.daily.fields, [
-          ["000001.SZ", params.trade_date, 10, 11, 9, 10.5, 1200],
+          ["000001.SZ", params.trade_date, 10, 11, 9, 10.5, 1200, 1260],
         ]);
       }
 
@@ -295,13 +295,19 @@ describe("fetchRefreshData", () => {
 
       if (endpoint.apiName === "daily") {
         return table(TUSHARE_ENDPOINTS.daily.fields, [
-          ["000001.SZ", "20260626", 10, 11, 9, 10.5, 1200],
+          ["000001.SZ", "20260626", 10, 11, 9, 10.5, 1200, 1260],
         ]);
       }
 
       if (endpoint.apiName === "adj_factor") {
         return table(TUSHARE_ENDPOINTS.adjFactor.fields, [
           ["000001.SZ", "20260626", 1],
+        ]);
+      }
+
+      if (endpoint.apiName === "daily_basic") {
+        return table(TUSHARE_ENDPOINTS.dailyBasic.fields, [
+          ["000001.SZ", "20260626", 2.3, 1.7],
         ]);
       }
 
