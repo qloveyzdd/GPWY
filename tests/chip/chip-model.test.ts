@@ -189,6 +189,38 @@ describe("decay chip distribution calculation", () => {
     });
   });
 
+  it("returns missing_trade_data when an expected intermediate trade date is absent", () => {
+    const result = calculateDecayChipDistribution({
+      tsCode: "000001.SZ",
+      seedTradeDate: "20260626",
+      targetTradeDate: "20260629",
+      seedLevels: [{ price: 20, percent: 100 }],
+      expectedTradeDates: ["20260627", "20260628", "20260629"],
+      bars: [
+        modelBar({
+          tradeDate: "20260627",
+          low: 10,
+          high: 12,
+          averagePrice: 11,
+          turnoverRate: 10,
+        }),
+        modelBar({
+          tradeDate: "20260629",
+          low: 11,
+          high: 13,
+          averagePrice: 12,
+          turnoverRate: 10,
+        }),
+      ],
+      decayCoefficient: 1,
+    });
+
+    expect(result).toMatchObject({
+      status: "unavailable",
+      reason: "missing_trade_data",
+    });
+  });
+
   it("returns structured unavailable reasons for missing turnover and adjustment", () => {
     const missingTurnover = calculateDecayChipDistribution({
       tsCode: "000001.SZ",
