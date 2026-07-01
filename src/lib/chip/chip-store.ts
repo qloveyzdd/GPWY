@@ -730,6 +730,33 @@ export function readChipDistributionForDate(
   }
 }
 
+export function readLatestChipDistributionDateOnOrBefore(
+  tsCode: string,
+  tradeDate: string,
+): string | null {
+  const db = openDatabase();
+
+  try {
+    const row = db
+      .prepare(
+        `
+        select trade_date
+        from chip_distribution_levels
+        where ts_code = ? and trade_date <= ?
+        group by trade_date
+        having count(*) > 0
+        order by trade_date desc
+        limit 1
+        `,
+      )
+      .get(tsCode, tradeDate) as { trade_date: string } | undefined;
+
+    return row?.trade_date ?? null;
+  } finally {
+    db.close();
+  }
+}
+
 export function isChipDistributionComplete(
   target: Pick<ChipDistributionTarget, "tsCode" | "tradeDate">,
 ) {
@@ -1052,6 +1079,19 @@ export function planChipDistributionWork(
           ...target,
           currentStatus: "failed",
           reason: "retry_failed",
+        });
+        continue;
+      }
+
+      if (
+        latestStatus.status === "blocked" &&
+        latestStatus.errorCategory === "empty_data"
+      ) {
+        pendingCount += 1;
+        items.push({
+          ...target,
+          currentStatus: "blocked",
+          reason: "retry_empty_data",
         });
         continue;
       }

@@ -330,6 +330,149 @@ describe("chip distribution runner", () => {
     });
   });
 
+  it("retries empty-data blocked targets on the next chip refresh", async () => {
+    useTempStore();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", ["20260622", "20260623"]);
+    writeScreeningFixture({ generationId: generation.id });
+    replaceChipDistribution({
+      tsCode: "000001.SZ",
+      tradeDate: "20260622",
+      levels: [{ price: 9.8, percent: 2 }],
+    });
+    writeChipDistributionRun({
+      screeningRunId: 1,
+      status: "partial",
+      totalTargets: 2,
+      successCount: 1,
+      blockedCount: 1,
+      failedCount: 0,
+      missingCount: 0,
+      statuses: [
+        {
+          screeningRunId: 1,
+          tsCode: "000001.SZ",
+          targetKind: "latest",
+          tradeDate: "20260623",
+          status: "blocked",
+          source: null,
+          errorCategory: "empty_data",
+          errorSummary: "cyq_chips returned no distribution rows for target trade date",
+        },
+        {
+          screeningRunId: 1,
+          tsCode: "000001.SZ",
+          targetKind: "previous",
+          tradeDate: "20260622",
+          status: "succeeded",
+          source: "cyq_chips_highest_percent",
+          errorCategory: null,
+          errorSummary: null,
+        },
+      ],
+    });
+    const client = createMockClient(async () =>
+      table([["000001.SZ", "20260623", 10.2, 6]]),
+    );
+
+    const run = await runChipDistributionIntegrationFromLatestScreening({
+      client,
+    });
+
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.chipChips,
+      {
+        ts_code: "000001.SZ",
+        start_date: "20260623",
+        end_date: "20260623",
+      },
+      { priority: "chip" },
+    );
+    expect(run).toMatchObject({
+      status: "succeeded",
+      successCount: 2,
+      skippedCompleteCount: 1,
+    });
+    expect(readChipDistributionForDate("000001.SZ", "20260623")).toHaveLength(1);
+  });
+
+  it("falls back to the latest cached official distribution when target date returns empty data", async () => {
+    useTempStore();
+    const generation = createReadableGeneration();
+    writeMarketBars(generation.id, "000001.SZ", [
+      "20260629",
+      "20260630",
+      "20260701",
+    ]);
+    writeScreeningFixture({
+      generationId: generation.id,
+      latestTradeDate: "20260701",
+    });
+    replaceChipDistribution({
+      tsCode: "000001.SZ",
+      tradeDate: "20260630",
+      levels: [{ price: 10.2, percent: 6 }],
+    });
+    writeChipDistributionRun({
+      screeningRunId: 1,
+      status: "succeeded",
+      totalTargets: 1,
+      successCount: 1,
+      blockedCount: 0,
+      failedCount: 0,
+      missingCount: 0,
+      statuses: [
+        {
+          screeningRunId: 1,
+          tsCode: "000001.SZ",
+          targetKind: "previous",
+          tradeDate: "20260630",
+          status: "succeeded",
+          source: "cyq_chips_highest_percent",
+          errorCategory: null,
+          errorSummary: null,
+        },
+      ],
+    });
+    const client = createMockClient(async () => table([]));
+
+    const run = await runChipDistributionIntegrationFromLatestScreening({
+      client,
+    });
+
+    expect(client.query).toHaveBeenCalledWith(
+      TUSHARE_ENDPOINTS.chipChips,
+      {
+        ts_code: "000001.SZ",
+        start_date: "20260701",
+        end_date: "20260701",
+      },
+      { priority: "chip" },
+    );
+    expect(run).toMatchObject({
+      status: "succeeded",
+      successCount: 2,
+      blockedCount: 0,
+      skippedCompleteCount: 1,
+    });
+    expect(statusSummary(run.id)).toEqual([
+      {
+        tsCode: "000001.SZ",
+        targetKind: "latest",
+        tradeDate: "20260630",
+        status: "succeeded",
+        errorCategory: null,
+      },
+      {
+        tsCode: "000001.SZ",
+        targetKind: "previous",
+        tradeDate: "20260630",
+        status: "succeeded",
+        errorCategory: null,
+      },
+    ]);
+  });
+
   it("does not call provider for blocked latest and records previous missing", async () => {
     useTempStore();
     const generation = createReadableGeneration();

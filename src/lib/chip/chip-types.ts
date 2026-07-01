@@ -205,7 +205,11 @@ export type ChipDistributionRunRecord = {
 
 export type ChipDistributionWorkItem = ChipDistributionTarget & {
   currentStatus: ChipDistributionStatus | null;
-  reason: "not_seen" | "retry_failed" | "incomplete_succeeded";
+  reason:
+    | "not_seen"
+    | "retry_failed"
+    | "retry_empty_data"
+    | "incomplete_succeeded";
 };
 
 export type ChipDistributionWorkPlan = {

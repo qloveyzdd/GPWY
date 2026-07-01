@@ -5,6 +5,7 @@ import {
 import {
   planChipDistributionWork,
   readLatestChipDistributionStatusForTarget,
+  readLatestChipDistributionDateOnOrBefore,
   replaceChipDistribution,
   writeChipDistributionRun,
   writeChipPeakRun,
@@ -515,6 +516,28 @@ export async function runChipDistributionIntegrationFromLatestScreening({
             const rows = rowsByDate.get(item.tradeDate) ?? [];
 
             if (rows.length === 0) {
+              const fallbackTradeDate =
+                readLatestChipDistributionDateOnOrBefore(
+                  item.tsCode,
+                  item.tradeDate,
+                );
+
+              if (fallbackTradeDate) {
+                recordDistributionStatus(
+                  statusRecords,
+                  progress,
+                  onProgress,
+                  createDistributionStatus(
+                    {
+                      ...item,
+                      tradeDate: fallbackTradeDate,
+                    },
+                    "succeeded",
+                  ),
+                );
+                continue;
+              }
+
               recordDistributionStatus(
                 statusRecords,
                 progress,
