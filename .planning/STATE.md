@@ -128,7 +128,7 @@ No current milestone blockers. Phase 12 is verified and ready for milestone clos
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
 | 260624-qoq | 对齐区间高点需求文档，补齐 Phase 2 验证并重新审计 v1.0 | 2026-06-24 | e44f2cd | Verified | [260624-qoq-phase-2-v1-0](./quick/260624-qoq-phase-2-v1-0/) |
-| 20260701-chip-empty-data-retry-fallback | 筹码 `empty_data` 重试与最近缓存官方分布回退 | 2026-07-01 | a7e1950 | Verified | [20260701-chip-empty-data-retry-fallback](./quick/20260701-chip-empty-data-retry-fallback/) |
+| 20260701-chip-empty-data-retry-fallback | 筹码 `empty_data` 重试与最近缓存官方分布回退 | 2026-07-01 | 77ec117 | Verified | [20260701-chip-empty-data-retry-fallback](./quick/20260701-chip-empty-data-retry-fallback/) |
 
 ## Deferred Items
 
