@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-30)
 Phase: 12 (decay-based-chip-distribution-model) — COMPLETE
 Plan: 4 of 4
 Status: Verified
-Last activity: 2026-07-02 - Completed quick task 260702-5am: 停牌日按零换手补齐筹码计算窗口
+Last activity: 2026-07-02 - Completed quick task 260702-5tk: 对筹码模型种子做平滑扩散和重新分桶
 
 ## Performance Metrics
 
@@ -127,6 +127,7 @@ No current milestone blockers. Phase 12 is verified and ready for milestone clos
 
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
+| 260702-5tk | 对筹码模型种子做平滑扩散和重新分桶 | 2026-07-02 | 658254b | Verified | [260702-5tk-seed-smoothing](./quick/260702-5tk-seed-smoothing/) |
 | 260702-5am | 停牌日按零换手补齐筹码计算窗口 | 2026-07-02 | 48f00b1 | Verified | [260702-5am-suspended-days](./quick/260702-5am-suspended-days/) |
 | 260702-4uw | 修复筹码分布图细价位标签覆盖导致最大占比和柱子不一致 | 2026-07-02 | 9015293 | Verified | [260702-4uw-chip-buckets](./quick/260702-4uw-chip-buckets/) |
 | 260702-4e8 | 限制筹码分布图显示到最近90日K线价格区间 | 2026-07-02 | f2155c8 | Verified | [260702-4e8-90-k](./quick/260702-4e8-90-k/) |
