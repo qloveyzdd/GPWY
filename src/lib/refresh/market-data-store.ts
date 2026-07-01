@@ -5,6 +5,7 @@ import path from "node:path";
 import type {
   ActiveGenerationMarketWorkPlan,
   AdjustmentFactorRecord,
+  DailyBasicRecord,
   MarketCacheGeneration,
   MarketDataItemKind,
   MarketGenerationDateRecord,
@@ -57,6 +58,14 @@ type DailyQuoteRow = {
   low: number;
   close: number;
   vol: number;
+  amount: number | null;
+};
+
+type DailyBasicRow = {
+  ts_code: string;
+  trade_date: string;
+  turnover_rate: number;
+  turnover_rate_f: number | null;
 };
 
 type AdjustmentFactorRow = {
@@ -80,6 +89,10 @@ type ValidationCountRow = {
 
 type CountRow = {
   count: number;
+};
+
+type TableInfoRow = {
+  name: string;
 };
 
 const require = createRequire(import.meta.url);
@@ -124,6 +137,16 @@ function mapDailyQuote(row: DailyQuoteRow): RawDailyQuoteRecord {
     low: row.low,
     close: row.close,
     vol: row.vol,
+    amount: row.amount,
+  };
+}
+
+function mapDailyBasic(row: DailyBasicRow): DailyBasicRecord {
+  return {
+    tsCode: row.ts_code,
+    tradeDate: row.trade_date,
+    turnoverRate: row.turnover_rate,
+    turnoverRateFreeFloat: row.turnover_rate_f,
   };
 }
 
@@ -200,6 +223,7 @@ function openDatabase() {
       low real not null,
       close real not null,
       vol real not null,
+      amount real,
       fetched_at text not null,
       primary key (generation_id, ts_code, trade_date),
       foreign key (generation_id) references market_cache_generations(id)
@@ -207,6 +231,20 @@ function openDatabase() {
 
     create index if not exists market_daily_quotes_generation_date
       on market_daily_quotes(generation_id, trade_date);
+
+    create table if not exists market_daily_basics (
+      generation_id integer not null,
+      ts_code text not null,
+      trade_date text not null,
+      turnover_rate real not null,
+      turnover_rate_f real,
+      fetched_at text not null,
+      primary key (generation_id, ts_code, trade_date),
+      foreign key (generation_id) references market_cache_generations(id)
+    );
+
+    create index if not exists market_daily_basics_generation_date
+      on market_daily_basics(generation_id, trade_date);
 
     create table if not exists market_adjustment_factors (
       generation_id integer not null,
@@ -221,8 +259,22 @@ function openDatabase() {
     create index if not exists market_adjustment_factors_generation_date
       on market_adjustment_factors(generation_id, trade_date);
   `);
+  ensureColumn(db, "market_daily_quotes", "amount", "real");
 
   return db;
+}
+
+function ensureColumn(
+  db: DatabaseConnection,
+  tableName: string,
+  columnName: string,
+  definition: string,
+) {
+  const columns = db.prepare(`pragma table_info(${tableName})`).all() as TableInfoRow[];
+
+  if (!columns.some((column) => column.name === columnName)) {
+    db.exec(`alter table ${tableName} add column ${columnName} ${definition}`);
+  }
 }
 
 function readGenerationFromDatabase(
@@ -463,15 +515,17 @@ export function upsertMarketDailyQuotes(
           low,
           close,
           vol,
+          amount,
           fetched_at
         )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       on conflict(generation_id, ts_code, trade_date) do update set
         open = excluded.open,
         high = excluded.high,
         low = excluded.low,
         close = excluded.close,
         vol = excluded.vol,
+        amount = excluded.amount,
         fetched_at = excluded.fetched_at
       `,
     );
@@ -487,6 +541,7 @@ export function upsertMarketDailyQuotes(
         record.low,
         record.close,
         record.vol,
+        record.amount ?? null,
         fetchedAt,
       );
     }
@@ -510,7 +565,7 @@ export function readMarketDailyQuotes(
       db
         .prepare(
           `
-          select ts_code, trade_date, open, high, low, close, vol
+          select ts_code, trade_date, open, high, low, close, vol, amount
           from market_daily_quotes
           where generation_id = ?
           order by ts_code, trade_date
@@ -518,6 +573,78 @@ export function readMarketDailyQuotes(
         )
         .all(generationId) as DailyQuoteRow[]
     ).map(mapDailyQuote);
+  } finally {
+    db.close();
+  }
+}
+
+export function upsertMarketDailyBasics(
+  generationId: number,
+  records: DailyBasicRecord[],
+  now = new Date(),
+) {
+  const db = openDatabase();
+
+  try {
+    db.exec("begin");
+    const statement = db.prepare(
+      `
+      insert into market_daily_basics
+        (
+          generation_id,
+          ts_code,
+          trade_date,
+          turnover_rate,
+          turnover_rate_f,
+          fetched_at
+        )
+      values (?, ?, ?, ?, ?, ?)
+      on conflict(generation_id, ts_code, trade_date) do update set
+        turnover_rate = excluded.turnover_rate,
+        turnover_rate_f = excluded.turnover_rate_f,
+        fetched_at = excluded.fetched_at
+      `,
+    );
+    const fetchedAt = toIsoString(now);
+
+    for (const record of records) {
+      statement.run(
+        generationId,
+        record.tsCode,
+        record.tradeDate,
+        record.turnoverRate,
+        record.turnoverRateFreeFloat,
+        fetchedAt,
+      );
+    }
+
+    db.exec("commit");
+  } catch (error) {
+    db.exec("rollback");
+    throw error;
+  } finally {
+    db.close();
+  }
+}
+
+export function readMarketDailyBasics(
+  generationId: number,
+): DailyBasicRecord[] {
+  const db = openDatabase();
+
+  try {
+    return (
+      db
+        .prepare(
+          `
+          select ts_code, trade_date, turnover_rate, turnover_rate_f
+          from market_daily_basics
+          where generation_id = ?
+          order by ts_code, trade_date
+          `,
+        )
+        .all(generationId) as DailyBasicRow[]
+    ).map(mapDailyBasic);
   } finally {
     db.close();
   }
@@ -971,6 +1098,9 @@ export function deleteBuildingMarketCacheGeneration(generationId: number) {
     db.prepare(
       "delete from market_adjustment_factors where generation_id = ?",
     ).run(generationId);
+    db.prepare("delete from market_daily_basics where generation_id = ?").run(
+      generationId,
+    );
     db.prepare("delete from market_daily_quotes where generation_id = ?").run(
       generationId,
     );
