@@ -16,7 +16,6 @@ type DatabaseConstructor = new (filePath: string) => DatabaseConnection;
 
 const require = createRequire(path.join(process.cwd(), "playwright.config.ts"));
 const Database = require("better-sqlite3") as DatabaseConstructor;
-const CHIP_MODEL_VERSION = "decay-triangle-v1";
 
 function iso(date: string) {
   return new Date(date).toISOString();
@@ -35,6 +34,34 @@ function makeBars(tsCode: string, offset = 0) {
       low: close - 1,
       close,
       vol: 1000 + index,
+    };
+  });
+}
+
+function marketTradeDates() {
+  return [
+    "20259999",
+    "20260000",
+    ...Array.from({ length: 60 }, (_, index) =>
+      `2026${String(index + 1).padStart(4, "0")}`,
+    ),
+  ];
+}
+
+function makeMarketBars(tsCode: string, offset = 0) {
+  return marketTradeDates().map((tradeDate, index) => {
+    const close = 100 + offset - Math.max(index - 2, 0);
+    const high = tradeDate === "20260051" ? 90 + offset : close + 1;
+
+    return {
+      tsCode,
+      tradeDate,
+      open: close + 0.5,
+      high,
+      low: close - 1,
+      close,
+      vol: 1000 + index,
+      amount: (close * (1000 + index) * 100) / 1000,
     };
   });
 }
@@ -78,6 +105,7 @@ function migrate(db: DatabaseConnection) {
     create table screening_runs (
       id integer primary key autoincrement,
       source_refresh_job_id integer not null,
+      source_market_generation_id integer,
       created_at text not null,
       total_stocks integer not null,
       matched_count integer not null,
@@ -259,6 +287,69 @@ function migrate(db: DatabaseConnection) {
         price
       )
     );
+
+    create table market_stocks (
+      ts_code text primary key,
+      name text not null,
+      market text,
+      list_status text not null,
+      updated_at text not null
+    );
+
+    create table market_cache_generations (
+      id integer primary key autoincrement,
+      status text not null,
+      started_at text not null,
+      activated_at text,
+      target_trade_date_count integer not null
+    );
+
+    create table market_cache_state (
+      singleton_id integer primary key,
+      active_generation_id integer
+    );
+
+    create table market_generation_dates (
+      generation_id integer not null,
+      trade_date text not null,
+      daily_status text not null,
+      factor_status text not null,
+      updated_at text not null,
+      primary key (generation_id, trade_date)
+    );
+
+    create table market_daily_quotes (
+      generation_id integer not null,
+      ts_code text not null,
+      trade_date text not null,
+      open real not null,
+      high real not null,
+      low real not null,
+      close real not null,
+      vol real not null,
+      amount real,
+      fetched_at text not null,
+      primary key (generation_id, ts_code, trade_date)
+    );
+
+    create table market_daily_basics (
+      generation_id integer not null,
+      ts_code text not null,
+      trade_date text not null,
+      turnover_rate real not null,
+      turnover_rate_f real,
+      fetched_at text not null,
+      primary key (generation_id, ts_code, trade_date)
+    );
+
+    create table market_adjustment_factors (
+      generation_id integer not null,
+      ts_code text not null,
+      trade_date text not null,
+      adj_factor real not null,
+      fetched_at text not null,
+      primary key (generation_id, ts_code, trade_date)
+    );
   `);
 }
 
@@ -328,16 +419,145 @@ export default async function seedSmokeDb() {
       );
     }
 
+    const insertMarketStock = db.prepare(
+      `
+      insert into market_stocks
+        (ts_code, name, market, list_status, updated_at)
+      values (?, ?, ?, ?, ?)
+      `,
+    );
+
+    insertMarketStock.run("000001.SZ", "骞冲畨閾惰", "涓绘澘", "L", updatedAt);
+    insertMarketStock.run("000002.SZ", "涓囩A", "涓绘澘", "L", updatedAt);
+
+    const marketGenerationId = Number(
+      db
+        .prepare(
+          `
+          insert into market_cache_generations
+            (status, started_at, activated_at, target_trade_date_count)
+          values (?, ?, ?, ?)
+          `,
+        )
+        .run(
+          "active",
+          iso("2026-06-23T00:01:00.000Z"),
+          iso("2026-06-23T00:02:00.000Z"),
+          marketTradeDates().length,
+        ).lastInsertRowid,
+    );
+
+    db
+      .prepare(
+        `
+        insert into market_cache_state
+          (singleton_id, active_generation_id)
+        values (?, ?)
+        `,
+      )
+      .run(1, marketGenerationId);
+
+    const insertMarketDate = db.prepare(
+      `
+      insert into market_generation_dates
+        (generation_id, trade_date, daily_status, factor_status, updated_at)
+      values (?, ?, ?, ?, ?)
+      `,
+    );
+    const insertMarketQuote = db.prepare(
+      `
+      insert into market_daily_quotes
+        (
+          generation_id, ts_code, trade_date, open, high, low, close, vol,
+          amount, fetched_at
+        )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+    const insertMarketBasic = db.prepare(
+      `
+      insert into market_daily_basics
+        (
+          generation_id, ts_code, trade_date, turnover_rate, turnover_rate_f,
+          fetched_at
+        )
+      values (?, ?, ?, ?, ?, ?)
+      `,
+    );
+    const insertMarketFactor = db.prepare(
+      `
+      insert into market_adjustment_factors
+        (generation_id, ts_code, trade_date, adj_factor, fetched_at)
+      values (?, ?, ?, ?, ?)
+      `,
+    );
+
+    for (const tradeDate of marketTradeDates()) {
+      insertMarketDate.run(
+        marketGenerationId,
+        tradeDate,
+        "succeeded",
+        "succeeded",
+        updatedAt,
+      );
+    }
+
+    for (const bar of [
+      ...makeMarketBars("000001.SZ"),
+      ...makeMarketBars("000002.SZ", 10),
+    ]) {
+      insertMarketQuote.run(
+        marketGenerationId,
+        bar.tsCode,
+        bar.tradeDate,
+        bar.open,
+        bar.high,
+        bar.low,
+        bar.close,
+        bar.vol,
+        bar.amount,
+        updatedAt,
+      );
+      insertMarketFactor.run(
+        marketGenerationId,
+        bar.tsCode,
+        bar.tradeDate,
+        1,
+        updatedAt,
+      );
+
+      if (bar.tsCode === "000001.SZ" || bar.tradeDate !== "20260001") {
+        insertMarketBasic.run(
+          marketGenerationId,
+          bar.tsCode,
+          bar.tradeDate,
+          4,
+          3,
+          updatedAt,
+        );
+      }
+    }
+
     const screeningRunId = Number(
       db
         .prepare(
           `
           insert into screening_runs
-            (source_refresh_job_id, created_at, total_stocks, matched_count, skipped_count)
-          values (?, ?, ?, ?, ?)
+            (
+              source_refresh_job_id, source_market_generation_id, created_at,
+              total_stocks, matched_count, skipped_count
+            )
+          values (?, ?, ?, ?, ?, ?)
           `,
         )
-        .run(refreshJobId, iso("2026-06-23T00:03:00.000Z"), 2, 2, 0)
+        .run(
+          refreshJobId,
+          marketGenerationId,
+          iso("2026-06-23T00:03:00.000Z"),
+          2,
+          2,
+          0,
+        )
         .lastInsertRowid,
     );
     const insertScreening = db.prepare(
@@ -519,6 +739,36 @@ export default async function seedSmokeDb() {
       4.4,
       updatedAt,
     );
+    for (const tsCode of ["000001.SZ", "000002.SZ"]) {
+      insertDistributionLevel.run(
+        tsCode,
+        "20259999",
+        tsCode === "000001.SZ" ? 29 : 39,
+        60,
+        updatedAt,
+      );
+      insertDistributionLevel.run(
+        tsCode,
+        "20259999",
+        tsCode === "000001.SZ" ? 30 : 40,
+        40,
+        updatedAt,
+      );
+      insertDistributionLevel.run(
+        tsCode,
+        "20260000",
+        tsCode === "000001.SZ" ? 31 : 41,
+        55,
+        updatedAt,
+      );
+      insertDistributionLevel.run(
+        tsCode,
+        "20260000",
+        tsCode === "000001.SZ" ? 32 : 42,
+        45,
+        updatedAt,
+      );
+    }
     const insertDistributionStatus = db.prepare(
       `
       insert into chip_distribution_statuses
@@ -579,204 +829,6 @@ export default async function seedSmokeDb() {
       updatedAt,
     );
 
-    const chipModelRunId = Number(
-      db
-        .prepare(
-          `
-          insert into chip_model_runs
-            (
-              screening_run_id, status, created_at, total_targets,
-              success_count, blocked_count, failed_count, missing_count,
-              skipped_complete_count
-            )
-          values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-        )
-        .run(
-          screeningRunId,
-          "partial",
-          iso("2026-06-23T00:05:00.000Z"),
-          6,
-          3,
-          3,
-          0,
-          0,
-          0,
-        ).lastInsertRowid,
-    );
-    const insertModelLevel = db.prepare(
-      `
-      insert into chip_model_levels
-        (
-          ts_code, target_trade_date, seed_trade_date, decay_coefficient,
-          model_version, price, percent, calculated_at
-        )
-      values (?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-    );
-
-    insertModelLevel.run(
-      "000001.SZ",
-      "20260060",
-      "20260001",
-      0.5,
-      CHIP_MODEL_VERSION,
-      31,
-      8,
-      updatedAt,
-    );
-    insertModelLevel.run(
-      "000001.SZ",
-      "20260060",
-      "20260001",
-      0.5,
-      CHIP_MODEL_VERSION,
-      32,
-      4,
-      updatedAt,
-    );
-    insertModelLevel.run(
-      "000001.SZ",
-      "20260059",
-      "20260000",
-      0.5,
-      CHIP_MODEL_VERSION,
-      30,
-      7,
-      updatedAt,
-    );
-    insertModelLevel.run(
-      "000001.SZ",
-      "20260059",
-      "20260000",
-      0.5,
-      CHIP_MODEL_VERSION,
-      31,
-      5,
-      updatedAt,
-    );
-    insertModelLevel.run(
-      "000001.SZ",
-      "20260060",
-      "20260001",
-      1,
-      CHIP_MODEL_VERSION,
-      28,
-      10,
-      updatedAt,
-    );
-    insertModelLevel.run(
-      "000001.SZ",
-      "20260060",
-      "20260001",
-      1,
-      CHIP_MODEL_VERSION,
-      29,
-      3,
-      updatedAt,
-    );
-    const insertModelStatus = db.prepare(
-      `
-      insert into chip_model_statuses
-        (
-          chip_model_run_id, screening_run_id, ts_code, target_kind,
-          target_trade_date, seed_trade_date, decay_coefficient, model_version,
-          status, unavailable_reason, error_category, error_summary, updated_at
-        )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-    );
-
-    insertModelStatus.run(
-      chipModelRunId,
-      screeningRunId,
-      "000001.SZ",
-      "latest",
-      "20260060",
-      "20260001",
-      0.5,
-      CHIP_MODEL_VERSION,
-      "succeeded",
-      null,
-      null,
-      null,
-      updatedAt,
-    );
-    insertModelStatus.run(
-      chipModelRunId,
-      screeningRunId,
-      "000001.SZ",
-      "previous",
-      "20260059",
-      "20260000",
-      0.5,
-      CHIP_MODEL_VERSION,
-      "succeeded",
-      null,
-      null,
-      null,
-      updatedAt,
-    );
-    insertModelStatus.run(
-      chipModelRunId,
-      screeningRunId,
-      "000001.SZ",
-      "latest",
-      "20260060",
-      "20260001",
-      1,
-      CHIP_MODEL_VERSION,
-      "succeeded",
-      null,
-      null,
-      null,
-      updatedAt,
-    );
-    insertModelStatus.run(
-      chipModelRunId,
-      screeningRunId,
-      "000001.SZ",
-      "previous",
-      "20260059",
-      "20260000",
-      1,
-      CHIP_MODEL_VERSION,
-      "blocked",
-      "missing_turnover_rate",
-      "empty_data",
-      "calculated distribution missing turnover rate for previous target",
-      updatedAt,
-    );
-    insertModelStatus.run(
-      chipModelRunId,
-      screeningRunId,
-      "000002.SZ",
-      "latest",
-      "20260060",
-      "20260001",
-      0.5,
-      CHIP_MODEL_VERSION,
-      "blocked",
-      "missing_turnover_rate",
-      "empty_data",
-      "calculated distribution missing turnover rate for latest target",
-      updatedAt,
-    );
-    insertModelStatus.run(
-      chipModelRunId,
-      screeningRunId,
-      "000002.SZ",
-      "previous",
-      "20260059",
-      "20260000",
-      0.5,
-      CHIP_MODEL_VERSION,
-      "blocked",
-      "missing_seed_distribution",
-      "empty_data",
-      "calculated seed distribution is unavailable for previous target",
-      updatedAt,
-    );
   } finally {
     db.close();
   }

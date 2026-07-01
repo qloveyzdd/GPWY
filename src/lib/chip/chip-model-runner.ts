@@ -70,6 +70,30 @@ export type CalculatedChipDistributionProgressCallback = (
   progress: CalculatedChipDistributionProgress,
 ) => void;
 
+export type OnDemandCalculatedChipDistributionResult = {
+  tsCode: string;
+  targetKind: CalculatedChipDistributionWorkTarget["targetKind"];
+  targetTradeDate: string | null;
+  seedTradeDate: string | null;
+  decayCoefficient: ChipDecayCoefficient;
+  modelVersion: typeof CHIP_MODEL_VERSION;
+  status: CalculatedChipDistributionStatus;
+  levels: ChipCalculatedDistributionLevel[];
+  unavailableReason: ChipModelUnavailableReason | null;
+  errorCategory: TushareErrorCategory | null;
+  errorSummary: string | null;
+};
+
+export type CalculateChipDistributionOnDemandInput = {
+  generationId: number;
+  tsCode: string;
+  targetKind: CalculatedChipDistributionWorkTarget["targetKind"];
+  targetTradeDate: string | null;
+  decayCoefficients?: readonly ChipDecayCoefficient[];
+  client?: TushareClientLike | null;
+  now?: Date;
+};
+
 export type ResolvedChipModelSeed =
   | {
       status: "succeeded";
@@ -639,6 +663,176 @@ async function calculateTarget({
   });
 
   return statusRecord(target, "succeeded");
+}
+
+function onDemandStatusResult({
+  tsCode,
+  targetKind,
+  targetTradeDate,
+  seedTradeDate,
+  decayCoefficient,
+  status,
+  unavailableReason,
+  errorCategory = null,
+  errorSummary = null,
+}: Omit<
+  OnDemandCalculatedChipDistributionResult,
+  "modelVersion" | "levels" | "errorCategory" | "errorSummary"
+> & {
+  errorCategory?: TushareErrorCategory | null;
+  errorSummary?: string | null;
+  levels?: never;
+}): OnDemandCalculatedChipDistributionResult {
+  return {
+    tsCode,
+    targetKind,
+    targetTradeDate,
+    seedTradeDate,
+    decayCoefficient,
+    modelVersion: CHIP_MODEL_VERSION,
+    status,
+    levels: [],
+    unavailableReason,
+    errorCategory,
+    errorSummary,
+  };
+}
+
+export async function calculateChipDistributionOnDemand({
+  generationId,
+  tsCode,
+  targetKind,
+  targetTradeDate,
+  decayCoefficients = SUPPORTED_CHIP_DECAY_COEFFICIENTS,
+  client,
+  now = new Date(),
+}: CalculateChipDistributionOnDemandInput): Promise<
+  OnDemandCalculatedChipDistributionResult[]
+> {
+  if (targetTradeDate === null) {
+    return decayCoefficients.map((decayCoefficient) =>
+      onDemandStatusResult({
+        tsCode,
+        targetKind,
+        targetTradeDate,
+        seedTradeDate: null,
+        decayCoefficient,
+        status: "missing",
+        unavailableReason: "missing_trade_data",
+        errorSummary: "target_trade_date_missing",
+      }),
+    );
+  }
+
+  const seed = await resolveChipModelSeedForTarget({
+    generationId,
+    tsCode,
+    targetTradeDate,
+    modelVersion: CHIP_MODEL_VERSION,
+    client,
+    now,
+  });
+
+  if (seed.status !== "succeeded") {
+    const status = statusForErrorCategory(seed.errorCategory);
+
+    return decayCoefficients.map((decayCoefficient) =>
+      onDemandStatusResult({
+        tsCode,
+        targetKind,
+        targetTradeDate,
+        seedTradeDate: seed.seedTradeDate,
+        decayCoefficient,
+        status,
+        unavailableReason: seed.reason,
+        errorCategory: seed.errorCategory,
+        errorSummary: seed.errorSummary ?? seed.reason,
+      }),
+    );
+  }
+
+  let bars;
+
+  try {
+    const startTradeDate = seed.expectedTradeDates[0];
+
+    if (!startTradeDate) {
+      return decayCoefficients.map((decayCoefficient) =>
+        onDemandStatusResult({
+          tsCode,
+          targetKind,
+          targetTradeDate,
+          seedTradeDate: seed.seedTradeDate,
+          decayCoefficient,
+          status: "blocked",
+          unavailableReason: "missing_trade_data",
+          errorSummary: "missing_model_trade_dates",
+        }),
+      );
+    }
+
+    bars = readAdjustedChipModelBarsForStock({
+      generationId,
+      tsCode,
+      startTradeDate,
+      endTradeDate: targetTradeDate,
+    });
+  } catch (error) {
+    const reason = reasonFromReaderError(error);
+
+    return decayCoefficients.map((decayCoefficient) =>
+      onDemandStatusResult({
+        tsCode,
+        targetKind,
+        targetTradeDate,
+        seedTradeDate: seed.seedTradeDate,
+        decayCoefficient,
+        status: "blocked",
+        unavailableReason: reason,
+        errorSummary: reason,
+      }),
+    );
+  }
+
+  return decayCoefficients.map((decayCoefficient) => {
+    const result = calculateDecayChipDistribution({
+      tsCode,
+      seedTradeDate: seed.seedTradeDate,
+      targetTradeDate,
+      seedLevels: seed.seedLevels,
+      bars,
+      expectedTradeDates: seed.expectedTradeDates,
+      decayCoefficient,
+      modelVersion: CHIP_MODEL_VERSION,
+    });
+
+    if (result.status !== "succeeded") {
+      return onDemandStatusResult({
+        tsCode,
+        targetKind,
+        targetTradeDate,
+        seedTradeDate: seed.seedTradeDate,
+        decayCoefficient,
+        status: "blocked",
+        unavailableReason: result.reason,
+        errorSummary: result.reason,
+      });
+    }
+
+    return {
+      tsCode,
+      targetKind,
+      targetTradeDate,
+      seedTradeDate: seed.seedTradeDate,
+      decayCoefficient,
+      modelVersion: CHIP_MODEL_VERSION,
+      status: "succeeded",
+      levels: result.levels,
+      unavailableReason: null,
+      errorCategory: null,
+      errorSummary: null,
+    };
+  });
 }
 
 export async function runCalculatedChipDistributionIntegrationFromLatestScreening({

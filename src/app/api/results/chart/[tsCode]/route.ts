@@ -18,5 +18,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   const { tsCode } = await params;
 
-  return NextResponse.json(readLatestChartSnapshot(decodeURIComponent(tsCode)));
+  return NextResponse.json(
+    await readLatestChartSnapshot(decodeURIComponent(tsCode)),
+  );
 }

@@ -104,8 +104,8 @@ Recent decisions affecting current work:
 - Publish screening results before chip distribution enrichment finishes.
 - Remove chip peak columns from the results table and show two full distributions in stock details.
 - Configure concurrency through server environment variables; keep full rebuild as an operations command.
-- Keep official `cyq_chips`, seed distributions, and calculated chip distributions separate; calculated distributions must be labeled as model output.
-- [Phase 12]: 详情页同时展示官方分布和计算分布，计算分布通过固定衰减系数本地切换。 — 明确标注“模型输出，不等同官方 cyq_chips”，避免把内部模型误认为交易软件或官方真实筹码。
+- Keep official `cyq_chips`, seed distributions, and on-demand calculated chip distributions separate; calculated distributions must be labeled as model output.
+- [Phase 12]: 详情页同时展示官方分布和计算分布，计算分布由详情 DTO 按 60 日前 seed 和 60 日内交易数据按需生成，并通过固定衰减系数本地切换。 — 明确标注“模型输出，不等同官方 cyq_chips”，避免把内部模型误认为交易软件或官方真实筹码。
 - [Phase 08]: 调度器是 provider 重试、退避、动态并发和优先级的唯一政策层。 — 避免工作流和客户端叠加重试，确保尝试次数及并发预算可证明。
 - [Phase 08]: REST attempt 超时通过 AbortSignal 下传到 fetch。 — 终止真实网络请求，避免外层超时后仍存在幽灵在途请求。
 - [Phase 08]: tinyshare worker 槽位只管理进程恢复，不在池内执行请求级重试。 — 请求尝试预算由统一 scheduler 单独拥有，避免 worker 重建与请求重试相乘。

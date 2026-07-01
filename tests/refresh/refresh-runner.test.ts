@@ -18,9 +18,6 @@ import {
   readMarketGenerationDates,
   readMarketStocks,
   updateMarketGenerationDateItemStatus,
-  upsertMarketAdjustmentFactors,
-  upsertMarketDailyBasics,
-  upsertMarketDailyQuotes,
   upsertMarketGenerationDate,
 } from "@/lib/refresh/market-data-store";
 import {
@@ -33,10 +30,7 @@ import {
   readLatestScreeningRun,
   writeScreeningRun,
 } from "@/lib/screening/screening-store";
-import {
-  replaceChipDistribution,
-  writeChipDistributionRun,
-} from "@/lib/chip/chip-store";
+import { writeChipDistributionRun } from "@/lib/chip/chip-store";
 import { readLatestCalculatedChipModelRun } from "@/lib/chip/chip-model-store";
 import type { ChipDistributionRunRecord } from "@/lib/chip/chip-types";
 import type { DailyBarRecord } from "@/lib/refresh/refresh-types";
@@ -226,66 +220,6 @@ function createEmptyActiveGeneration() {
       factorStatus: "succeeded",
     });
   }
-
-  return activateMarketCacheGeneration(generation.id);
-}
-
-function chipModelTradeDates() {
-  return [
-    "20260331",
-    "20260401",
-    ...Array.from({ length: 58 }, (_, index) =>
-      `202605${String(index + 1).padStart(2, "0")}`,
-    ),
-    "20260628",
-    "20260629",
-  ];
-}
-
-function createChipModelActiveGeneration() {
-  const tradeDates = chipModelTradeDates();
-  const generation = createMarketCacheGeneration({
-    targetTradeDateCount: tradeDates.length,
-  });
-
-  for (const tradeDate of tradeDates) {
-    upsertMarketGenerationDate(generation.id, {
-      tradeDate,
-      dailyStatus: "succeeded",
-      factorStatus: "succeeded",
-    });
-  }
-
-  upsertMarketAdjustmentFactors(
-    generation.id,
-    tradeDates.map((tradeDate) => ({
-      tsCode: "002565.SZ",
-      tradeDate,
-      adjFactor: 1,
-    })),
-  );
-  upsertMarketDailyQuotes(
-    generation.id,
-    tradeDates.map((tradeDate, index) => ({
-      tsCode: "002565.SZ",
-      tradeDate,
-      open: 10 + index * 0.1,
-      high: 11 + index * 0.1,
-      low: 9 + index * 0.1,
-      close: 10.5 + index * 0.1,
-      vol: 1000 + index,
-      amount: ((10.5 + index * 0.1) * (1000 + index) * 100) / 1000,
-    })),
-  );
-  upsertMarketDailyBasics(
-    generation.id,
-    tradeDates.map((tradeDate) => ({
-      tsCode: "002565.SZ",
-      tradeDate,
-      turnoverRate: 5,
-      turnoverRateFreeFloat: 4,
-    })),
-  );
 
   return activateMarketCacheGeneration(generation.id);
 }
@@ -624,19 +558,8 @@ describe("refresh runner", () => {
     });
   });
 
-  it("runs calculated chip model enrichment in the default chip background workflow", async () => {
+  it("does not run calculated chip model enrichment in the default chip background workflow", async () => {
     useTempRefreshStore();
-    const generation = createChipModelActiveGeneration();
-    replaceChipDistribution({
-      tsCode: "002565.SZ",
-      tradeDate: "20260331",
-      levels: [{ price: 15, percent: 100 }],
-    });
-    replaceChipDistribution({
-      tsCode: "002565.SZ",
-      tradeDate: "20260401",
-      levels: [{ price: 16, percent: 100 }],
-    });
 
     const result = await startManualRefresh({
       waitForCompletion: true,
@@ -648,7 +571,6 @@ describe("refresh runner", () => {
       screeningRunner: ({ sourceRefreshJobId, now }) =>
         writeScreeningRun({
           sourceRefreshJobId,
-          sourceMarketGenerationId: generation.id,
           totalStocks: 1,
           matchedCount: 1,
           skippedCount: 0,
@@ -674,11 +596,8 @@ describe("refresh runner", () => {
 
     expect(result.job!.status).toBe("succeeded");
     await vi.waitFor(() => {
-      expect(readLatestCalculatedChipModelRun()).toMatchObject({
-        status: "succeeded",
-        totalTargets: 14,
-        successCount: 14,
-      });
+      expect(readRefreshStatus().hasActiveWork).toBe(false);
+      expect(readLatestCalculatedChipModelRun()).toBeNull();
     });
   });
 

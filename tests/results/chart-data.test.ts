@@ -9,15 +9,13 @@ import {
   replaceChipDistribution,
   writeChipDistributionRun,
 } from "@/lib/chip/chip-store";
-import {
-  replaceCalculatedChipDistribution,
-  writeCalculatedChipModelRun,
-} from "@/lib/chip/chip-model-store";
+import { readCalculatedChipDistribution } from "@/lib/chip/chip-model-store";
 import { CHIP_MODEL_VERSION } from "@/lib/chip/chip-model";
 import {
   activateMarketCacheGeneration,
   createMarketCacheGeneration,
   upsertMarketAdjustmentFactors,
+  upsertMarketDailyBasics,
   upsertMarketDailyQuotes,
   upsertMarketGenerationDate,
 } from "@/lib/refresh/market-data-store";
@@ -90,6 +88,98 @@ function createActiveGeneration() {
   }
 
   return activateMarketCacheGeneration(generation.id);
+}
+
+function chipModelTradeDates() {
+  return [
+    "20260331",
+    "20260401",
+    ...Array.from({ length: 58 }, (_, index) =>
+      `202605${String(index + 1).padStart(2, "0")}`,
+    ),
+    "20260622",
+    "20260623",
+  ];
+}
+
+function createChipModelGeneration({
+  tsCode = "000001.SZ",
+  missingDailyBasicDates = [],
+}: {
+  tsCode?: string;
+  missingDailyBasicDates?: string[];
+} = {}) {
+  const tradeDates = chipModelTradeDates();
+  const missingDailyBasics = new Set(missingDailyBasicDates);
+  const generation = createMarketCacheGeneration({
+    targetTradeDateCount: tradeDates.length,
+  });
+
+  for (const tradeDate of tradeDates) {
+    upsertMarketGenerationDate(generation.id, {
+      tradeDate,
+      dailyStatus: "succeeded",
+      factorStatus: "succeeded",
+    });
+  }
+
+  upsertMarketAdjustmentFactors(
+    generation.id,
+    tradeDates.map((tradeDate) => ({
+      tsCode,
+      tradeDate,
+      adjFactor: 1,
+    })),
+  );
+  upsertMarketDailyQuotes(
+    generation.id,
+    tradeDates.map((tradeDate, index) => {
+      const close = 30 + index * 0.1;
+
+      return {
+        tsCode,
+        tradeDate,
+        open: close - 0.1,
+        high: close + 0.4,
+        low: close - 0.5,
+        close,
+        vol: 1000 + index,
+        amount: (close * (1000 + index) * 100) / 1000,
+      };
+    }),
+  );
+  upsertMarketDailyBasics(
+    generation.id,
+    tradeDates
+      .filter((tradeDate) => !missingDailyBasics.has(tradeDate))
+      .map((tradeDate) => ({
+        tsCode,
+        tradeDate,
+        turnoverRate: 4,
+        turnoverRateFreeFloat: 3,
+      })),
+  );
+
+  return activateMarketCacheGeneration(generation.id);
+}
+
+function writeCalculatedSeedDistributions(tsCode = "000001.SZ") {
+  replaceChipDistribution({
+    tsCode,
+    tradeDate: "20260331",
+    levels: [
+      { price: 29, percent: 60 },
+      { price: 30, percent: 40 },
+    ],
+  });
+  replaceChipDistribution({
+    tsCode,
+    tradeDate: "20260401",
+    levels: [
+      { price: 31, percent: 55 },
+      { price: 32, percent: 45 },
+    ],
+  });
 }
 
 function writeDualChipDistribution(screeningRunId: number) {
@@ -186,100 +276,6 @@ function writeBlockedLatestAndSuccessfulPrevious(screeningRunId: number) {
   });
 }
 
-function writeCalculatedDistributionFixture(screeningRunId: number) {
-  replaceCalculatedChipDistribution({
-    tsCode: "000001.SZ",
-    targetTradeDate: "20260623",
-    seedTradeDate: "20260401",
-    decayCoefficient: 0.5,
-    modelVersion: CHIP_MODEL_VERSION,
-    levels: [
-      { price: 31, percent: 8 },
-      { price: 32, percent: 4 },
-    ],
-  });
-  replaceCalculatedChipDistribution({
-    tsCode: "000001.SZ",
-    targetTradeDate: "20260622",
-    seedTradeDate: "20260331",
-    decayCoefficient: 0.5,
-    modelVersion: CHIP_MODEL_VERSION,
-    levels: [{ price: 30, percent: 7 }],
-  });
-  replaceCalculatedChipDistribution({
-    tsCode: "000001.SZ",
-    targetTradeDate: "20260623",
-    seedTradeDate: "20260401",
-    decayCoefficient: 1,
-    modelVersion: CHIP_MODEL_VERSION,
-    levels: [{ price: 28, percent: 10 }],
-  });
-  writeCalculatedChipModelRun({
-    screeningRunId,
-    status: "partial",
-    totalTargets: 4,
-    successCount: 3,
-    blockedCount: 1,
-    failedCount: 0,
-    missingCount: 0,
-    statuses: [
-      {
-        screeningRunId,
-        tsCode: "000001.SZ",
-        targetKind: "latest",
-        targetTradeDate: "20260623",
-        seedTradeDate: "20260401",
-        decayCoefficient: 0.5,
-        modelVersion: CHIP_MODEL_VERSION,
-        status: "succeeded",
-        unavailableReason: null,
-        errorCategory: null,
-        errorSummary: null,
-      },
-      {
-        screeningRunId,
-        tsCode: "000001.SZ",
-        targetKind: "previous",
-        targetTradeDate: "20260622",
-        seedTradeDate: "20260331",
-        decayCoefficient: 0.5,
-        modelVersion: CHIP_MODEL_VERSION,
-        status: "succeeded",
-        unavailableReason: null,
-        errorCategory: null,
-        errorSummary: null,
-      },
-      {
-        screeningRunId,
-        tsCode: "000001.SZ",
-        targetKind: "latest",
-        targetTradeDate: "20260623",
-        seedTradeDate: "20260401",
-        decayCoefficient: 1,
-        modelVersion: CHIP_MODEL_VERSION,
-        status: "succeeded",
-        unavailableReason: null,
-        errorCategory: null,
-        errorSummary: null,
-      },
-      {
-        screeningRunId,
-        tsCode: "000001.SZ",
-        targetKind: "previous",
-        targetTradeDate: "20260622",
-        seedTradeDate: "20260331",
-        decayCoefficient: 1,
-        modelVersion: CHIP_MODEL_VERSION,
-        status: "blocked",
-        unavailableReason: "missing_turnover_rate",
-        errorCategory: null,
-        errorSummary:
-          "Authorization: Bearer secret TUSHARE_TOKEN=secret C:\\Users\\secret\\model.txt",
-      },
-    ],
-  });
-}
-
 describe("chart data snapshot", () => {
   it("replays chip model fixture with visibly different coefficient outputs", () => {
     const latest05 = calculateDecayChipDistribution({
@@ -342,16 +338,16 @@ describe("chart data snapshot", () => {
     expect(latest05Peak.percent).toBeGreaterThan(latest15Peak.percent);
   });
 
-  it("returns unavailable when no screening run exists", () => {
+  it("returns unavailable when no screening run exists", async () => {
     useTempStore();
 
-    const snapshot = readLatestChartSnapshot("000001.SZ");
+    const snapshot = await readLatestChartSnapshot("000001.SZ");
 
     expect(snapshot.status).toBe("unavailable");
     expect(snapshot.unavailableReason).toBe("no_screening_run");
   });
 
-  it("returns not_found when selected stock is not in latest results", () => {
+  it("returns not_found when selected stock is not in latest results", async () => {
     useTempStore();
     writeScreeningRun({
       sourceRefreshJobId: 7,
@@ -361,13 +357,13 @@ describe("chart data snapshot", () => {
       results: [],
     });
 
-    const snapshot = readLatestChartSnapshot("000001.SZ");
+    const snapshot = await readLatestChartSnapshot("000001.SZ");
 
     expect(snapshot.status).toBe("not_found");
     expect(snapshot.unavailableReason).toBe("stock_not_in_latest_results");
   });
 
-  it("returns persisted row values, matching job bars, moving averages, overlays, and dual distributions", () => {
+  it("returns persisted row values, matching job bars, moving averages, overlays, and dual distributions", async () => {
     useTempStore();
     const staleRefreshJob = writeRefreshWithBars(
       "000001.SZ",
@@ -401,7 +397,7 @@ describe("chart data snapshot", () => {
     });
     writeDualChipDistribution(screeningRun.id);
 
-    const snapshot = readLatestChartSnapshot("000001.sz");
+    const snapshot = await readLatestChartSnapshot("000001.sz");
 
     expect(snapshot.status).toBe("ready");
     if (snapshot.status !== "ready") {
@@ -452,7 +448,7 @@ describe("chart data snapshot", () => {
     expect(staleRefreshJob.id).not.toBe(sourceRefreshJob.id);
   });
 
-  it("returns ready chart data with missing distribution panels when chip distribution is unavailable", () => {
+  it("returns ready chart data with missing distribution panels when chip distribution is unavailable", async () => {
     useTempStore();
     const sourceRefreshJob = writeRefreshWithBars(
       "000001.SZ",
@@ -481,7 +477,7 @@ describe("chart data snapshot", () => {
       ],
     });
 
-    const snapshot = readLatestChartSnapshot("000001.SZ");
+    const snapshot = await readLatestChartSnapshot("000001.SZ");
 
     expect(snapshot.status).toBe("ready");
     if (snapshot.status !== "ready") {
@@ -513,7 +509,7 @@ describe("chart data snapshot", () => {
     });
   });
 
-  it("keeps previous distribution available when latest distribution is blocked and sanitizes errors", () => {
+  it("keeps previous distribution available when latest distribution is blocked and sanitizes errors", async () => {
     useTempStore();
     const sourceRefreshJob = writeRefreshWithBars(
       "000001.SZ",
@@ -543,7 +539,7 @@ describe("chart data snapshot", () => {
     });
     writeBlockedLatestAndSuccessfulPrevious(screeningRun.id);
 
-    const snapshot = readLatestChartSnapshot("000001.SZ");
+    const snapshot = await readLatestChartSnapshot("000001.SZ");
 
     expect(snapshot.status).toBe("ready");
     if (snapshot.status !== "ready") {
@@ -582,14 +578,17 @@ describe("chart data snapshot", () => {
     });
   });
 
-  it("returns calculated distribution DTO grouped by fixed coefficient with default 0.5", () => {
+  it("returns calculated distribution DTO grouped by fixed coefficient with default 0.5", async () => {
     useTempStore();
     const sourceRefreshJob = writeRefreshWithBars(
       "000001.SZ",
       makeBars("000001.SZ", 60),
     );
+    const generation = createChipModelGeneration();
+    writeCalculatedSeedDistributions();
     const screeningRun = writeScreeningRun({
       sourceRefreshJobId: sourceRefreshJob.id,
+      sourceMarketGenerationId: generation.id,
       totalStocks: 1,
       matchedCount: 1,
       skippedCount: 0,
@@ -611,9 +610,8 @@ describe("chart data snapshot", () => {
       ],
     });
     writeDualChipDistribution(screeningRun.id);
-    writeCalculatedDistributionFixture(screeningRun.id);
 
-    const snapshot = readLatestChartSnapshot("000001.SZ");
+    const snapshot = await readLatestChartSnapshot("000001.SZ");
 
     expect(snapshot.status).toBe("ready");
     if (snapshot.status !== "ready") {
@@ -630,30 +628,56 @@ describe("chart data snapshot", () => {
         seedTradeDate: "20260401",
         decayCoefficient: 0.5,
         modelVersion: CHIP_MODEL_VERSION,
-        levels: [
-          { price: 31, percent: 8 },
-          { price: 32, percent: 4 },
-        ],
-        maxLevel: { price: 31, percent: 8 },
       });
     expect(
-      snapshot.calculatedChipDistributions.byCoefficient["0.5"].previous.levels,
-    ).toEqual([{ price: 30, percent: 7 }]);
-    expect(snapshot.calculatedChipDistributions.byCoefficient["0.5"].scale)
-      .toEqual({
-        priceLevels: [30, 31, 32],
-        maxPercent: 8,
-      });
+      snapshot.calculatedChipDistributions.byCoefficient["0.5"].latest.levels
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["0.5"].latest.maxLevel,
+    ).not.toBeNull();
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["0.5"].previous,
+    ).toMatchObject({
+      targetKind: "previous",
+      status: "succeeded",
+      targetTradeDate: "20260622",
+      seedTradeDate: "20260331",
+      decayCoefficient: 0.5,
+      modelVersion: CHIP_MODEL_VERSION,
+    });
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["0.5"].scale
+        .priceLevels.length,
+    ).toBeGreaterThan(0);
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["0.5"].scale
+        .maxPercent,
+    ).toBeGreaterThan(0);
+    expect(
+      readCalculatedChipDistribution({
+        tsCode: "000001.SZ",
+        targetTradeDate: "20260623",
+        seedTradeDate: "20260401",
+        decayCoefficient: 0.5,
+        modelVersion: CHIP_MODEL_VERSION,
+      }),
+    ).toEqual([]);
   });
 
-  it("keeps calculated coefficients isolated and sanitizes unavailable reasons", () => {
+  it("keeps calculated coefficients isolated and sanitizes unavailable reasons", async () => {
     useTempStore();
     const sourceRefreshJob = writeRefreshWithBars(
       "000001.SZ",
       makeBars("000001.SZ", 60),
     );
-    const screeningRun = writeScreeningRun({
+    const generation = createChipModelGeneration({
+      missingDailyBasicDates: ["20260401"],
+    });
+    writeCalculatedSeedDistributions();
+    writeScreeningRun({
       sourceRefreshJobId: sourceRefreshJob.id,
+      sourceMarketGenerationId: generation.id,
       totalStocks: 1,
       matchedCount: 1,
       skippedCount: 0,
@@ -674,17 +698,29 @@ describe("chart data snapshot", () => {
         },
       ],
     });
-    writeCalculatedDistributionFixture(screeningRun.id);
 
-    const snapshot = readLatestChartSnapshot("000001.SZ");
+    const snapshot = await readLatestChartSnapshot("000001.SZ");
 
     expect(snapshot.status).toBe("ready");
     if (snapshot.status !== "ready") {
       throw new Error("expected ready chart snapshot");
     }
 
-    expect(snapshot.calculatedChipDistributions.byCoefficient["1"].latest.levels)
-      .toEqual([{ price: 28, percent: 10 }]);
+    expect(snapshot.calculatedChipDistributions.byCoefficient["0.5"].latest)
+      .toMatchObject({
+        status: "succeeded",
+        decayCoefficient: 0.5,
+      });
+    expect(snapshot.calculatedChipDistributions.byCoefficient["1"].latest)
+      .toMatchObject({
+        status: "succeeded",
+        decayCoefficient: 1,
+      });
+    expect(
+      snapshot.calculatedChipDistributions.byCoefficient["0.5"].latest.levels,
+    ).not.toEqual(
+      snapshot.calculatedChipDistributions.byCoefficient["1"].latest.levels,
+    );
     expect(snapshot.calculatedChipDistributions.byCoefficient["1"].previous)
       .toMatchObject({
         status: "blocked",
@@ -705,7 +741,7 @@ describe("chart data snapshot", () => {
     ).not.toContain("C:\\Users");
   });
 
-  it("reads chart bars from the screening generation instead of legacy bars", () => {
+  it("reads chart bars from the screening generation instead of legacy bars", async () => {
     useTempStore();
     const legacy = writeRefreshWithBars(
       "000001.SZ",
@@ -747,7 +783,7 @@ describe("chart data snapshot", () => {
       ],
     });
 
-    const snapshot = readLatestChartSnapshot("000001.SZ");
+    const snapshot = await readLatestChartSnapshot("000001.SZ");
 
     expect(snapshot.status).toBe("ready");
     if (snapshot.status !== "ready") {
@@ -757,7 +793,7 @@ describe("chart data snapshot", () => {
     expect(snapshot.bars[0]?.close).toBe(95);
   });
 
-  it("does not fall back to legacy bars when normalized factors are missing", () => {
+  it("does not fall back to legacy bars when normalized factors are missing", async () => {
     useTempStore();
     const legacy = writeRefreshWithBars(
       "000001.SZ",
@@ -791,7 +827,7 @@ describe("chart data snapshot", () => {
       ],
     });
 
-    expect(() => readLatestChartSnapshot("000001.SZ")).toThrow(
+    await expect(readLatestChartSnapshot("000001.SZ")).rejects.toThrow(
       "missing_adjustment_factor",
     );
   });

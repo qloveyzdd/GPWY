@@ -1,26 +1,26 @@
 import {
-  readCalculatedChipDistribution,
-  readCalculatedChipModelStatusesForRun,
-  readLatestCalculatedChipModelRun,
-} from "@/lib/chip/chip-model-store";
-import {
   CHIP_MODEL_VERSION,
   DEFAULT_CHIP_DECAY_COEFFICIENT,
   SUPPORTED_CHIP_DECAY_COEFFICIENTS,
 } from "@/lib/chip/chip-model";
+import {
+  calculateChipDistributionOnDemand,
+  type OnDemandCalculatedChipDistributionResult,
+} from "@/lib/chip/chip-model-runner";
 import {
   readChipDistributionForDate,
   readChipDistributionStatusesForRun,
   readLatestChipDistributionRun,
 } from "@/lib/chip/chip-store";
 import type {
-  CalculatedChipModelStatusRecord,
-  ChipCalculatedDistributionLevel,
+  CalculatedChipDistributionStatus,
   ChipDecayCoefficient,
   ChipDistributionLevel,
   ChipDistributionStatusRecord,
   ChipDistributionTargetKind,
+  ChipModelUnavailableReason,
 } from "@/lib/chip/chip-types";
+import { readTushareTokenSecret } from "@/lib/config";
 import { readDailyBarsForRefreshJob } from "@/lib/refresh/refresh-store";
 import { readAdjustedMarketBarsForStock } from "@/lib/refresh/market-data-reader";
 import { readLatestResultsSnapshot } from "@/lib/results/results-snapshot";
@@ -38,6 +38,8 @@ import type {
 import { calculateMovingAverageSeries } from "@/lib/screening/indicators";
 import { readScreeningRunById } from "@/lib/screening/screening-store";
 import type { ScreeningDailyBar } from "@/lib/screening/screening-types";
+import { createTushareClient } from "@/lib/tushare/provider";
+import type { TushareErrorCategory } from "@/lib/tushare/types";
 
 const tokenAssignmentPattern =
   /\b([A-Z_]*(?:TOKEN|SECRET|PASSWORD|KEY)[A-Z_]*)\s*=\s*[^\s,;]+/gi;
@@ -109,18 +111,6 @@ function findStatus(
   targetKind: ChipDistributionTargetKind,
 ) {
   return statuses.find((status) => status.targetKind === targetKind);
-}
-
-function findCalculatedStatus(
-  statuses: CalculatedChipModelStatusRecord[],
-  targetKind: ChipDistributionTargetKind,
-  decayCoefficient: ChipDecayCoefficient,
-) {
-  return statuses.find(
-    (status) =>
-      status.targetKind === targetKind &&
-      status.decayCoefficient === decayCoefficient,
-  );
 }
 
 function maxDistributionLevel(levels: ChartChipDistributionLevel[]) {
@@ -234,75 +224,80 @@ function buildCalculatedMissingPanel({
   };
 }
 
-function buildCalculatedPanel({
+function buildCalculatedUnavailablePanel({
   targetKind,
   status,
-  fallbackTargetTradeDate,
+  targetTradeDate,
+  seedTradeDate,
   decayCoefficient,
+  unavailableReason,
+  errorCategory = null,
+  errorSummary = null,
 }: {
   targetKind: ChipDistributionTargetKind;
-  status: CalculatedChipModelStatusRecord | undefined;
-  fallbackTargetTradeDate: string | null;
+  status: CalculatedChipDistributionStatus;
+  targetTradeDate: string | null;
+  seedTradeDate: string | null;
   decayCoefficient: ChipDecayCoefficient;
+  unavailableReason: ChipModelUnavailableReason | null;
+  errorCategory?: TushareErrorCategory | null;
+  errorSummary?: string | null;
 }): ChartCalculatedChipDistributionPanel {
-  if (!status) {
-    return buildCalculatedMissingPanel({
-      targetKind,
-      targetTradeDate: fallbackTargetTradeDate,
-      decayCoefficient,
+  return {
+    targetKind,
+    label: targetLabel(targetKind),
+    targetTradeDate,
+    seedTradeDate,
+    status,
+    decayCoefficient,
+    modelVersion: CHIP_MODEL_VERSION,
+    levels: [],
+    maxLevel: null,
+    unavailableReason,
+    errorCategory,
+    errorSummary: sanitizeErrorSummary(errorSummary),
+  };
+}
+
+function buildCalculatedPanelFromOnDemand(
+  result: OnDemandCalculatedChipDistributionResult,
+): ChartCalculatedChipDistributionPanel {
+  if (result.status !== "succeeded") {
+    return buildCalculatedUnavailablePanel({
+      targetKind: result.targetKind,
+      status: result.status,
+      targetTradeDate: result.targetTradeDate,
+      seedTradeDate: result.seedTradeDate,
+      decayCoefficient: result.decayCoefficient,
+      unavailableReason: result.unavailableReason,
+      errorCategory: result.errorCategory,
+      errorSummary: result.errorSummary,
     });
   }
 
-  const base = {
-    targetKind,
-    label: targetLabel(targetKind),
-    targetTradeDate: status.targetTradeDate ?? fallbackTargetTradeDate,
-    seedTradeDate: status.seedTradeDate,
-    decayCoefficient,
-    modelVersion: status.modelVersion,
-  };
-
-  if (
-    status.status !== "succeeded" ||
-    status.targetTradeDate === null ||
-    status.seedTradeDate === null
-  ) {
-    return {
-      ...base,
-      status: status.status,
-      levels: [],
-      maxLevel: null,
-      unavailableReason: status.unavailableReason,
-      errorCategory: status.errorCategory,
-      errorSummary: sanitizeErrorSummary(status.errorSummary),
-    };
-  }
-
-  const levels = readCalculatedChipDistribution({
-    tsCode: status.tsCode,
-    targetTradeDate: status.targetTradeDate,
-    seedTradeDate: status.seedTradeDate,
-    decayCoefficient,
-    modelVersion: status.modelVersion,
-  }).map((level: ChipCalculatedDistributionLevel) =>
-    toDistributionLevel(level),
-  );
+  const levels = result.levels.map(toDistributionLevel);
 
   if (levels.length === 0) {
-    return {
-      ...base,
+    return buildCalculatedUnavailablePanel({
+      targetKind: result.targetKind,
       status: "blocked",
-      levels: [],
-      maxLevel: null,
+      targetTradeDate: result.targetTradeDate,
+      seedTradeDate: result.seedTradeDate,
+      decayCoefficient: result.decayCoefficient,
       unavailableReason: "missing_trade_data",
       errorCategory: "empty_data",
-      errorSummary: "calculated chip distribution cache has no levels",
-    };
+      errorSummary: "calculated chip distribution produced no levels",
+    });
   }
 
   return {
-    ...base,
+    targetKind: result.targetKind,
+    label: targetLabel(result.targetKind),
+    targetTradeDate: result.targetTradeDate,
+    seedTradeDate: result.seedTradeDate,
     status: "succeeded",
+    decayCoefficient: result.decayCoefficient,
+    modelVersion: result.modelVersion,
     levels,
     maxLevel: maxDistributionLevel(levels),
     unavailableReason: null,
@@ -393,35 +388,89 @@ function buildChipDistributions(
   return withSharedScale({ previous, latest });
 }
 
-function buildCalculatedChipDistributions(
+async function buildCalculatedChipDistributions(
   screeningRunId: number,
+  sourceMarketGenerationId: number | null,
   tsCode: string,
   latestTradeDate: string,
   bars: ScreeningDailyBar[],
-): ChartCalculatedChipDistributions {
-  const calculatedRun = readLatestCalculatedChipModelRun(screeningRunId);
-  const statuses =
-    calculatedRun?.screeningRunId === screeningRunId
-      ? readCalculatedChipModelStatusesForRun(calculatedRun.id).filter(
-          (status) => status.tsCode === tsCode,
-        )
-      : [];
+): Promise<ChartCalculatedChipDistributions> {
   const previousTradeDate = findPreviousTradeDate(bars, latestTradeDate);
   const byCoefficient: ChartCalculatedChipDistributions["byCoefficient"] = {};
+  const token = readTushareTokenSecret();
+  const client = token ? createTushareClient(token) : null;
+  const resultsByTarget =
+    sourceMarketGenerationId === null
+      ? {
+          previous: SUPPORTED_CHIP_DECAY_COEFFICIENTS.map((decayCoefficient) =>
+            previousTradeDate === null
+              ? buildCalculatedMissingPanel({
+                  targetKind: "previous",
+                  targetTradeDate: null,
+                  decayCoefficient,
+                })
+              : buildCalculatedUnavailablePanel({
+                  targetKind: "previous",
+                  status: "blocked",
+                  targetTradeDate: previousTradeDate,
+                  seedTradeDate: null,
+                  decayCoefficient,
+                  unavailableReason: "missing_trade_data",
+                  errorSummary: "missing_source_market_generation",
+                }),
+          ),
+          latest: SUPPORTED_CHIP_DECAY_COEFFICIENTS.map((decayCoefficient) =>
+            buildCalculatedUnavailablePanel({
+              targetKind: "latest",
+              status: "blocked",
+              targetTradeDate: latestTradeDate,
+              seedTradeDate: null,
+              decayCoefficient,
+              unavailableReason: "missing_trade_data",
+              errorSummary: "missing_source_market_generation",
+            }),
+          ),
+        }
+      : {
+          previous: (
+            await calculateChipDistributionOnDemand({
+              generationId: sourceMarketGenerationId,
+              tsCode,
+              targetKind: "previous",
+              targetTradeDate: previousTradeDate,
+              client,
+            })
+          ).map(buildCalculatedPanelFromOnDemand),
+          latest: (
+            await calculateChipDistributionOnDemand({
+              generationId: sourceMarketGenerationId,
+              tsCode,
+              targetKind: "latest",
+              targetTradeDate: latestTradeDate,
+              client,
+            })
+          ).map(buildCalculatedPanelFromOnDemand),
+        };
 
   for (const decayCoefficient of SUPPORTED_CHIP_DECAY_COEFFICIENTS) {
-    const previous = buildCalculatedPanel({
-      targetKind: "previous",
-      status: findCalculatedStatus(statuses, "previous", decayCoefficient),
-      fallbackTargetTradeDate: previousTradeDate,
-      decayCoefficient,
-    });
-    const latest = buildCalculatedPanel({
-      targetKind: "latest",
-      status: findCalculatedStatus(statuses, "latest", decayCoefficient),
-      fallbackTargetTradeDate: latestTradeDate,
-      decayCoefficient,
-    });
+    const previous =
+      resultsByTarget.previous.find(
+        (panel) => panel.decayCoefficient === decayCoefficient,
+      ) ??
+      buildCalculatedMissingPanel({
+        targetKind: "previous",
+        targetTradeDate: previousTradeDate,
+        decayCoefficient,
+      });
+    const latest =
+      resultsByTarget.latest.find(
+        (panel) => panel.decayCoefficient === decayCoefficient,
+      ) ??
+      buildCalculatedMissingPanel({
+        targetKind: "latest",
+        targetTradeDate: latestTradeDate,
+        decayCoefficient,
+      });
 
     byCoefficient[String(decayCoefficient)] = calculatedWithSharedScale(
       decayCoefficient,
@@ -460,7 +509,9 @@ function unavailable(unavailableReason: ChartUnavailableReason): ChartSnapshot {
   };
 }
 
-export function readLatestChartSnapshot(tsCode: string): ChartSnapshot {
+export async function readLatestChartSnapshot(
+  tsCode: string,
+): Promise<ChartSnapshot> {
   const normalizedTsCode = tsCode.trim().toUpperCase();
   const resultsSnapshot = readLatestResultsSnapshot();
 
@@ -522,8 +573,9 @@ export function readLatestChartSnapshot(tsCode: string): ChartSnapshot {
       row.latestTradeDate,
       bars,
     ),
-    calculatedChipDistributions: buildCalculatedChipDistributions(
+    calculatedChipDistributions: await buildCalculatedChipDistributions(
       screeningRunId,
+      screeningRun.sourceMarketGenerationId,
       row.tsCode,
       row.latestTradeDate,
       bars,

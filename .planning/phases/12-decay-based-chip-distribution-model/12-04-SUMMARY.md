@@ -5,7 +5,7 @@ subsystem: results-ui
 tags: [chip-distribution, chart-dto, echarts, smoke]
 requires:
   - plan: "12-03"
-    provides: calculated chip distribution cache and background runner
+    provides: seed resolver and decay calculation model
 provides:
   - chart DTO exposing official and calculated chip distributions separately
   - stock detail coefficient selector for fixed decay coefficients
@@ -16,7 +16,7 @@ tech-stack:
   added: []
   patterns:
     - "ChartSnapshot keeps official chipDistributions and calculatedChipDistributions as separate DTO branches."
-    - "Coefficient switching is local UI state over cached DTO data; it does not trigger runtime calculation."
+    - "ChartSnapshot computes calculatedChipDistributions on demand from the 60-day-prior seed and market data; it does not read chip_model_levels."
 key-files:
   created: []
   modified:
@@ -38,16 +38,16 @@ completed: 2026-07-01
 
 # Phase 12 Plan 12-04: 图表 DTO 与计算分布 UI 总结
 
-12-04 已把计算筹码分布接入股票详情页：服务端返回官方分布与计算分布两个独立 DTO 分支，前端默认展示 0.5 系数，并支持固定系数集合的本地切换。
+12-04 已把计算筹码分布接入股票详情页：服务端返回官方分布与计算分布两个独立 DTO 分支，目标日计算分布由详情 DTO 按 60 日前 seed 和 60 日内交易数据即时生成，前端默认展示 0.5 系数，并支持固定系数集合的本地切换。
 
 ## 完成内容
 
 - `ChartSnapshot` 新增 `calculatedChipDistributions`，按 `0.3 / 0.5 / 0.8 / 1 / 1.2 / 1.5 / 2` 分组返回 latest/previous 计算分布。
-- `chart-data.ts` 从 `chip_model_*` 表读取最新计算 run/status/levels，并对错误摘要做脱敏。
+- `chart-data.ts` 不再读取 `chip_model_runs/statuses/levels`；详情接口按需解析 seed、读取 60 日内行情/换手/复权数据并计算所有支持系数。
 - `StockKlineChart` 在官方双日分布下方新增“计算分布”区域，明确显示“模型输出，不等同官方 cyq_chips”。
-- 衰减系数选择器默认 0.5，只切换本地 DTO 数据，不触发 API 计算。
+- 衰减系数选择器默认 0.5，只切换当前详情 DTO 中已按需生成的结果，不触发额外 API。
 - 计算分布卡片显示目标日、种子日、模型版本、衰减系数；不可用时显示原因，官方分布不被覆盖。
-- smoke seed 新增计算分布成功与不可用样例；Playwright smoke 覆盖官方 fallback、计算分布标签、系数切换和 canvas 渲染。
+- smoke seed 新增 60 日前 seed 与 60 日市场数据样例，不再写入预计算 `chip_model_levels`；Playwright smoke 覆盖官方 fallback、计算分布标签、系数切换和 canvas 渲染。
 - fixture 测试复放 `002565.SZ` 20260629 场景，证明 0.5 与 1.5 系数会产生不同峰值占比。
 
 ## 任务提交
@@ -96,4 +96,3 @@ completed: 2026-07-01
 ## 后续衔接
 
 Phase 12 的数据输入、模型、缓存 runner 和 UI 路径已经闭环。下一步可以执行里程碑收尾，或基于该模型继续规划新的需求。
-

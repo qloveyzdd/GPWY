@@ -31,9 +31,6 @@ import {
   runChipDistributionIntegrationFromLatestScreening,
   type ChipDistributionProgress,
 } from "@/lib/chip/chip-runner";
-import {
-  runCalculatedChipDistributionIntegrationFromLatestScreening,
-} from "@/lib/chip/chip-model-runner";
 import type { ChipDistributionRunRecord } from "@/lib/chip/chip-types";
 import { readLatestChipDistributionRun } from "@/lib/chip/chip-store";
 import { readTushareTokenSecret } from "@/lib/config";
@@ -252,9 +249,7 @@ async function finishRefreshJob(
 async function runDefaultChipBackgroundWorkflow(
   options: Parameters<ChipDistributionWorkflowRunner>[0],
 ) {
-  await runChipDistributionIntegrationFromLatestScreening(options);
-
-  return runCalculatedChipDistributionIntegrationFromLatestScreening(options);
+  return runChipDistributionIntegrationFromLatestScreening(options);
 }
 
 function chipStageStatus(run: ChipDistributionRunRecord) {
