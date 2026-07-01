@@ -346,6 +346,146 @@ describe("market data reader", () => {
     ]);
   });
 
+  it("fills suspended intermediate chip model dates as zero-turnover bars", () => {
+    useTempMarketStore();
+    const generation = createActiveGeneration();
+
+    upsertMarketDailyQuotes(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        open: 10,
+        high: 12,
+        low: 8,
+        close: 11,
+        vol: 1000,
+        amount: 1100,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260003",
+        open: 12,
+        high: 14,
+        low: 10,
+        close: 13,
+        vol: 1200,
+        amount: 1440,
+      },
+    ]);
+    upsertMarketAdjustmentFactors(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        adjFactor: 1,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260002",
+        adjFactor: 1,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260003",
+        adjFactor: 1,
+      },
+    ]);
+    upsertMarketDailyBasics(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        turnoverRate: 2.3,
+        turnoverRateFreeFloat: 1.7,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260003",
+        turnoverRate: 2.4,
+        turnoverRateFreeFloat: null,
+      },
+    ]);
+
+    expect(
+      readAdjustedChipModelBarsForStock({
+        generationId: generation.id,
+        tsCode: "000001.SZ",
+        startTradeDate: "20260001",
+        endTradeDate: "20260003",
+        expectedTradeDates: ["20260001", "20260002", "20260003"],
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        tradeDate: "20260001",
+        close: 11,
+        turnoverRate: 1.7,
+      }),
+      expect.objectContaining({
+        tradeDate: "20260002",
+        open: 11,
+        high: 11,
+        low: 11,
+        close: 11,
+        vol: 0,
+        amount: null,
+        averagePrice: 11,
+        turnoverRate: 0,
+        adjFactor: 1,
+      }),
+      expect.objectContaining({
+        tradeDate: "20260003",
+        close: 13,
+        turnoverRate: 2.4,
+      }),
+    ]);
+  });
+
+  it("does not fill a suspended target date for chip model bars", () => {
+    useTempMarketStore();
+    const generation = createActiveGeneration();
+
+    upsertMarketDailyQuotes(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        open: 10,
+        high: 12,
+        low: 8,
+        close: 11,
+        vol: 1000,
+        amount: 1100,
+      },
+    ]);
+    upsertMarketAdjustmentFactors(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        adjFactor: 1,
+      },
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260002",
+        adjFactor: 1,
+      },
+    ]);
+    upsertMarketDailyBasics(generation.id, [
+      {
+        tsCode: "000001.SZ",
+        tradeDate: "20260001",
+        turnoverRate: 2.3,
+        turnoverRateFreeFloat: 1.7,
+      },
+    ]);
+
+    expect(() =>
+      readAdjustedChipModelBarsForStock({
+        generationId: generation.id,
+        tsCode: "000001.SZ",
+        startTradeDate: "20260001",
+        endTradeDate: "20260002",
+        expectedTradeDates: ["20260001", "20260002"],
+      }),
+    ).toThrow("missing_daily_quote");
+  });
+
   it("blocks chip model bars when turnover or adjustment factor is missing", () => {
     useTempMarketStore();
     const generation = createActiveGeneration();

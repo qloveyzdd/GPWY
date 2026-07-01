@@ -186,11 +186,13 @@ export function readAdjustedChipModelBarsForStock({
   tsCode,
   startTradeDate,
   endTradeDate,
+  expectedTradeDates,
 }: {
   generationId: number;
   tsCode: string;
   startTradeDate: string;
   endTradeDate: string;
+  expectedTradeDates?: string[];
 }): ChipModelDailyBar[] {
   const resolvedGenerationId = resolveGenerationId(generationId);
   const quotes = readMarketDailyQuotes(resolvedGenerationId)
@@ -222,7 +224,7 @@ export function readAdjustedChipModelBarsForStock({
     throw new Error("missing_adjustment_factor");
   }
 
-  return quotes.map((quote) => {
+  const realBars = quotes.map((quote) => {
     const factor = factors.get(adjustmentFactorKey(tsCode, quote.tradeDate));
 
     if (factor === undefined || factor <= 0) {
@@ -250,6 +252,55 @@ export function readAdjustedChipModelBarsForStock({
       amount: quote.amount ?? null,
       averagePrice: unadjustedAveragePrice(quote) * ratio,
       turnoverRate,
+      adjFactor: factor,
+    };
+  });
+  const realBarsByTradeDate = new Map(
+    realBars.map((bar) => [bar.tradeDate, bar] as const),
+  );
+  const modelTradeDates =
+    expectedTradeDates === undefined
+      ? realBars.map((bar) => bar.tradeDate)
+      : Array.from(new Set(expectedTradeDates))
+          .filter((tradeDate) =>
+            tradeDateInRange(tradeDate, startTradeDate, endTradeDate),
+          )
+          .sort((left, right) => left.localeCompare(right));
+  let lastClose = realBars[0]?.close ?? null;
+
+  return modelTradeDates.map((tradeDate) => {
+    const realBar = realBarsByTradeDate.get(tradeDate);
+
+    if (realBar !== undefined) {
+      lastClose = realBar.close;
+      return realBar;
+    }
+
+    const factor = factors.get(adjustmentFactorKey(tsCode, tradeDate));
+
+    if (factor === undefined || factor <= 0) {
+      throw new Error("missing_adjustment_factor");
+    }
+
+    const close = lastClose ?? realBars[0]?.close;
+
+    if (close === undefined || !Number.isFinite(close)) {
+      throw new Error("missing_daily_quote");
+    }
+
+    lastClose = close;
+
+    return {
+      tsCode,
+      tradeDate,
+      open: close,
+      high: close,
+      low: close,
+      close,
+      vol: 0,
+      amount: null,
+      averagePrice: close,
+      turnoverRate: 0,
       adjFactor: factor,
     };
   });

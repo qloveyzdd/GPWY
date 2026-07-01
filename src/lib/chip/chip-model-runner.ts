@@ -624,6 +624,7 @@ async function calculateTarget({
       tsCode: target.tsCode,
       startTradeDate,
       endTradeDate: target.targetTradeDate,
+      expectedTradeDates: seed.expectedTradeDates,
     });
   } catch (error) {
     const reason = reasonFromReaderError(error);
@@ -776,6 +777,7 @@ export async function calculateChipDistributionOnDemand({
       tsCode,
       startTradeDate,
       endTradeDate: targetTradeDate,
+      expectedTradeDates: seed.expectedTradeDates,
     });
   } catch (error) {
     const reason = reasonFromReaderError(error);
