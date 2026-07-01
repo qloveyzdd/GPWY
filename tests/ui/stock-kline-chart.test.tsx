@@ -318,13 +318,13 @@ describe("StockKlineChart", () => {
 
     render(<StockKlineChart tsCode="000001.SZ" />);
 
-    expect(await screen.findByText("前一有效交易日 20260622")).toBeTruthy();
-    expect(screen.getByText("最新有效交易日 20260623")).toBeTruthy();
+    expect(await screen.findAllByText("前一有效交易日 20260622")).toHaveLength(2);
+    expect(screen.getAllByText("最新有效交易日 20260623")).toHaveLength(2);
     expect(screen.getByText("最大占比 35.90 / 5.50%")).toBeTruthy();
     expect(screen.getByText("最大占比 36.20 / 6.50%")).toBeTruthy();
 
     await waitFor(() => {
-      expect(barOptions()).toHaveLength(2);
+      expect(barOptions()).toHaveLength(4);
     });
 
     const [previousOption, latestOption] = barOptions();
@@ -351,7 +351,7 @@ describe("StockKlineChart", () => {
       coord: [6.5, "36.20"],
       value: 6.5,
     });
-    expect(initMock).toHaveBeenCalledTimes(3);
+    expect(initMock).toHaveBeenCalledTimes(5);
   });
 
   it("renders calculated distribution with fixed coefficient selector and switches local chart data", async () => {
@@ -363,12 +363,12 @@ describe("StockKlineChart", () => {
 
     expect(await screen.findByText("计算分布")).toBeTruthy();
     expect(screen.getByText("模型输出，不等同官方 cyq_chips")).toBeTruthy();
-    expect(screen.getByText("目标日 20260623")).toBeTruthy();
-    expect(screen.getByText("种子日 20260402")).toBeTruthy();
+    expect(screen.getByText(/目标日 20260623/)).toBeTruthy();
+    expect(screen.getByText(/种子日 20260402/)).toBeTruthy();
     expect(screen.getByText("模型 decay-triangle-v1")).toBeTruthy();
 
     const selector = screen.getByLabelText("衰减系数");
-    expect(selector).toHaveValue("0.5");
+    expect((selector as HTMLSelectElement).value).toBe("0.5");
     expect(
       Array.from((selector as HTMLSelectElement).options).map(
         (option) => option.value,
@@ -411,8 +411,8 @@ describe("StockKlineChart", () => {
 
     render(<StockKlineChart tsCode="000001.SZ" />);
 
-    expect(await screen.findByText("前一有效交易日 20260622")).toBeTruthy();
-    expect(screen.getByText("最新有效交易日 20260623")).toBeTruthy();
+    expect(await screen.findAllByText("前一有效交易日 20260622")).toHaveLength(2);
+    expect(screen.getAllByText("最新有效交易日 20260623")).toHaveLength(2);
     expect(screen.getByText("阻塞")).toBeTruthy();
     expect(screen.getByText("permission_denied")).toBeTruthy();
     expect(screen.queryByText(/TUSHARE_TOKEN/)).toBeNull();
@@ -421,10 +421,10 @@ describe("StockKlineChart", () => {
     expect(screen.queryByText(/C:\\secret/)).toBeNull();
 
     await waitFor(() => {
-      expect(barOptions()).toHaveLength(1);
+      expect(barOptions()).toHaveLength(3);
     });
 
-    expect(initMock).toHaveBeenCalledTimes(2);
+    expect(initMock).toHaveBeenCalledTimes(4);
     expect(barOptions()[0]?.series?.[0]?.data).toEqual([0, 5.5, 0, 4.4, 0]);
   });
 
@@ -456,16 +456,15 @@ describe("StockKlineChart", () => {
 
     expect(await screen.findByText("000001.SZ 平安银行")).toBeTruthy();
     expect(screen.getByText("前一有效交易日 20260059")).toBeTruthy();
-    expect(screen.getByText("最新有效交易日 20260623")).toBeTruthy();
+    expect(screen.getAllByText("最新有效交易日 20260623")).toHaveLength(2);
     expect(screen.getByText("缺少数据")).toBeTruthy();
     expect(screen.getAllByText("阻塞")).toHaveLength(1);
 
     await waitFor(() => {
-      expect(klineOption()).toBeTruthy();
+      expect(barOptions()).toHaveLength(2);
     });
 
-    expect(barOptions()).toHaveLength(0);
-    expect(initMock).toHaveBeenCalledTimes(1);
+    expect(initMock).toHaveBeenCalledTimes(3);
   });
 
   it("renders missing previous distribution as a neutral empty state", async () => {
@@ -495,13 +494,13 @@ describe("StockKlineChart", () => {
     expect(screen.getByText("缺少数据")).toBeTruthy();
     expect(screen.getByText("正常空状态")).toBeTruthy();
     expect(screen.getByText("previous_trade_date_missing")).toBeTruthy();
-    expect(screen.getByText("最新有效交易日 20260623")).toBeTruthy();
+    expect(screen.getAllByText("最新有效交易日 20260623")).toHaveLength(2);
 
     await waitFor(() => {
-      expect(barOptions()).toHaveLength(1);
+      expect(barOptions()).toHaveLength(3);
     });
 
-    expect(initMock).toHaveBeenCalledTimes(2);
+    expect(initMock).toHaveBeenCalledTimes(4);
     expect(barOptions()[0]?.series?.[0]?.data).toEqual([4.2, 0, 6.5, 0, 3.1]);
   });
 });

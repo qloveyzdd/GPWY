@@ -7,6 +7,8 @@ import { AlertTriangle, CandlestickChart, CircleSlash } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import type {
+  ChartCalculatedChipDistributionPanel,
+  ChartCalculatedChipDistributionSet,
   ChartChipDistributions,
   ChartChipDistributionPanel,
   ChartChipDistributionScale,
@@ -40,6 +42,11 @@ type MarkLineDataItem = {
 
 type ChipDistributionCardProps = {
   panel: ChartChipDistributionPanel;
+  scale: ChartChipDistributionScale;
+};
+
+type CalculatedChipDistributionCardProps = {
+  panel: ChartCalculatedChipDistributionPanel;
   scale: ChartChipDistributionScale;
 };
 
@@ -147,6 +154,19 @@ function resolveChipDistributions(
         maxPercent: 0,
       },
   };
+}
+
+function resolveCalculatedChipDistributionSet(
+  snapshot: ReadyChartSnapshot,
+  selectedCoefficient: string,
+): ChartCalculatedChipDistributionSet | null {
+  const calculated = snapshot.calculatedChipDistributions;
+
+  return (
+    calculated.byCoefficient[selectedCoefficient] ??
+    calculated.byCoefficient[String(calculated.defaultDecayCoefficient)] ??
+    null
+  );
 }
 
 function mapDistributionSeries(
@@ -326,6 +346,21 @@ function buildDistributionOptions(
   };
 }
 
+function calculatedPanelToChartPanel(
+  panel: ChartCalculatedChipDistributionPanel,
+): ChartChipDistributionPanel {
+  return {
+    targetKind: panel.targetKind,
+    label: panel.label,
+    tradeDate: panel.targetTradeDate,
+    status: panel.status,
+    levels: panel.levels,
+    maxLevel: panel.maxLevel,
+    errorCategory: panel.errorCategory,
+    errorSummary: panel.errorSummary,
+  };
+}
+
 function ChipDistributionCard({
   panel,
   scale,
@@ -459,10 +494,136 @@ function ChipDistributionCard({
   );
 }
 
+function CalculatedChipDistributionCard({
+  panel,
+  scale,
+}: CalculatedChipDistributionCardProps) {
+  const chartElementRef = useRef<HTMLDivElement | null>(null);
+  const chartInstanceRef = useRef<echarts.ECharts | null>(null);
+  const chartPanel = calculatedPanelToChartPanel(panel);
+  const isReady =
+    panel.status === "succeeded" &&
+    panel.levels.length > 0 &&
+    scale.priceLevels.length > 0;
+  const chartOptions = useMemo(
+    () => (isReady ? buildDistributionOptions(chartPanel, scale) : {}),
+    [chartPanel, isReady, scale],
+  );
+
+  useEffect(() => {
+    if (isReady) {
+      return;
+    }
+
+    chartInstanceRef.current?.dispose();
+    chartInstanceRef.current = null;
+  }, [isReady]);
+
+  useEffect(() => {
+    if (!chartElementRef.current || !isReady) {
+      return;
+    }
+
+    const chart =
+      chartInstanceRef.current ?? echarts.init(chartElementRef.current);
+    chartInstanceRef.current = chart;
+    chart.setOption(chartOptions, true);
+
+    function handleResize() {
+      chart.resize();
+    }
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [chartOptions, isReady]);
+
+  useEffect(() => {
+    return () => {
+      chartInstanceRef.current?.dispose();
+      chartInstanceRef.current = null;
+    };
+  }, []);
+
+  const targetDateText = panel.targetTradeDate ?? "未确定交易日";
+  const seedDateText = panel.seedTradeDate ?? "未确定种子日";
+
+  if (!isReady) {
+    const summary =
+      sanitizeUnavailableSummary(panel.errorSummary) ??
+      panel.unavailableReason ??
+      "该计算分布暂不可用。";
+
+    return (
+      <section className="flex min-h-[320px] flex-col rounded-lg border border-[#F59E0B]/40 bg-[#FEF3C7]/30 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="text-[15px] font-semibold leading-[1.4]">
+              {panel.label} {targetDateText}
+            </h4>
+            <p className="mt-1 text-[13px] leading-[1.4] text-muted-foreground">
+              目标日 {targetDateText} · 种子日 {seedDateText}
+            </p>
+          </div>
+          <Badge variant="secondary">
+            {distributionStatusLabels[panel.status]}
+          </Badge>
+        </div>
+        <div className="mt-6 flex flex-1 items-center justify-center text-center">
+          <div className="max-w-[320px]">
+            <AlertTriangle className="mx-auto size-6 text-[#B45309]" />
+            {panel.unavailableReason ? (
+              <p className="mt-3 text-[13px] font-medium leading-[1.4] text-foreground">
+                {panel.unavailableReason}
+              </p>
+            ) : null}
+            <p className="mt-2 text-[13px] leading-[1.5] text-muted-foreground">
+              {summary}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="min-h-[320px] rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h4 className="text-[15px] font-semibold leading-[1.4]">
+            {panel.label} {targetDateText}
+          </h4>
+          <p className="mt-1 text-[13px] leading-[1.4] text-muted-foreground">
+            目标日 {targetDateText} · 种子日 {seedDateText}
+          </p>
+        </div>
+        {panel.maxLevel ? (
+          <Badge variant="secondary">
+            最大占比 {formatPrice(panel.maxLevel.price)} /{" "}
+            {formatDistributionPercent(panel.maxLevel.percent)}
+          </Badge>
+        ) : null}
+      </div>
+      <div
+        ref={chartElementRef}
+        role="img"
+        aria-label={`${panel.label} ${targetDateText} 计算分布图`}
+        className="h-[260px] min-h-[240px] w-full"
+      />
+    </section>
+  );
+}
+
 export function StockKlineChart({ tsCode }: StockKlineChartProps) {
   const chartElementRef = useRef<HTMLDivElement | null>(null);
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const [loadState, setLoadState] = useState<ChartLoadState>(initialLoadState);
+  const [selectedDecayCoefficient, setSelectedDecayCoefficient] = useState({
+    tsCode: null as string | null,
+    coefficient: "0.5",
+  });
   const isLoading = Boolean(tsCode && loadState.tsCode !== tsCode);
   const snapshot = tsCode === loadState.tsCode ? loadState.snapshot : null;
   const chartOptions = useMemo(
@@ -584,7 +745,24 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
     );
   }
 
+  const calculatedCoefficientOptions =
+    snapshot.calculatedChipDistributions.coefficients.map(String);
+  const defaultCalculatedCoefficient = String(
+    snapshot.calculatedChipDistributions.defaultDecayCoefficient,
+  );
+  const selectedCalculatedCoefficient =
+    selectedDecayCoefficient.tsCode === snapshot.row.tsCode
+      ? selectedDecayCoefficient.coefficient
+      : defaultCalculatedCoefficient;
+  const effectiveCalculatedCoefficient =
+    calculatedCoefficientOptions.includes(selectedCalculatedCoefficient)
+      ? selectedCalculatedCoefficient
+      : defaultCalculatedCoefficient;
   const chipDistributions = resolveChipDistributions(snapshot);
+  const calculatedSet = resolveCalculatedChipDistributionSet(
+    snapshot,
+    effectiveCalculatedCoefficient,
+  );
 
   return (
     <div className="rounded-lg border border-border bg-background p-4">
@@ -622,6 +800,59 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
           scale={chipDistributions.scale}
         />
       </div>
+      {calculatedSet ? (
+        <section className="mt-6 rounded-lg border border-border bg-muted/20 p-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-[16px] font-semibold leading-[1.4]">
+                计算分布
+              </h3>
+              <p className="mt-1 text-[13px] leading-[1.5] text-muted-foreground">
+                模型输出，不等同官方 cyq_chips
+              </p>
+              <p className="mt-1 text-[13px] leading-[1.5] text-muted-foreground">
+                模型 {calculatedSet.latest.modelVersion}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-[13px] font-medium" htmlFor="chip-decay-coefficient">
+                衰减系数
+              </label>
+              <select
+                id="chip-decay-coefficient"
+                aria-label="衰减系数"
+                className="h-8 rounded-md border border-border bg-background px-2 text-[13px]"
+                value={effectiveCalculatedCoefficient}
+                onChange={(event) =>
+                  setSelectedDecayCoefficient({
+                    tsCode: snapshot.row.tsCode,
+                    coefficient: event.currentTarget.value,
+                  })
+                }
+              >
+                {calculatedCoefficientOptions.map((coefficient) => (
+                  <option key={coefficient} value={coefficient}>
+                    {coefficient}
+                  </option>
+                ))}
+              </select>
+              <Badge variant="outline">
+                衰减系数 {effectiveCalculatedCoefficient}
+              </Badge>
+            </div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CalculatedChipDistributionCard
+              panel={calculatedSet.previous}
+              scale={calculatedSet.scale}
+            />
+            <CalculatedChipDistributionCard
+              panel={calculatedSet.latest}
+              scale={calculatedSet.scale}
+            />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
