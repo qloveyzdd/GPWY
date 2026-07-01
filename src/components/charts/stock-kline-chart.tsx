@@ -10,6 +10,7 @@ import type {
   ChartCalculatedChipDistributionPanel,
   ChartCalculatedChipDistributionSet,
   ChartChipDistributions,
+  ChartChipDistributionLevel,
   ChartChipDistributionPanel,
   ChartChipDistributionScale,
   ChartChipDistributionTargetKind,
@@ -56,6 +57,13 @@ const initialLoadState: ChartLoadState = {
   failed: false,
 };
 
+const visibleChipDistributionBarCount = 90;
+
+type VisiblePriceRange = {
+  min: number;
+  max: number;
+};
+
 const distributionStatusLabels: Record<
   ChartChipDistributionPanel["status"],
   string
@@ -80,6 +88,122 @@ function formatDistributionPercent(value: number) {
 
 function formatAxisPercent(value: string | number) {
   return formatDistributionPercent(Number(value));
+}
+
+function visiblePriceRangeFromBars(
+  bars: ReadyChartSnapshot["bars"],
+): VisiblePriceRange | null {
+  const visibleBars = bars.slice(-visibleChipDistributionBarCount);
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+
+  for (const bar of visibleBars) {
+    const low = Math.min(bar.low, bar.high);
+    const high = Math.max(bar.low, bar.high);
+
+    if (Number.isFinite(low)) {
+      min = Math.min(min, low);
+    }
+
+    if (Number.isFinite(high)) {
+      max = Math.max(max, high);
+    }
+  }
+
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min > max) {
+    return null;
+  }
+
+  return { min, max };
+}
+
+function isLevelInVisibleRange(
+  level: ChartChipDistributionLevel,
+  range: VisiblePriceRange | null,
+) {
+  return range === null || (level.price >= range.min && level.price <= range.max);
+}
+
+function maxDistributionLevel(levels: ChartChipDistributionLevel[]) {
+  return [...levels].sort((left, right) => {
+    const percentDiff = right.percent - left.percent;
+
+    if (percentDiff !== 0) {
+      return percentDiff;
+    }
+
+    return left.price - right.price;
+  })[0] ?? null;
+}
+
+function displayPanelInVisibleRange<T extends ChartChipDistributionPanel | ChartCalculatedChipDistributionPanel>(
+  panel: T,
+  range: VisiblePriceRange | null,
+): T {
+  if (panel.status !== "succeeded" || range === null) {
+    return panel;
+  }
+
+  const levels = panel.levels.filter((level) =>
+    isLevelInVisibleRange(level, range),
+  );
+
+  return {
+    ...panel,
+    levels,
+    maxLevel: maxDistributionLevel(levels),
+  };
+}
+
+function buildVisibleDistributionScale(
+  panels: Array<ChartChipDistributionPanel | ChartCalculatedChipDistributionPanel>,
+): ChartChipDistributionScale {
+  const successfulLevels = panels
+    .filter((panel) => panel.status === "succeeded")
+    .flatMap((panel) => panel.levels);
+  const priceLevels = Array.from(
+    new Set(successfulLevels.map((level) => level.price)),
+  ).sort((left, right) => left - right);
+  const maxPercent = successfulLevels.reduce(
+    (max, level) => Math.max(max, level.percent),
+    0,
+  );
+
+  return {
+    priceLevels,
+    maxPercent,
+  };
+}
+
+function displayChipDistributionsInVisibleRange(
+  distributions: ChartChipDistributions,
+  bars: ReadyChartSnapshot["bars"],
+): ChartChipDistributions {
+  const range = visiblePriceRangeFromBars(bars);
+  const previous = displayPanelInVisibleRange(distributions.previous, range);
+  const latest = displayPanelInVisibleRange(distributions.latest, range);
+
+  return {
+    previous,
+    latest,
+    scale: buildVisibleDistributionScale([previous, latest]),
+  };
+}
+
+function displayCalculatedSetInVisibleRange(
+  set: ChartCalculatedChipDistributionSet,
+  bars: ReadyChartSnapshot["bars"],
+): ChartCalculatedChipDistributionSet {
+  const range = visiblePriceRangeFromBars(bars);
+  const previous = displayPanelInVisibleRange(set.previous, range);
+  const latest = displayPanelInVisibleRange(set.latest, range);
+
+  return {
+    ...set,
+    previous,
+    latest,
+    scale: buildVisibleDistributionScale([previous, latest]),
+  };
 }
 
 function sanitizeUnavailableSummary(summary: string | null) {
@@ -762,11 +886,17 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
     calculatedCoefficientOptions.includes(selectedCalculatedCoefficient)
       ? selectedCalculatedCoefficient
       : defaultCalculatedCoefficient;
-  const chipDistributions = resolveChipDistributions(snapshot);
+  const chipDistributions = displayChipDistributionsInVisibleRange(
+    resolveChipDistributions(snapshot),
+    snapshot.bars,
+  );
   const calculatedSet = resolveCalculatedChipDistributionSet(
     snapshot,
     effectiveCalculatedCoefficient,
   );
+  const displayCalculatedSet = calculatedSet
+    ? displayCalculatedSetInVisibleRange(calculatedSet, snapshot.bars)
+    : null;
 
   return (
     <div className="rounded-lg border border-border bg-background p-4">
@@ -804,7 +934,7 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
           scale={chipDistributions.scale}
         />
       </div>
-      {calculatedSet ? (
+      {displayCalculatedSet ? (
         <section className="mt-6 rounded-lg border border-border bg-muted/20 p-4">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -815,7 +945,7 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
                 模型输出，不等同官方 cyq_chips
               </p>
               <p className="mt-1 text-[13px] leading-[1.5] text-muted-foreground">
-                模型 {calculatedSet.latest.modelVersion}
+                模型 {displayCalculatedSet.latest.modelVersion}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -847,12 +977,12 @@ export function StockKlineChart({ tsCode }: StockKlineChartProps) {
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <CalculatedChipDistributionCard
-              panel={calculatedSet.previous}
-              scale={calculatedSet.scale}
+              panel={displayCalculatedSet.previous}
+              scale={displayCalculatedSet.scale}
             />
             <CalculatedChipDistributionCard
-              panel={calculatedSet.latest}
-              scale={calculatedSet.scale}
+              panel={displayCalculatedSet.latest}
+              scale={displayCalculatedSet.scale}
             />
           </div>
         </section>

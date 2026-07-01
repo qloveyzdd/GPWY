@@ -98,7 +98,7 @@ function readySnapshot(
       tradeDate: `2026${String(index + 1).padStart(4, "0")}`,
       open: 100 - index + 0.5,
       high: 100 - index + 1,
-      low: 100 - index - 1,
+      low: 100 - index - 20,
       close: 100 - index,
       vol: 1000 + index,
     })),
@@ -354,6 +354,75 @@ describe("StockKlineChart", () => {
     expect(initMock).toHaveBeenCalledTimes(5);
   });
 
+  it("limits distribution charts to the recent 90-bar price range", async () => {
+    const base = readySnapshot();
+    const snapshot = readySnapshot({
+      bars: Array.from({ length: 100 }, (_, index) => {
+        const isOutsideVisibleWindow = index < 10;
+
+        return {
+          tradeDate: `2026${String(index + 1).padStart(4, "0")}`,
+          open: isOutsideVisibleWindow ? 180 : 35,
+          high: isOutsideVisibleWindow ? 210 : 50,
+          low: isOutsideVisibleWindow ? 150 : 20,
+          close: isOutsideVisibleWindow ? 175 : 34,
+          vol: 1000 + index,
+        };
+      }),
+      chipDistributions: {
+        ...base.chipDistributions,
+        previous: {
+          ...base.chipDistributions.previous,
+          levels: [
+            { price: 10, percent: 99 },
+            { price: 30, percent: 4 },
+          ],
+          maxLevel: { price: 10, percent: 99 },
+        },
+        latest: {
+          ...base.chipDistributions.latest,
+          levels: [
+            { price: 30, percent: 5 },
+            { price: 60, percent: 88 },
+          ],
+          maxLevel: { price: 60, percent: 88 },
+        },
+        scale: {
+          priceLevels: [10, 30, 60],
+          maxPercent: 99,
+        },
+      },
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify(snapshot), { status: 200 }),
+    );
+
+    render(<StockKlineChart tsCode="000001.SZ" />);
+
+    expect(await screen.findByRole("img", { name: "000001.SZ K线图" })).toBeTruthy();
+
+    await waitFor(() => {
+      expect(barOptions()).toHaveLength(4);
+    });
+
+    const [previousOption, latestOption] = barOptions();
+
+    expect(previousOption?.xAxis?.max).toBe(5);
+    expect(latestOption?.xAxis?.max).toBe(5);
+    expect(previousOption?.yAxis?.data).toEqual(["30.00"]);
+    expect(latestOption?.yAxis?.data).toEqual(["30.00"]);
+    expect(previousOption?.series?.[0]?.data).toEqual([4]);
+    expect(latestOption?.series?.[0]?.data).toEqual([5]);
+    expect(previousOption?.series?.[0]?.markPoint?.data?.[0]).toMatchObject({
+      coord: [4, "30.00"],
+      value: 4,
+    });
+    expect(latestOption?.series?.[0]?.markPoint?.data?.[0]).toMatchObject({
+      coord: [5, "30.00"],
+      value: 5,
+    });
+  });
+
   it("renders calculated distribution with fixed coefficient selector and switches local chart data", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify(readySnapshot()), { status: 200 }),
@@ -425,7 +494,7 @@ describe("StockKlineChart", () => {
     });
 
     expect(initMock).toHaveBeenCalledTimes(4);
-    expect(barOptions()[0]?.series?.[0]?.data).toEqual([0, 5.5, 0, 4.4, 0]);
+    expect(barOptions()[0]?.series?.[0]?.data).toEqual([5.5, 4.4]);
   });
 
   it("falls back to an unavailable latest card when the chart DTO omits that panel", async () => {
@@ -501,6 +570,6 @@ describe("StockKlineChart", () => {
     });
 
     expect(initMock).toHaveBeenCalledTimes(4);
-    expect(barOptions()[0]?.series?.[0]?.data).toEqual([4.2, 0, 6.5, 0, 3.1]);
+    expect(barOptions()[0]?.series?.[0]?.data).toEqual([4.2, 6.5, 3.1]);
   });
 });
