@@ -39,6 +39,12 @@ export type ChipDecayModelBar = {
   turnoverRate: number | null;
 };
 
+export type ApplyChipDecayDayInput = {
+  levels: ChipCalculatedDistributionLevel[];
+  bar: ChipDecayModelBar;
+  decayCoefficient: ChipDecayCoefficient;
+};
+
 export type ChipModelUnavailableReason =
   | "missing_seed_distribution"
   | "missing_trade_data"
